@@ -811,6 +811,31 @@ class SwarmClient {
             }
         }
         
+        // Dynamically position the Inspector Panel to hover over the selected node
+        if (this.selectedNodeId) {
+            const selected = this.nodes.find(n => n.id === this.selectedNodeId);
+            const panel = document.getElementById('inspector-panel');
+            if (selected && panel && panel.style.display !== 'none') {
+                const screenX = selected.x * this.zoom + this.panX;
+                const screenY = selected.y * this.zoom + this.panY;
+                
+                // Keep it on screen
+                const panelWidth = 350;
+                const panelHeight = panel.offsetHeight || 300;
+                
+                let posX = screenX + 60;
+                let posY = screenY - (panelHeight / 2);
+                
+                // Prevent overflowing off the right edge
+                if (posX + panelWidth > this.canvas.width) {
+                    posX = screenX - panelWidth - 60;
+                }
+                
+                panel.style.left = `${posX}px`;
+                panel.style.top = `${posY}px`;
+            }
+        }
+
         ctx.restore();
     }
 

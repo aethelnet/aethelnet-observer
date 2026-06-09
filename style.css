@@ -144,8 +144,8 @@ hr { border: none; border-top: 2px solid var(--text-color); margin: 5px 0; }
 
 /* Inspector Panel */
 .floating-inspector {
-    top: 70px; right: 20px;
     width: 350px; z-index: 400;
+    transition: opacity 0.2s;
 }
 .meta-row { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.8rem; margin-bottom: 1rem; }
 
