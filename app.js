@@ -846,6 +846,12 @@ class SwarmClient {
         ctx.translate(this.panX, this.panY);
         ctx.scale(this.zoom, this.zoom);
         
+        // Calculate viewport bounds for Off-screen Culling (X220 Performance)
+        const vLeft = -this.panX / this.zoom;
+        const vRight = (this.canvas.width - this.panX) / this.zoom;
+        const vTop = -this.panY / this.zoom;
+        const vBottom = (this.canvas.height - this.panY) / this.zoom;
+        
         const nodeLookup = new Map(this.nodes.map(n => [n.id, n]));
         
         // 1. Draw Links
@@ -945,6 +951,11 @@ class SwarmClient {
             // Radius scales slightly with zoom but not 1:1
             const r = Math.max(0.1, rawR / Math.pow(this.zoom, 0.6)); 
             
+            // Off-screen Culling (Massive performance boost when zoomed in)
+            if (n.x + r < vLeft || n.x - r > vRight || n.y + r < vTop || n.y - r > vBottom) {
+                continue;
+            }
+            
             // Dim nodes that are not part of the active constellation
             const isFocused = !this.selectedNodeId || n.id === this.selectedNodeId || 
                               this.links.some(l => (l.source === n.id && l.target === this.selectedNodeId) || 
@@ -1038,8 +1049,13 @@ class SwarmClient {
                 ctx.restore();
                 
             } else if (this.zoom > 0.8 && isFocused) {
+                // X220 Performance Safeguard: Text rendering is incredibly slow.
+                // If FPS is bad, don't draw text labels for unimportant nodes unless zoomed in very close!
+                if (this.perfScale < 0.8 && this.zoom < 2.5 && !n.is_leader && (n.centrality || 0) < 0.8) {
+                    continue; 
+                }
+
                 // Minimalistic text label (default view)
-                ctx.shadowBlur = 0;
                 ctx.fillStyle = "#1A1A1A"; // Dark text for Light Mode
                 const fontSize = Math.min(12, Math.max(6, (r * 0.4))) / this.zoom;
                 ctx.font = `bold ${fontSize}px 'Inter', sans-serif`;
