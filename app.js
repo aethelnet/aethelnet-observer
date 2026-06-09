@@ -331,17 +331,17 @@ class SwarmClient {
         if (!this.avgFps) this.avgFps = currentFps;
         this.avgFps = this.avgFps * 0.9 + currentFps * 0.1;
         
-        // Auto-scale performance if FPS drops below 40 or is stable above 50
-        if (this.avgFps < 40) {
+        // Auto-scale performance if FPS drops below 20 or is stable above 30
+        if (this.avgFps < 20) {
             this.perfScale = Math.max(0.1, this.perfScale - 0.05);
-        } else if (this.avgFps > 50) {
+        } else if (this.avgFps > 30) {
             this.perfScale = Math.min(1.0, this.perfScale + 0.01);
         }
         
         const fpsCounter = document.getElementById('fps-counter');
         if (fpsCounter) {
             fpsCounter.textContent = `${Math.round(this.avgFps)} FPS [LOD: ${(this.perfScale*100).toFixed(0)}%]`;
-            fpsCounter.style.color = this.avgFps < 30 ? '#E03C31' : (this.avgFps < 50 ? '#F2C12E' : 'var(--accent-blue)');
+            fpsCounter.style.color = this.avgFps < 15 ? '#E03C31' : (this.avgFps < 25 ? '#F2C12E' : 'var(--accent-blue)');
         }
 
         this.physicsUpdate();
@@ -860,7 +860,7 @@ class SwarmClient {
             // Smooth LOD for bridges with Performance Hardware Scaling
             let lodAlpha = 1.0;
             if (!isConnectedToSelected) {
-                const perfPenalty = (1.0 - (this.perfScale || 1.0)) * 5.0;
+                const perfPenalty = (1.0 - (this.perfScale || 1.0)) * 2.0;
                 
                 let a1 = 1.0;
                 if (!n1.is_leader) {
@@ -923,7 +923,7 @@ class SwarmClient {
             let lodAlpha = 1.0;
             
             if (!isSelected && !n.is_leader) {
-                const perfPenalty = (1.0 - (this.perfScale || 1.0)) * 5.0;
+                const perfPenalty = (1.0 - (this.perfScale || 1.0)) * 2.0;
                 const fadeStartZoom = 0.8 - (n.centrality || 0) * 0.7 + perfPenalty;
                 
                 if (this.zoom < fadeStartZoom) {
