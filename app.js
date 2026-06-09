@@ -324,12 +324,12 @@ class SwarmClient {
         const timeScale = this.selectedNodeId ? 0.02 : 1.0;
         
         // 1. Semantic Boids Swarm Logic
-        const separationDist = 100; // Optimized for performance
-        const cohesionWeight = 0.002 * timeScale;
-        const alignmentWeight = 0.05 * timeScale;
-        const separationWeight = 800 * timeScale;
+        const separationDist = 250; // Increased to spread them out
+        const cohesionWeight = 0.001 * timeScale;
+        const alignmentWeight = 0.02 * timeScale;
+        const separationWeight = 2500 * timeScale; // Stronger push away from non-neighbors
         const maxSpeed = 8.0 * timeScale;
-        const centerGravity = 0.0001 * timeScale;
+        const centerGravity = 0.00002 * timeScale; // Barely any global gravity, let topology dictate structure
         
         const nodeLookup = new Map(this.nodes.map(n => [n.id, n]));
         
@@ -372,12 +372,19 @@ class SwarmClient {
                 const other = this.nodes[j];
                 const dx = n.x - other.x;
                 const dy = n.y - other.y;
-                if (Math.abs(dx) > separationDist || Math.abs(dy) > separationDist) continue;
+                
+                // Topology-aware spacing: allow neighbors to get closer
+                const isNeighbor = nbrs.some(nbr => nbr.id === other.id);
+                const actualSepDist = isNeighbor ? 60 : separationDist;
+                
+                if (Math.abs(dx) > actualSepDist || Math.abs(dy) > actualSepDist) continue;
                 
                 const dist = Math.sqrt(dx * dx + dy * dy) || 1.0;
-                if (dist < separationDist) {
-                    separationFx += (dx / dist) * (separationWeight / dist);
-                    separationFy += (dy / dist) * (separationWeight / dist);
+                if (dist < actualSepDist) {
+                    // Stronger repulsion for strangers to force clustering
+                    const weight = isNeighbor ? separationWeight * 0.2 : separationWeight;
+                    separationFx += (dx / dist) * (weight / dist);
+                    separationFy += (dy / dist) * (weight / dist);
                 }
             }
             
