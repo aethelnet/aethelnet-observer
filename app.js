@@ -106,6 +106,20 @@ class SwarmClient {
             this.zoomOut();
         });
         
+        document.getElementById('btn-deploy-spider').addEventListener('click', () => {
+            if (this.selectedNodeId) {
+                this.deploySpider(this.selectedNodeId);
+            }
+        });
+        
+        document.getElementById('btn-fuse').addEventListener('click', () => {
+            if (this.selectedNodes && this.selectedNodes.size > 1) {
+                this.fuseNodes(Array.from(this.selectedNodes));
+            } else {
+                this.log("Hold SHIFT and click multiple nodes to fuse them.", "error");
+            }
+        });
+        
         window.addEventListener('resize', () => this.resizeCanvas());
         
         const tuner = document.getElementById('resonance-tuner');
@@ -532,12 +546,24 @@ class SwarmClient {
         
         if (e.button === 0 && clickedNode) {
             // Left click on node: Select/Inspect
-            this.inspectNode(clickedNode.id);
+            if (!this.selectedNodes) this.selectedNodes = new Set();
+            
+            if (e.shiftKey) {
+                this.selectedNodes.add(clickedNode.id);
+                this.selectedNodeId = clickedNode.id;
+                
+                const titleEl = document.getElementById('inspect-title');
+                if (titleEl) titleEl.textContent = `[ MULTI-SELECT: ${this.selectedNodes.size} Nodes ]`;
+            } else {
+                this.selectedNodes = new Set([clickedNode.id]);
+                this.inspectNode(clickedNode.id);
+            }
             // Smoothly auto-zoom in
             this.zoom = 2.0;
         } else if (e.button === 0 && !clickedNode) {
             // Deselect if left-clicking empty space
             this.selectedNodeId = null;
+            if (this.selectedNodes) this.selectedNodes.clear();
             const panel = document.getElementById('inspector-panel');
             if (panel) panel.style.display = 'none';
             
@@ -682,6 +708,49 @@ class SwarmClient {
         if (this.swarmHistory.length === 0) {
             const btnZoomOut = document.getElementById('btn-zoomout');
             if (btnZoomOut) btnZoomOut.style.display = 'none';
+        }
+    }
+
+    async deploySpider(nodeId) {
+        this.log(`Deploying Autonomous Spider to [${nodeId}]...`, 'info');
+        try {
+            const host = window.location.hostname;
+            await fetch(`http://${host || '127.0.0.1'}:8001/api/lgnn/universal_ingest`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    bot_name: "AethelSpider",
+                    observation: `SPIDER REPORT: Investigating node ${nodeId} for hidden connections and gossip.`,
+                    confidence: 0.8
+                })
+            });
+            this.log(`Spider deployed to orbit ring. Awaiting telemetry.`, 'success');
+        } catch (e) {
+            this.log(`Spider deployment failed: ${e.message}`, 'error');
+        }
+    }
+
+    async fuseNodes(nodeIds) {
+        if (nodeIds.length < 2) return;
+        this.log(`Fusing ${nodeIds.length} nodes into new synthesis...`, 'info');
+        const fusionName = `Fusion_${nodeIds[0].substring(0,8)}...`;
+        try {
+            const host = window.location.hostname;
+            await fetch(`http://${host || '127.0.0.1'}:8001/api/lgnn/universal_ingest`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    bot_name: "FusionEngine",
+                    observation: `FUSION PROTOCOL: Merged ${nodeIds.join(' + ')}. Synthesized new concept.`,
+                    confidence: 1.0
+                })
+            });
+            this.selectedNodes.clear();
+            this.selectedNodeId = null;
+            document.getElementById('inspector-panel').style.display = 'none';
+            this.log(`Fusion complete. Spawning new concept.`, 'success');
+        } catch (e) {
+            this.log(`Fusion failed: ${e.message}`, 'error');
         }
     }
 
