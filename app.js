@@ -299,73 +299,94 @@ class SwarmClient {
         const height = this.canvas.height;
         const center = { x: width / 2, y: height / 2 };
         
-        // 1. Force calculations (Decoupled from visual zoom for stability)
-        const kRepulsion = 40000;
-        const kAttraction = 0.0003; 
-        const kGravity = 0.0005;    
-        const damping = 0.85;      
+        // 1. Semantic Boids Swarm Logic
+        const separationDist = 200;
+        const cohesionWeight = 0.005;
+        const alignmentWeight = 0.05;
+        const separationWeight = 800;
+        const maxSpeed = 3.0;
+        const centerGravity = 0.0001;
         
-        // Repulsion between all nodes
+        const nodeLookup = new Map(this.nodes.map(n => [n.id, n]));
+        
+        // Pre-calculate neighbor data for Boids
+        const neighbors = new Map(this.nodes.map(n => [n.id, []]));
+        for (const link of this.links) {
+            if (neighbors.has(link.source)) neighbors.get(link.source).push({ id: link.target, weight: link.weight });
+            if (neighbors.has(link.target)) neighbors.get(link.target).push({ id: link.source, weight: link.weight });
+        }
+        
         for (let i = 0; i < this.nodes.length; i++) {
-            const n1 = this.nodes[i];
+            const n = this.nodes[i];
             
-            // Skip fully sleeping nodes (massive CPU optimization)
-            if (Math.abs(n1.vx) < 0.05 && Math.abs(n1.vy) < 0.05) continue;
+            let centerOfMassX = 0, centerOfMassY = 0;
+            let avgVx = 0, avgVy = 0;
+            let separationFx = 0, separationFy = 0;
+            let neighborCount = 0;
             
-            for (let j = i + 1; j < this.nodes.length; j++) {
-                const n2 = this.nodes[j];
-                const dx = n2.x - n1.x;
-                const dy = n2.y - n1.y;
+            const nbrs = neighbors.get(n.id) || [];
+            
+            // 1. Cohesion & Alignment (from topological links)
+            for (const nbrInfo of nbrs) {
+                const neighbor = nodeLookup.get(nbrInfo.id);
+                if (!neighbor) continue;
                 
-                // Fast bounding box check to avoid Math.sqrt for distant nodes
-                const repulsionRadius = 600;
-                if (Math.abs(dx) > repulsionRadius || Math.abs(dy) > repulsionRadius) continue;
+                // Cohesion (Center of Mass of linked concepts)
+                centerOfMassX += neighbor.x;
+                centerOfMassY += neighbor.y;
+                
+                // Alignment (Match velocity of linked concepts)
+                avgVx += neighbor.vx || 0;
+                avgVy += neighbor.vy || 0;
+                neighborCount++;
+            }
+            
+            // 2. Separation (from all nearby nodes to prevent clumping)
+            for (let j = 0; j < this.nodes.length; j++) {
+                if (i === j) continue;
+                const other = this.nodes[j];
+                const dx = n.x - other.x;
+                const dy = n.y - other.y;
+                if (Math.abs(dx) > separationDist || Math.abs(dy) > separationDist) continue;
                 
                 const dist = Math.sqrt(dx * dx + dy * dy) || 1.0;
-                
-                if (dist < repulsionRadius) {
-                    const force = kRepulsion / (dist * dist + 500);
-                    const fx = (dx / dist) * force;
-                    const fy = (dy / dist) * force;
-                    
-                    n1.vx -= fx;
-                    n1.vy -= fy;
-                    n2.vx += fx;
-                    n2.vy += fy;
+                if (dist < separationDist) {
+                    separationFx += (dx / dist) * (separationWeight / dist);
+                    separationFy += (dy / dist) * (separationWeight / dist);
                 }
             }
-        }
-        
-        // Attraction along links
-        const nodeLookup = new Map(this.nodes.map(n => [n.id, n]));
-        for (const link of this.links) {
-            const n1 = nodeLookup.get(link.source);
-            const n2 = nodeLookup.get(link.target);
-            if (!n1 || !n2) continue;
             
-            const dx = n2.x - n1.x;
-            const dy = n2.y - n1.y;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1.0;
+            // Apply Boids Rules
+            if (neighborCount > 0) {
+                centerOfMassX /= neighborCount;
+                centerOfMassY /= neighborCount;
+                avgVx /= neighborCount;
+                avgVy /= neighborCount;
+                
+                n.vx += (centerOfMassX - n.x) * cohesionWeight;
+                n.vy += (centerOfMassY - n.y) * cohesionWeight;
+                
+                n.vx += avgVx * alignmentWeight;
+                n.vy += avgVy * alignmentWeight;
+            }
             
-            const restLength = 150;
+            n.vx += separationFx;
+            n.vy += separationFy;
             
-            const force = kAttraction * (dist - restLength) * link.weight;
-            const fx = (dx / dist) * force;
-            const fy = (dy / dist) * force;
+            // Weak galaxy center gravity
+            n.vx += (center.x - n.x) * centerGravity;
+            n.vy += (center.y - n.y) * centerGravity;
             
-            n1.vx += fx;
-            n1.vy += fy;
-            n2.vx -= fx;
-            n2.vy -= fy;
-        }
-        
-        // Gravity pull to center and update positions
-        for (const n of this.nodes) {
-            n.vx += (center.x - n.x) * kGravity;
-            n.vy += (center.y - n.y) * kGravity;
-            
-            n.vx *= damping;
-            n.vy *= damping;
+            // Enforce minimum continuous movement (Nodes never fully sleep in a swarm)
+            const speed = Math.sqrt(n.vx * n.vx + n.vy * n.vy) || 1.0;
+            if (speed > maxSpeed) {
+                n.vx = (n.vx / speed) * maxSpeed;
+                n.vy = (n.vy / speed) * maxSpeed;
+            } else if (speed < 0.5) {
+                // Add a tiny random Brownian drift to keep the swarm alive
+                n.vx += (Math.random() - 0.5) * 0.2;
+                n.vy += (Math.random() - 0.5) * 0.2;
+            }
             
             n.x += n.vx;
             n.y += n.vy;
