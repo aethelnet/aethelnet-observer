@@ -87,6 +87,21 @@ class SwarmClient {
         
         window.addEventListener('resize', () => this.resizeCanvas());
         
+        const tuner = document.getElementById('resonance-tuner');
+        if (tuner) {
+            let debounceTimer;
+            tuner.addEventListener('input', (e) => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    const query = e.target.value.trim();
+                    if (this.socket && this.socket.readyState === WebSocket.OPEN && query.length > 0) {
+                        this.log(`Tuning resonance to: "${query}"`, 'info');
+                        this.socket.send(JSON.stringify({ type: 'tune_resonance', query: query }));
+                    }
+                }, 500); // 500ms debounce
+            });
+        }
+        
         // Start animation frame loop
         requestAnimationFrame(() => this.tick());
     }
@@ -215,7 +230,8 @@ class SwarmClient {
         const center = { x: width / 2, y: height / 2 };
         
         // 1. Force calculations with dynamic zoom scaling
-        const kRepulsion = 35000 * Math.max(0.5, Math.pow(this.zoom, 1.5));
+        // Scale repulsion exponentially with zoom so zooming in pushes nodes aggressively apart
+        const kRepulsion = 40000 * Math.max(0.5, Math.pow(this.zoom, 2.5));
         const kAttraction = 0.004; // Drastically reduced from 0.03 so nodes float more freely
         const kGravity = 0.006;    // Slightly reduced gravity to let them expand
         const damping = 0.85;      // Kept the same so they don't lose all momentum instantly
@@ -229,8 +245,8 @@ class SwarmClient {
                 const dy = n2.y - n1.y;
                 const dist = Math.sqrt(dx * dx + dy * dy) || 1.0;
                 
-                // Repulsion radius also scales with zoom
-                const repulsionRadius = 600 * Math.max(0.7, this.zoom);
+                // Repulsion radius scales sharply with zoom
+                const repulsionRadius = 800 * Math.max(0.5, Math.pow(this.zoom, 1.5));
                 if (dist < repulsionRadius) {
                     const force = kRepulsion / (dist * dist + 800);
                     const fx = (dx / dist) * force;
