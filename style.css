@@ -110,18 +110,29 @@ hr { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 5px 0; }
 /* Floating Tuner (Bottom Center) */
 .floating-tuner {
     bottom: 30px; left: 50%; transform: translateX(-50%);
-    width: 90%; max-width: 600px;
+    width: 60%; max-width: 400px;
     padding: 0; background: transparent; border: none;
     z-index: 500; position: absolute;
 }
-#resonance-tuner {
-    width: 100%; padding: 15px 25px; border-radius: 30px;
+.tuner-wrapper {
+    display: flex; align-items: center; gap: 8px;
     background: rgba(0,0,0,0.7); border: 1px solid rgba(6, 182, 212, 0.4);
-    color: #fff; font-family: var(--font-mono); font-size: 1rem;
-    outline: none; box-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
-    backdrop-filter: blur(10px); text-align: center;
+    border-radius: 30px; padding: 5px 15px;
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
+    backdrop-filter: blur(10px);
 }
-#resonance-tuner:focus { border-color: var(--accent-primary); box-shadow: 0 0 30px rgba(6, 182, 212, 0.4); }
+.icon-btn {
+    background: none; border: none; color: #aaa; font-size: 1.2rem;
+    cursor: pointer; padding: 5px; transition: color 0.2s, transform 0.2s;
+}
+.icon-btn:hover { color: #fff; transform: scale(1.1); }
+
+#resonance-tuner {
+    width: 100%; padding: 10px 5px; border: none;
+    background: transparent; color: #fff; font-family: var(--font-mono); font-size: 0.85rem;
+    outline: none; text-align: center;
+}
+.tuner-wrapper:focus-within { border-color: var(--accent-primary); box-shadow: 0 0 30px rgba(6, 182, 212, 0.4); }
 
 /* Inspector Panel (Right Center) */
 .floating-inspector {

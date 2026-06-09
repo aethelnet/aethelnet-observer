@@ -43,13 +43,19 @@
                 <label class="bauhaus-toggle"><input type="checkbox" id="chk-network" checked> <span class="toggle-text">Network Nodes</span></label>
                 <label class="bauhaus-toggle"><input type="checkbox" id="chk-stream" checked> <span class="toggle-text">Live Streams</span></label>
                 <hr>
+                <label class="bauhaus-toggle"><input type="checkbox" id="chk-keystrokes" checked> <span class="toggle-text">Biometrics (Keystrokes)</span></label>
+                <hr>
                 <button id="btn-reconnect" class="action-btn">FORCE_SYNC</button>
             </div>
         </div>
 
         <!-- Bottom: Tuner Input (Floating) -->
         <div class="tuner-container floating-tuner">
-            <input type="text" id="resonance-tuner" placeholder="Type directly into the void (Resonance Tuner)...">
+            <div class="tuner-wrapper">
+                <button class="icon-btn" id="btn-upload" title="Inject File" onclick="document.getElementById('file-upload').click()">📎</button>
+                <input type="file" id="file-upload" style="display: none;">
+                <input type="text" id="resonance-tuner" placeholder="Type directly into the void...">
+            </div>
         </div>
 
         <!-- Concept Inspector Panel (Floating) -->
