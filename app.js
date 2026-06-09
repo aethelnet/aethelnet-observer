@@ -458,8 +458,14 @@ class SwarmClient {
                     
                     for (const other of cellNodes) {
                         if (n === other) continue;
-                        const dx = n.x - other.x;
-                        const dy = n.y - other.y;
+                        let dx = n.x - other.x;
+                        let dy = n.y - other.y;
+                        
+                        // Prevent nodes getting permanently stuck on the exact same pixel
+                        if (dx === 0 && dy === 0) {
+                            dx = (Math.random() - 0.5) * 10.0;
+                            dy = (Math.random() - 0.5) * 10.0;
+                        }
                         
                         const isNeighbor = nbrIds.has(other.id);
                         const actualSepDist = isNeighbor ? 300 : separationDist;
@@ -1004,8 +1010,8 @@ class SwarmClient {
         // 1. Draw Links
         ctx.lineWidth = Math.max(0.5, 2 * this.zoom);
         for (const link of this.links) {
-            const n1 = this.nodes.find(n => n.id === link.source);
-            const n2 = this.nodes.find(n => n.id === link.target);
+            const n1 = nodeLookup.get(link.source);
+            const n2 = nodeLookup.get(link.target);
             if (!n1 || !n2) continue;
             
             const isConnectedToSelected = this.selectedNodeId && (n1.id === this.selectedNodeId || n2.id === this.selectedNodeId);
