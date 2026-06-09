@@ -386,7 +386,38 @@ class SwarmClient {
                     document.getElementById('inspect-title').textContent = data.id;
                     document.getElementById('inspect-source').textContent = data.source_tag;
                     document.getElementById('inspect-confidence').textContent = Number(data.confidence).toFixed(2);
-                    document.getElementById('inspect-text').textContent = data.text_content || 'No text content registered.';
+                    
+                    const textContent = data.text_content || 'No text content registered.';
+                    document.getElementById('inspect-text').textContent = textContent;
+
+                    // Handle Media Ingestion Paths
+                    const mediaContainer = document.getElementById('media-container');
+                    const imgEl = document.getElementById('inspect-image');
+                    const audioEl = document.getElementById('inspect-audio');
+                    
+                    mediaContainer.style.display = 'none';
+                    imgEl.style.display = 'none';
+                    audioEl.style.display = 'none';
+                    imgEl.src = '';
+                    audioEl.src = '';
+
+                    const ingestRegex = /(\/home\/[^\/]+\/\.aethelnet\/ingest_zone|~\/.aethelnet\/ingest_zone)\/(.+?\.(png|jpg|jpeg|wav|mp3|ogg))/i;
+                    const match = textContent.match(ingestRegex);
+                    
+                    if (match) {
+                        const relativePath = match[2];
+                        const extension = match[3].toLowerCase();
+                        const mediaUrl = `http://${host || '127.0.0.1'}:8001/media/${relativePath}`;
+                        
+                        mediaContainer.style.display = 'block';
+                        if (['png', 'jpg', 'jpeg'].includes(extension)) {
+                            imgEl.src = mediaUrl;
+                            imgEl.style.display = 'block';
+                        } else if (['wav', 'mp3', 'ogg'].includes(extension)) {
+                            audioEl.src = mediaUrl;
+                            audioEl.style.display = 'block';
+                        }
+                    }
                 }
                 
                 this.log(`Details loaded for: ${nodeId}`, 'success');

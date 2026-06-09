@@ -26,6 +26,12 @@
                 <h1>SWARM_MVP</h1>
                 <span class="badge">v0.1</span>
             </div>
+            
+            <!-- Resonance Tuner -->
+            <div class="tuner-container" style="flex-grow: 1; margin: 0 40px;">
+                <input type="text" id="resonance-tuner" placeholder="Tune Stream Resonance (e.g. 'Quantum', 'Images', 'Chaos')..." style="width: 100%; max-width: 400px; padding: 8px 15px; border-radius: 20px; border: 1px solid rgba(6, 182, 212, 0.4); background: rgba(0,0,0,0.4); color: #06b6d4; font-family: 'JetBrains Mono', monospace; font-size: 12px; outline: none; box-shadow: 0 0 10px rgba(6, 182, 212, 0.1);">
+            </div>
+
             <div class="status-indicator">
                 <div id="ws-light" class="indicator-light disconnected"></div>
                 <span id="ws-status">Disconnected</span>
@@ -66,6 +72,12 @@
                         <span style="color: #888;">Source: <strong id="inspect-source" style="color: #eee;">internal</strong></span>
                         <span style="color: #888;">Confidence: <strong id="inspect-confidence" style="color: #eee;">0.80</strong></span>
                     </div>
+                    
+                    <div id="media-container" style="margin-top: 15px; margin-bottom: 15px; display: none; text-align: center;">
+                        <img id="inspect-image" src="" style="max-width: 100%; border-radius: 8px; border: 1px solid rgba(6, 182, 212, 0.3); display: none;">
+                        <audio id="inspect-audio" controls style="width: 100%; margin-top: 10px; display: none; outline: none;"></audio>
+                    </div>
+
                     <div id="inspect-text" class="terminal-log" style="max-height: 180px; overflow-y: auto; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px; font-family: 'Inter', sans-serif; font-size: 12px; line-height: 1.5; color: #ddd; border: 1px solid rgba(255,255,255,0.05); white-space: pre-wrap; word-break: break-word;">
                         Node description...
                     </div>
