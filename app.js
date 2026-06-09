@@ -533,6 +533,7 @@ class SwarmClient {
         if (!this.isPanning && this.nodes.length > 0) {
             let targetX = center.x;
             let targetY = center.y;
+            let targetZ = 0;
 
             if (this.selectedNodeId) {
                 // Track selected node
@@ -540,21 +541,31 @@ class SwarmClient {
                 if (selected) {
                     targetX = selected.x;
                     targetY = selected.y;
+                    targetZ = selected.is_leader ? 300 : (selected.id.startsWith("Obs_") ? -200 : 0);
                 }
             } else {
                 // Track center of mass of the swarm
                 let cmX = 0, cmY = 0;
+                let visibleCount = 0;
                 for (const n of this.nodes) {
+                    if (!this.showGossip && n.id.startsWith("Obs_")) continue;
                     cmX += n.x;
                     cmY += n.y;
+                    visibleCount++;
                 }
-                targetX = cmX / this.nodes.length;
-                targetY = cmY / this.nodes.length;
+                if (visibleCount > 0) {
+                    targetX = cmX / visibleCount;
+                    targetY = cmY / visibleCount;
+                }
+                targetZ = 0;
             }
 
-            // Calculate where panX/panY need to be to center targetX/targetY on the screen
-            const idealPanX = width / 2 - targetX * this.zoom;
-            const idealPanY = height / 2 - targetY * this.zoom;
+            // Project tracking target into Isometric space!
+            const targetIso = this.toIso(targetX, targetY, targetZ);
+
+            // Calculate where panX/panY need to be to center the ISOMETRIC point on the screen
+            const idealPanX = width / 2 - targetIso.x * this.zoom;
+            const idealPanY = height / 2 - targetIso.y * this.zoom;
 
             // Smooth Lerp
             this.panX += (idealPanX - this.panX) * 0.05;
