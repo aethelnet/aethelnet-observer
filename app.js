@@ -432,15 +432,19 @@ class SwarmClient {
             n.vx += (center.x - n.x) * currentGravity;
             n.vy += (center.y - n.y) * currentGravity;
             
-            // Enforce minimum continuous movement (Nodes never fully sleep in a swarm)
-            const speed = Math.sqrt(n.vx * n.vx + n.vy * n.vy) || 1.0;
+            // Friction for crystallization (strong dampening)
+            n.vx *= 0.85;
+            n.vy *= 0.85;
+            
+            // Speed limits and freezing (Crystallization)
+            const speed = Math.sqrt(n.vx * n.vx + n.vy * n.vy) || 0;
             if (speed > maxSpeed) {
                 n.vx = (n.vx / Math.max(speed, 0.1)) * maxSpeed;
                 n.vy = (n.vy / Math.max(speed, 0.1)) * maxSpeed;
-            } else if (speed < 0.5 * timeScale) {
-                // Add a tiny random Brownian drift to keep the swarm alive
-                n.vx += (Math.random() - 0.5) * 0.2 * timeScale;
-                n.vy += (Math.random() - 0.5) * 0.2 * timeScale;
+            } else if (speed < 0.1) {
+                // Completely freeze when settled (Rigid Architecture)
+                n.vx = 0;
+                n.vy = 0;
             }
             
             n.x += n.vx;
