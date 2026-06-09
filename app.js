@@ -1034,12 +1034,12 @@ class SwarmClient {
                 
                 // Stagger cull points based on node IDs to prevent simultaneous vanishing
                 const charHash1 = (n1.id.charCodeAt(0) + n1.id.charCodeAt(n1.id.length - 1)) % 100;
-                const stagger1 = charHash1 / 250.0;
+                const stagger1 = charHash1 / 500.0; // 0.0 to 0.198
                 const charHash2 = (n2.id.charCodeAt(0) + n2.id.charCodeAt(n2.id.length - 1)) % 100;
-                const stagger2 = charHash2 / 250.0;
+                const stagger2 = charHash2 / 500.0; // 0.0 to 0.198
                 
-                let c1 = !n1.is_leader && this.zoom < (0.3 - (n1.centrality || 0) * 0.5 + perfPenalty + stagger1);
-                let c2 = !n2.is_leader && this.zoom < (0.3 - (n2.centrality || 0) * 0.5 + perfPenalty + stagger2);
+                let c1 = !n1.is_leader && this.zoom < (0.1 - (n1.centrality || 0) * 0.2 + perfPenalty + stagger1);
+                let c2 = !n2.is_leader && this.zoom < (0.1 - (n2.centrality || 0) * 0.2 + perfPenalty + stagger2);
                 
                 // Hard Cull if either end is uninteresting and we are zoomed out
                 if (c1 || c2) {
@@ -1123,9 +1123,9 @@ class SwarmClient {
                 // Stagger the culling based on a stable pseudo-random hash of the node ID
                 // This prevents the visual "pop" of 1000 nodes vanishing simultaneously
                 const charHash = (n.id.charCodeAt(0) + n.id.charCodeAt(n.id.length - 1)) % 100;
-                const stagger = charHash / 250.0; // 0.0 to 0.4
+                const stagger = charHash / 500.0; // 0.0 to 0.198
                 
-                const cullThreshold = 0.3 - (n.centrality || 0) * 0.5 + perfPenalty + stagger;
+                const cullThreshold = 0.1 - (n.centrality || 0) * 0.2 + perfPenalty + stagger;
                 
                 if (this.zoom < cullThreshold) {
                     lodAlpha = 0;
