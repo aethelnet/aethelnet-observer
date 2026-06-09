@@ -5,7 +5,7 @@
 
 class SwarmClient {
     constructor() {
-        this.wsUrl = 'ws://' + window.location.hostname + ':8001/ws';
+        this.wsUrl = 'ws://' + (window.location.hostname || '127.0.0.1') + ':8001/ws';
         this.socket = null;
         this.reconnectTimer = null;
         this.reconnectAttempts = 0;
@@ -351,7 +351,7 @@ class SwarmClient {
         
         try {
             const host = window.location.hostname;
-            const response = await fetch(`http://${host}:8000/api/lgnn/node/${encodeURIComponent(nodeId)}`);
+            const response = await fetch(`http://${host || '127.0.0.1'}:8001/api/lgnn/node/${encodeURIComponent(nodeId)}`);
             if (response.ok) {
                 const data = await response.json();
                 
