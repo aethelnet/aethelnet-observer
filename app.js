@@ -293,8 +293,8 @@ class SwarmClient {
                 activation: nn.activation,
                 is_leader: nn.is_leader || false,
                 centrality: nn.centrality || 0.0,
-                x: existing ? existing.x : width / 2 + (Math.random() - 0.5) * 800,
-                y: existing ? existing.y : height / 2 + (Math.random() - 0.5) * 800,
+                x: existing ? existing.x : width / 2 + (Math.random() - 0.5) * 4000,
+                y: existing ? existing.y : height / 2 + (Math.random() - 0.5) * 4000,
                 vx: existing ? existing.vx : (Math.random() - 0.5) * 10.0,
                 vy: existing ? existing.vy : (Math.random() - 0.5) * 10.0
             };
