@@ -766,6 +766,11 @@ class SwarmClient {
             const n2 = this.nodes.find(n => n.id === link.target);
             if (!n1 || !n2) continue;
             
+            const isConnectedToSelected = this.selectedNodeId && (n1.id === this.selectedNodeId || n2.id === this.selectedNodeId);
+            
+            // Dynamic LOD: Hide bridges entirely when zoomed out far to remove spaghetti noise
+            if (!isConnectedToSelected && this.zoom < 0.25) continue;
+            
             // Skip hidden nodes
             if (!this.showGossip && (n1.id.startsWith("Obs_") || n2.id.startsWith("Obs_"))) continue;
             if (!this.showNetwork && (n1.id.startsWith("Net_") || n2.id.startsWith("Net_"))) continue;
@@ -803,6 +808,12 @@ class SwarmClient {
             if (!this.showGossip && n.id.startsWith("Obs_")) continue;
             if (!this.showNetwork && n.id.startsWith("Net_")) continue;
             if (!this.showStream && n.id.startsWith("Stream_")) continue;
+            
+            // Dynamic LOD: Hide unimportant worker nodes when zoomed out far
+            const isSelected = this.selectedNodeId === n.id;
+            if (!isSelected && this.zoom < 0.25 && !n.is_leader && (n.centrality || 0) < 0.5) {
+                continue; // Cluster visually merges into its leader
+            }
             
             // Nodes are bigger now for the inline text
             const baseRadius = 25;
