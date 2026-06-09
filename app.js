@@ -293,6 +293,10 @@ class SwarmClient {
         
         let clickedNode = null;
         for (const n of this.nodes) {
+            if (!this.showGossip && n.id.startsWith("Obs_")) continue;
+            if (!this.showNetwork && n.id.startsWith("Net_")) continue;
+            if (!this.showStream && n.id.startsWith("Stream_")) continue;
+            
             const dx = n.x - graphX;
             const dy = n.y - graphY;
             const dist = Math.sqrt(dx * dx + dy * dy);
