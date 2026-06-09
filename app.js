@@ -83,6 +83,15 @@ class SwarmClient {
             } else {
                 this.connect();
             }
+
+            // Format Selector Event Listeners
+            document.querySelectorAll('input[name="format"]').forEach(radio => {
+                radio.addEventListener('change', () => {
+                    if (this.selectedNodeId) {
+                        this.inspectNode(this.selectedNodeId);
+                    }
+                });
+            });
         });
         
         window.addEventListener('resize', () => this.resizeCanvas());
@@ -579,13 +588,20 @@ class SwarmClient {
         }, 100);
     }
 
-    async inspectNode(nodeId) {
+    async inspectNode(nodeId, forceFormat = null) {
         this.selectedNodeId = nodeId;
         this.log(`Loading node data: ${nodeId}`, 'info');
         
         try {
             const host = window.location.hostname;
-            const response = await fetch(`http://${host || '127.0.0.1'}:8001/api/lgnn/node/${encodeURIComponent(nodeId)}`);
+            
+            let format = forceFormat;
+            if (!format) {
+                const checkedFormat = document.querySelector('input[name="format"]:checked');
+                format = checkedFormat ? checkedFormat.value.toUpperCase() : 'AUTO';
+            }
+            
+            const response = await fetch(`http://${host || '127.0.0.1'}:8001/api/lgnn/node/${encodeURIComponent(nodeId)}?format=${format}`);
             if (response.ok) {
                 const data = await response.json();
                 
@@ -598,34 +614,28 @@ class SwarmClient {
                     
                     const textContent = data.text_content || 'No text content registered.';
                     document.getElementById('inspect-text').textContent = textContent;
-
-                    // Handle Media Ingestion Paths
+                    
+                    // Handle OmniDecoder Media
                     const mediaContainer = document.getElementById('media-container');
                     const imgEl = document.getElementById('inspect-image');
-                    const audioEl = document.getElementById('inspect-audio');
+                    const audEl = document.getElementById('inspect-audio');
                     
-                    mediaContainer.style.display = 'none';
-                    imgEl.style.display = 'none';
-                    audioEl.style.display = 'none';
-                    imgEl.src = '';
-                    audioEl.src = '';
-
-                    const ingestRegex = /(\/home\/[^\/]+\/\.aethelnet\/ingest_zone|~\/.aethelnet\/ingest_zone)\/(.+?\.(png|jpg|jpeg|wav|mp3|ogg))/i;
-                    const match = textContent.match(ingestRegex);
-                    
-                    if (match) {
-                        const relativePath = match[2];
-                        const extension = match[3].toLowerCase();
-                        const mediaUrl = `http://${host || '127.0.0.1'}:8001/media/${relativePath}`;
-                        
+                    if (data.format === 'IMG' && data.media_b64) {
                         mediaContainer.style.display = 'block';
-                        if (['png', 'jpg', 'jpeg'].includes(extension)) {
-                            imgEl.src = mediaUrl;
-                            imgEl.style.display = 'block';
-                        } else if (['wav', 'mp3', 'ogg'].includes(extension)) {
-                            audioEl.src = mediaUrl;
-                            audioEl.style.display = 'block';
-                        }
+                        imgEl.style.display = 'block';
+                        audEl.style.display = 'none';
+                        audEl.pause();
+                        imgEl.src = 'data:image/png;base64,' + data.media_b64;
+                    } else if (data.format === 'WAV' && data.media_b64) {
+                        mediaContainer.style.display = 'block';
+                        imgEl.style.display = 'none';
+                        audEl.style.display = 'block';
+                        audEl.src = 'data:audio/wav;base64,' + data.media_b64;
+                    } else {
+                        mediaContainer.style.display = 'none';
+                        imgEl.style.display = 'none';
+                        audEl.style.display = 'none';
+                        audEl.pause();
                     }
                 }
                 
