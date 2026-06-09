@@ -1017,24 +1017,15 @@ class SwarmClient {
             const isConnectedToSelected = this.selectedNodeId && (n1.id === this.selectedNodeId || n2.id === this.selectedNodeId);
             
             // Smooth LOD for bridges with Performance Hardware Scaling
+            // Strict LOD for bridges
             let lodAlpha = 1.0;
             if (!isConnectedToSelected) {
                 const perfPenalty = (1.0 - (this.perfScale || 1.0)) * 2.0;
+                let c1 = !n1.is_leader && this.zoom < (0.6 - (n1.centrality || 0) * 0.5 + perfPenalty);
+                let c2 = !n2.is_leader && this.zoom < (0.6 - (n2.centrality || 0) * 0.5 + perfPenalty);
                 
-                let a1 = 1.0;
-                if (!n1.is_leader) {
-                    const f1 = 0.8 - (n1.centrality || 0) * 0.7 + perfPenalty;
-                    if (this.zoom < f1) a1 = Math.max(0, (this.zoom - 0.05) / (f1 - 0.05));
-                }
-                let a2 = 1.0;
-                if (!n2.is_leader) {
-                    const f2 = 0.8 - (n2.centrality || 0) * 0.7 + perfPenalty;
-                    if (this.zoom < f2) a2 = Math.max(0, (this.zoom - 0.05) / (f2 - 0.05));
-                }
-                lodAlpha = Math.min(a1, a2);
-                
-                // Hard Culling to save draw calls when performance is terrible
-                if (this.perfScale < 0.5 && ((n1.centrality || 0) < 0.2 || (n2.centrality || 0) < 0.2)) {
+                // Hard Cull if either end is uninteresting and we are zoomed out
+                if (c1 || c2) {
                     lodAlpha = 0;
                 }
             }
@@ -1105,19 +1096,15 @@ class SwarmClient {
             if (!this.showNetwork && n.id.startsWith("Net_")) continue;
             if (!this.showStream && n.id.startsWith("Stream_")) continue;
             
-            // Smooth LOD: Fade unimportant worker nodes smoothly when zoomed out
+            // Strict LOD: Cull unimportant worker nodes when zoomed out
             const isSelected = this.selectedNodeId === n.id;
             let lodAlpha = 1.0;
             
             if (!isSelected && !n.is_leader) {
                 const perfPenalty = (1.0 - (this.perfScale || 1.0)) * 2.0;
-                const fadeStartZoom = 0.8 - (n.centrality || 0) * 0.7 + perfPenalty;
+                const cullThreshold = 0.6 - (n.centrality || 0) * 0.5 + perfPenalty;
                 
-                if (this.zoom < fadeStartZoom) {
-                    lodAlpha = Math.max(0, (this.zoom - 0.05) / (fadeStartZoom - 0.05));
-                }
-                
-                if (this.perfScale < 0.5 && (n.centrality || 0) < 0.2) {
+                if (this.zoom < cullThreshold) {
                     lodAlpha = 0;
                 }
             }
