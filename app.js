@@ -126,6 +126,52 @@ class SwarmClient {
             });
         }
         
+        // --- Continuous Time Keystream Sensor ---
+        this.keyBuffer = [];
+        this.lastKeyTime = Date.now();
+        this.keystreamTimer = null;
+        
+        const flushKeystream = () => {
+            if (this.keyBuffer.length > 0) {
+                const streamData = JSON.stringify(this.keyBuffer);
+                this.keyBuffer = []; // reset
+                
+                try {
+                    const host = window.location.hostname;
+                    fetch(`http://${host || '127.0.0.1'}:8001/api/lgnn/universal_ingest`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            bot_name: "Raw_Keystream",
+                            observation: `KEYSTREAM_WITH_TIMING: ${streamData}`,
+                            confidence: 1.0
+                        })
+                    });
+                    this.log(`[Sensor] Flushed time-series keystream`, 'info');
+                } catch (err) {}
+            }
+        };
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key.length > 1 && e.key !== "Backspace") return;
+            
+            const now = Date.now();
+            const deltaMs = now - this.lastKeyTime;
+            this.lastKeyTime = now;
+            
+            let keyObj = e.key === " " ? "[SPACE]" : e.key;
+            this.keyBuffer.push([keyObj, deltaMs]);
+            
+            clearTimeout(this.keystreamTimer);
+            
+            if (this.keyBuffer.length >= 20) {
+                flushKeystream();
+            } else {
+                // Flush if user pauses for more than 2 seconds
+                this.keystreamTimer = setTimeout(flushKeystream, 2000);
+            }
+        });
+        
         // Start animation frame loop
         requestAnimationFrame(() => this.tick());
     }
