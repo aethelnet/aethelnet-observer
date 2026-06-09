@@ -1425,8 +1425,86 @@ class SwarmClient {
                 ctx.fillText(label, iso.x, iso.y + r + (5 / this.zoom));
             }
         }
-        
         ctx.restore();
+        
+        this.updateHolograms();
+    }
+    
+    updateHolograms() {
+        const layer = document.getElementById('hologram-layer');
+        if (!layer) return;
+        
+        // Only show widget if we are in Workbench mode or if we specifically select a spider
+        if (!this.selectedNodeId || !this.selectedNodeId.startsWith("Spider_")) {
+            layer.innerHTML = '';
+            return;
+        }
+        
+        const n = this.nodes.find(node => node.id === this.selectedNodeId);
+        if (!n) return;
+        
+        // Calculate screen coordinates!
+        const zOffset = n.is_leader ? 300 : (n.id.startsWith("Obs_") ? -200 : 0);
+        const iso = this.toIso(n.x, n.y, zOffset);
+        
+        const screenX = this.panX + (iso.x * this.zoom);
+        const screenY = this.panY + (iso.y * this.zoom);
+        
+        // Node visual radius
+        const baseRadius = 25;
+        const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 25;
+        const centralityBonus = (n.centrality || 0) * 50;
+        const rawR = baseRadius + activationBonus + centralityBonus;
+        const r = Math.max(0.1, rawR / Math.pow(this.zoom, 0.6)) * this.zoom;
+        
+        // Create or update the widget
+        let widget = document.getElementById('spider-widget');
+        if (!widget) {
+            widget = document.createElement('div');
+            widget.id = 'spider-widget';
+            // Pure Bauhaus / FigJam aesthetics
+            widget.style.position = 'absolute';
+            widget.style.background = '#FFFFFF';
+            widget.style.border = '2px solid #1A1A1A';
+            widget.style.padding = '8px';
+            widget.style.boxShadow = '4px 4px 0px #1A1A1A';
+            widget.style.pointerEvents = 'auto'; // allow clicking
+            widget.style.display = 'flex';
+            widget.style.flexDirection = 'column';
+            widget.style.gap = '8px';
+            
+            widget.innerHTML = `
+                <div style="font-size: 0.7rem; font-weight: bold; letter-spacing: 1px; color: #F2C12E; background: #1A1A1A; padding: 2px 4px; text-transform: uppercase;">[ SPIDER UPLINK ]</div>
+                <input type="text" id="spider-concept" placeholder="Target Concept..." style="border: 1px solid #1A1A1A; outline: none; padding: 4px; font-family: var(--font-mono); font-size: 0.8rem; width: 150px;">
+                <button id="spider-deploy-btn" style="background: #F2C12E; color: #1A1A1A; font-weight: bold; font-family: var(--font-mono); border: 2px solid #1A1A1A; cursor: pointer; padding: 4px;">DEPLOY</button>
+            `;
+            layer.appendChild(widget);
+            
+            document.getElementById('spider-deploy-btn').addEventListener('click', () => {
+                const concept = document.getElementById('spider-concept').value;
+                this.log(`Spider programmed with concept: "${concept}"`, 'info');
+                this.deploySpider(n.id);
+            });
+            
+            // Allow typing without triggering canvas hotkeys
+            document.getElementById('spider-concept').addEventListener('keydown', (e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') {
+                    document.getElementById('spider-deploy-btn').click();
+                }
+            });
+        }
+        
+        // Position it right next to the node!
+        widget.style.left = \`\${screenX + r + 20}px\`;
+        widget.style.top = \`\${screenY - r}px\`;
+        
+        // Hide if offscreen or zoomed out too far
+        if (this.zoom < 0.4) {
+            widget.style.display = 'none';
+        } else {
+            widget.style.display = 'flex';
+        }
     }
 
     log(message, type = 'info') {
