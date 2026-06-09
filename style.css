@@ -4,16 +4,22 @@
     --accent-red: #E03C31;
     --accent-blue: #005096;
     --accent-yellow: #F2C12E;
-    --panel-bg: rgba(255, 255, 255, 0.95);
-    --panel-border: 2px solid #1A1A1A;
-    --font-mono: 'Courier New', Courier, monospace;
-    --font-sans: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --panel-bg: #FFFFFF; /* Solid white, no transparency in Bauhaus */
+    --panel-border: 3px solid #1A1A1A; /* Thicker, harder borders */
+    --hard-shadow: 6px 6px 0px #1A1A1A; /* Solid black brutalist shadow */
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-sans: 'Inter', sans-serif;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; border-radius: 0 !important; } /* Destroy all rounded corners globally */
 
 body {
     background-color: var(--bg-color);
+    /* Faint architectural grid */
+    background-image: 
+        linear-gradient(rgba(26, 26, 26, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(26, 26, 26, 0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
     color: var(--text-color);
     font-family: var(--font-sans);
     overflow: hidden;
@@ -40,7 +46,7 @@ body {
     border: var(--panel-border);
     padding: 1rem;
     pointer-events: auto;
-    box-shadow: 4px 4px 0px rgba(0,0,0,0.1);
+    box-shadow: var(--hard-shadow);
     position: absolute;
 }
 
@@ -75,7 +81,7 @@ body {
     background: var(--panel-bg);
     border: var(--panel-border);
     padding: 10px;
-    box-shadow: 4px 4px 0px rgba(0,0,0,0.1);
+    box-shadow: var(--hard-shadow);
 }
 .sys-btn { 
     font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-color); 
@@ -116,7 +122,7 @@ hr { border: none; border-top: 2px solid var(--text-color); margin: 5px 0; }
 .tuner-wrapper {
     display: flex; align-items: center; gap: 0;
     background: var(--panel-bg); border: var(--panel-border);
-    box-shadow: 4px 4px 0px rgba(0,0,0,0.1);
+    box-shadow: var(--hard-shadow);
 }
 .tuner-wrapper input[type="text"] {
     flex-grow: 1; background: transparent; border: none;
