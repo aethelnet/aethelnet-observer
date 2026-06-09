@@ -215,6 +215,88 @@ class SwarmClient {
                     e.preventDefault();
                     return;
                 }
+                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                    if (this.selectedNodeId) {
+                        const currentNode = this.nodes.find(n => n.id === this.selectedNodeId);
+                        if (currentNode) {
+                            const neighborIds = this.links
+                                .filter(l => l.source === currentNode.id || l.target === currentNode.id)
+                                .map(l => l.source === currentNode.id ? l.target : l.source);
+                            
+                            const neighbors = this.nodes.filter(n => neighborIds.includes(n.id));
+                            if (neighbors.length > 0) {
+                                let bestMatch = null;
+                                let bestScore = -Infinity;
+                                
+                                for (const neighbor of neighbors) {
+                                    const isoCurr = this.toIso(currentNode.x, currentNode.y, 0);
+                                    const isoNeigh = this.toIso(neighbor.x, neighbor.y, 0);
+                                    const idx = isoNeigh.x - isoCurr.x;
+                                    const idy = isoNeigh.y - isoCurr.y;
+                                    
+                                    let score = 0;
+                                    if (e.key === 'ArrowUp') score = -idy - Math.abs(idx)*0.5;
+                                    if (e.key === 'ArrowDown') score = idy - Math.abs(idx)*0.5;
+                                    if (e.key === 'ArrowLeft') score = -idx - Math.abs(idy)*0.5;
+                                    if (e.key === 'ArrowRight') score = idx - Math.abs(idy)*0.5;
+                                    
+                                    if (score > bestScore) {
+                                        bestScore = score;
+                                        bestMatch = neighbor;
+                                    }
+                                }
+                                
+                                if (bestMatch) {
+                                    this.selectedNodes = new Set([bestMatch.id]);
+                                    this.inspectNode(bestMatch.id);
+                                }
+                            }
+                        }
+                    }
+                    e.preventDefault();
+                    return;
+                }
+                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                    if (this.selectedNodeId) {
+                        const currentNode = this.nodes.find(n => n.id === this.selectedNodeId);
+                        if (currentNode) {
+                            const neighborIds = this.links
+                                .filter(l => l.source === currentNode.id || l.target === currentNode.id)
+                                .map(l => l.source === currentNode.id ? l.target : l.source);
+                            
+                            const neighbors = this.nodes.filter(n => neighborIds.includes(n.id));
+                            if (neighbors.length > 0) {
+                                let bestMatch = null;
+                                let bestScore = -Infinity;
+                                
+                                for (const neighbor of neighbors) {
+                                    const isoCurr = this.toIso(currentNode.x, currentNode.y, 0);
+                                    const isoNeigh = this.toIso(neighbor.x, neighbor.y, 0);
+                                    const idx = isoNeigh.x - isoCurr.x;
+                                    const idy = isoNeigh.y - isoCurr.y;
+                                    
+                                    let score = 0;
+                                    if (e.key === 'ArrowUp') score = -idy - Math.abs(idx)*0.5;
+                                    if (e.key === 'ArrowDown') score = idy - Math.abs(idx)*0.5;
+                                    if (e.key === 'ArrowLeft') score = -idx - Math.abs(idy)*0.5;
+                                    if (e.key === 'ArrowRight') score = idx - Math.abs(idy)*0.5;
+                                    
+                                    if (score > bestScore) {
+                                        bestScore = score;
+                                        bestMatch = neighbor;
+                                    }
+                                }
+                                
+                                if (bestMatch) {
+                                    this.selectedNodes = new Set([bestMatch.id]);
+                                    this.inspectNode(bestMatch.id);
+                                }
+                            }
+                        }
+                    }
+                    e.preventDefault();
+                    return;
+                }
                 if (e.key === 'c' || e.key === 'C') {
                     if (this.selectedNodeId) this.duplicateNode(this.selectedNodeId);
                     return;
@@ -1084,16 +1166,15 @@ class SwarmClient {
             const iso1 = this.toIso(n1.x, n1.y, z1);
             const iso2 = this.toIso(n2.x, n2.y, z2);
             
-            // Manhattan Routing (Calculated in 2D, projected to 2.5D)
-            const midX = (n1.x + n2.x) / 2;
-            const midIso1 = this.toIso(midX, n1.y, z1);
-            const midIso2 = this.toIso(midX, n2.y, z2);
+            // Vector-program style Bezier curves
+            const cp1x = iso1.x + (iso2.x - iso1.x) / 2;
+            const cp1y = iso1.y;
+            const cp2x = iso1.x + (iso2.x - iso1.x) / 2;
+            const cp2y = iso2.y;
 
             ctx.beginPath();
             ctx.moveTo(iso1.x, iso1.y);
-            ctx.lineTo(midIso1.x, midIso1.y);
-            ctx.lineTo(midIso2.x, midIso2.y);
-            ctx.lineTo(iso2.x, iso2.y);
+            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, iso2.x, iso2.y);
             
             // Constellation Focus Logic
             
@@ -1121,9 +1202,14 @@ class SwarmClient {
             const z1 = this.wireSourceNode.is_leader ? 300 : (this.wireSourceNode.id.startsWith("Obs_") ? -200 : 0);
             const iso1 = this.toIso(this.wireSourceNode.x, this.wireSourceNode.y, z1);
             
+            const cp1x = iso1.x + (this.wireTargetIso.x - iso1.x) / 2;
+            const cp1y = iso1.y;
+            const cp2x = iso1.x + (this.wireTargetIso.x - iso1.x) / 2;
+            const cp2y = this.wireTargetIso.y;
+            
             ctx.beginPath();
             ctx.moveTo(iso1.x, iso1.y);
-            ctx.lineTo(this.wireTargetIso.x, this.wireTargetIso.y);
+            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, this.wireTargetIso.x, this.wireTargetIso.y);
             ctx.strokeStyle = '#F2C12E'; // Yellow highlight wire
             ctx.lineWidth = 2 / this.zoom;
             ctx.setLineDash([5 / this.zoom, 5 / this.zoom]);
@@ -1190,15 +1276,27 @@ class SwarmClient {
             ctx.shadowBlur = 0; // No glowing in Bauhaus!
             
             if (n.id === this.selectedNodeId) {
-                ctx.fillStyle = '#F2C12E'; // Yellow highlight
-                ctx.strokeStyle = '#1A1A1A'; // Black border
+                ctx.fillStyle = '#1A1A1A'; // Inverted for selected
+                ctx.strokeStyle = '#F2C12E'; // Yellow highlight border
                 ctx.lineWidth = 3 / this.zoom;
             } else if (n.is_leader || n.id.startsWith('Nightmare')) {
-                ctx.fillStyle = '#E03C31'; // Red for leaders/nightmares
+                ctx.fillStyle = '#E03C31'; // Safety Red
+                ctx.strokeStyle = '#1A1A1A';
+                ctx.lineWidth = 1.5 / this.zoom;
+            } else if (n.id.startsWith("Spider_")) {
+                ctx.fillStyle = '#F2C12E'; // Electric Yellow
+                ctx.strokeStyle = '#1A1A1A';
+                ctx.lineWidth = 1.5 / this.zoom;
+            } else if (n.id.startsWith("Decoder_")) {
+                ctx.fillStyle = '#E87A00'; // Safety Orange
+                ctx.strokeStyle = '#1A1A1A';
+                ctx.lineWidth = 1.5 / this.zoom;
+            } else if (n.id.startsWith("Image_")) {
+                ctx.fillStyle = '#8B008B'; // Deep Magenta
                 ctx.strokeStyle = '#1A1A1A';
                 ctx.lineWidth = 1.5 / this.zoom;
             } else if (n.id.startsWith("Net_") || n.id.startsWith("Stream_")) {
-                ctx.fillStyle = '#005096'; // Blue net/stream
+                ctx.fillStyle = '#005096'; // Ultramarine Blue
                 ctx.strokeStyle = '#1A1A1A';
                 ctx.lineWidth = 1.5 / this.zoom;
             } else {
