@@ -708,21 +708,38 @@ class SwarmClient {
         // 1. Draw Links
         ctx.lineWidth = Math.max(0.5, 2 * this.zoom);
         for (const link of this.links) {
-            // Skip link if it connects to a hidden node type
-            if (!this.showGossip && (link.source.startsWith("Obs_") || link.target.startsWith("Obs_"))) continue;
-            if (!this.showNetwork && (link.source.startsWith("Net_") || link.target.startsWith("Net_"))) continue;
-            if (!this.showStream && (link.source.startsWith("Stream_") || link.target.startsWith("Stream_"))) continue;
-            
-            const n1 = nodeLookup.get(link.source);
-            const n2 = nodeLookup.get(link.target);
+            const n1 = this.nodes.find(n => n.id === link.source);
+            const n2 = this.nodes.find(n => n.id === link.target);
             if (!n1 || !n2) continue;
             
+            // Skip hidden nodes
+            if (!this.showGossip && (n1.id.startsWith("Obs_") || n2.id.startsWith("Obs_"))) continue;
+            if (!this.showNetwork && (n1.id.startsWith("Net_") || n2.id.startsWith("Net_"))) continue;
+            if (!this.showStream && (n1.id.startsWith("Stream_") || n2.id.startsWith("Stream_"))) continue;
+
             ctx.beginPath();
             ctx.moveTo(n1.x, n1.y);
             ctx.lineTo(n2.x, n2.y);
             
-            // Bauhaus Connection Lines (Black)
-            ctx.strokeStyle = `rgba(26, 26, 26, ${0.1 + link.weight * 0.3})`;
+            // Constellation Focus Logic
+            const isConnectedToSelected = this.selectedNodeId && (n1.id === this.selectedNodeId || n2.id === this.selectedNodeId);
+            
+            if (this.selectedNodeId) {
+                if (isConnectedToSelected) {
+                    // Stark black lines for the direct constellation
+                    ctx.strokeStyle = `rgba(26, 26, 26, 0.8)`;
+                    ctx.lineWidth = 2 / this.zoom;
+                } else {
+                    // Extremely faint for background context
+                    ctx.strokeStyle = `rgba(26, 26, 26, 0.05)`;
+                    ctx.lineWidth = 0.5 / this.zoom;
+                }
+            } else {
+                // Default view: Faint hints of structure
+                ctx.strokeStyle = `rgba(26, 26, 26, ${0.05 + link.weight * 0.15})`;
+                ctx.lineWidth = 1 / this.zoom;
+            }
+            
             ctx.stroke();
         }
         
@@ -741,50 +758,46 @@ class SwarmClient {
             // Radius scales slightly with zoom but not 1:1
             const r = Math.max(0.1, rawR / Math.pow(this.zoom, 0.6)); 
             
+            // Dim nodes that are not part of the active constellation
+            const isFocused = !this.selectedNodeId || n.id === this.selectedNodeId || 
+                              this.links.some(l => (l.source === n.id && l.target === this.selectedNodeId) || 
+                                                 (l.target === n.id && l.source === this.selectedNodeId));
+            
+            ctx.globalAlpha = isFocused ? 1.0 : 0.2;
+            
             ctx.beginPath();
             ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
             
             // Bauhaus Colors based on node type
+            ctx.shadowBlur = 0; // No glowing in Bauhaus!
+            
             if (n.id === this.selectedNodeId) {
                 ctx.fillStyle = '#F2C12E'; // Yellow highlight
                 ctx.strokeStyle = '#1A1A1A'; // Black border
                 ctx.lineWidth = 3 / this.zoom;
-                ctx.stroke();
+            } else if (n.is_leader || n.id.startsWith('Nightmare')) {
+                ctx.fillStyle = '#E03C31'; // Red for leaders/nightmares
+                ctx.strokeStyle = '#1A1A1A';
+                ctx.lineWidth = 1.5 / this.zoom;
+            } else if (n.id.startsWith("Net_") || n.id.startsWith("Stream_")) {
+                ctx.fillStyle = '#005096'; // Blue net/stream
+                ctx.strokeStyle = '#1A1A1A';
+                ctx.lineWidth = 1.5 / this.zoom;
+            } else {
+                ctx.fillStyle = '#FFFFFF'; // White default
+                ctx.strokeStyle = '#1A1A1A';
+                ctx.lineWidth = 1.5 / this.zoom;
             }
-
-            // Color coding
-            let nodeColor = 'rgba(6, 182, 212, 0.8)';
-            let glowColor = 'rgba(6, 182, 212, 0.4)';
             
-            if (n.is_leader) {
-                nodeColor = 'rgba(255, 215, 0, 0.9)';
-                glowColor = 'rgba(255, 215, 0, 0.6)';
-            } else if (n.id.startsWith('Nightmare')) {
-                nodeColor = 'rgba(255, 0, 0, 0.8)';
-                glowColor = 'rgba(255, 0, 0, 0.8)';
-            } else if (n.id.startsWith('Stream_')) {
-                nodeColor = 'rgba(255, 0, 128, 0.8)';
-                glowColor = 'rgba(255, 0, 128, 0.6)';
-            } else if (n.id.includes('Spider')) {
-                nodeColor = 'rgba(0, 255, 128, 0.8)';
-                glowColor = 'rgba(0, 255, 128, 0.6)';
-            } else if (['creativity', 'soziokratie3.0', 'neon genesis evangelion', 'unit734', 'aethelburg'].includes(n.id.toLowerCase())) {
-                nodeColor = 'rgba(147, 51, 234, 0.9)';
-                glowColor = 'rgba(147, 51, 234, 0.8)';
-            }
-
-            ctx.shadowBlur = r * 1.5;
-            ctx.shadowColor = glowColor;
-            
-            ctx.beginPath();
-            ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
-            ctx.fillStyle = nodeColor;
             ctx.fill();
+            ctx.stroke();
             
-            // Draw inline text if the node is large enough to show it
-            if (r * this.zoom > 15) {
+            ctx.globalAlpha = 1.0; // reset for labels
+            
+            // Minimalistic text label
+            if (this.zoom > 0.8 && isFocused) {
                 ctx.shadowBlur = 0;
-                ctx.fillStyle = "#ffffff";
+                ctx.fillStyle = "#1A1A1A"; // Dark text for Light Mode
                 const fontSize = Math.min(12, Math.max(6, (r * 0.4))) / this.zoom;
                 ctx.font = `bold ${fontSize}px 'Inter', sans-serif`;
                 ctx.textAlign = "center";
