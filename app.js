@@ -781,7 +781,6 @@ class SwarmClient {
             ctx.lineTo(n2.x, n2.y);
             
             // Constellation Focus Logic
-            const isConnectedToSelected = this.selectedNodeId && (n1.id === this.selectedNodeId || n2.id === this.selectedNodeId);
             
             if (this.selectedNodeId) {
                 if (isConnectedToSelected) {
