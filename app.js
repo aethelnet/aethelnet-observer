@@ -399,6 +399,38 @@ class SwarmClient {
             n.x += n.vx;
             n.y += n.vy;
         }
+
+        // Cinematic Camera Tracking
+        if (!this.isPanning && this.nodes.length > 0) {
+            let targetX = center.x;
+            let targetY = center.y;
+
+            if (this.selectedNodeId) {
+                // Track selected node
+                const selected = this.nodes.find(n => n.id === this.selectedNodeId);
+                if (selected) {
+                    targetX = selected.x;
+                    targetY = selected.y;
+                }
+            } else {
+                // Track center of mass of the swarm
+                let cmX = 0, cmY = 0;
+                for (const n of this.nodes) {
+                    cmX += n.x;
+                    cmY += n.y;
+                }
+                targetX = cmX / this.nodes.length;
+                targetY = cmY / this.nodes.length;
+            }
+
+            // Calculate where panX/panY need to be to center targetX/targetY on the screen
+            const idealPanX = width / 2 - targetX * this.zoom;
+            const idealPanY = height / 2 - targetY * this.zoom;
+
+            // Smooth Lerp
+            this.panX += (idealPanX - this.panX) * 0.05;
+            this.panY += (idealPanY - this.panY) * 0.05;
+        }
     }
 
     handleMouseDown(e) {
