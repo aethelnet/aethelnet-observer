@@ -318,10 +318,35 @@ class SwarmClient {
         }));
     }
 
-    tick() {
+    tick(timestamp) {
+        if (!this.lastFrameTime) {
+            this.lastFrameTime = timestamp || performance.now();
+            this.perfScale = 1.0;
+        }
+        const now = timestamp || performance.now();
+        const dt = now - this.lastFrameTime;
+        this.lastFrameTime = now;
+        
+        const currentFps = 1000 / Math.max(dt, 1);
+        if (!this.avgFps) this.avgFps = currentFps;
+        this.avgFps = this.avgFps * 0.9 + currentFps * 0.1;
+        
+        // Auto-scale performance if FPS drops below 40 or is stable above 50
+        if (this.avgFps < 40) {
+            this.perfScale = Math.max(0.1, this.perfScale - 0.05);
+        } else if (this.avgFps > 50) {
+            this.perfScale = Math.min(1.0, this.perfScale + 0.01);
+        }
+        
+        const fpsCounter = document.getElementById('fps-counter');
+        if (fpsCounter) {
+            fpsCounter.textContent = `${Math.round(this.avgFps)} FPS [LOD: ${(this.perfScale*100).toFixed(0)}%]`;
+            fpsCounter.style.color = this.avgFps < 30 ? '#E03C31' : (this.avgFps < 50 ? '#F2C12E' : 'var(--accent-blue)');
+        }
+
         this.physicsUpdate();
         this.draw();
-        requestAnimationFrame(() => this.tick());
+        requestAnimationFrame((ts) => this.tick(ts));
     }
 
     physicsUpdate() {
@@ -832,20 +857,27 @@ class SwarmClient {
             
             const isConnectedToSelected = this.selectedNodeId && (n1.id === this.selectedNodeId || n2.id === this.selectedNodeId);
             
-            // Smooth LOD for bridges
+            // Smooth LOD for bridges with Performance Hardware Scaling
             let lodAlpha = 1.0;
             if (!isConnectedToSelected) {
+                const perfPenalty = (1.0 - (this.perfScale || 1.0)) * 5.0;
+                
                 let a1 = 1.0;
                 if (!n1.is_leader) {
-                    const f1 = 0.8 - (n1.centrality || 0) * 0.7;
+                    const f1 = 0.8 - (n1.centrality || 0) * 0.7 + perfPenalty;
                     if (this.zoom < f1) a1 = Math.max(0, (this.zoom - 0.05) / (f1 - 0.05));
                 }
                 let a2 = 1.0;
                 if (!n2.is_leader) {
-                    const f2 = 0.8 - (n2.centrality || 0) * 0.7;
+                    const f2 = 0.8 - (n2.centrality || 0) * 0.7 + perfPenalty;
                     if (this.zoom < f2) a2 = Math.max(0, (this.zoom - 0.05) / (f2 - 0.05));
                 }
                 lodAlpha = Math.min(a1, a2);
+                
+                // Hard Culling to save draw calls when performance is terrible
+                if (this.perfScale < 0.5 && ((n1.centrality || 0) < 0.2 || (n2.centrality || 0) < 0.2)) {
+                    lodAlpha = 0;
+                }
             }
             if (lodAlpha <= 0.01) continue;
             
@@ -891,9 +923,15 @@ class SwarmClient {
             let lodAlpha = 1.0;
             
             if (!isSelected && !n.is_leader) {
-                const fadeStartZoom = 0.8 - (n.centrality || 0) * 0.7; // 0.1 to 0.8 based on centrality
+                const perfPenalty = (1.0 - (this.perfScale || 1.0)) * 5.0;
+                const fadeStartZoom = 0.8 - (n.centrality || 0) * 0.7 + perfPenalty;
+                
                 if (this.zoom < fadeStartZoom) {
                     lodAlpha = Math.max(0, (this.zoom - 0.05) / (fadeStartZoom - 0.05));
+                }
+                
+                if (this.perfScale < 0.5 && (n.centrality || 0) < 0.2) {
+                    lodAlpha = 0;
                 }
             }
             
