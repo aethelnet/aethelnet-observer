@@ -299,12 +299,11 @@ class SwarmClient {
         const height = this.canvas.height;
         const center = { x: width / 2, y: height / 2 };
         
-        // 1. Force calculations with dynamic zoom scaling
-        // Scale repulsion exponentially with zoom so zooming in pushes nodes aggressively apart
-        const kRepulsion = 50000 * Math.max(0.5, Math.pow(this.zoom, 2.5));
-        const kAttraction = 0.0005; // Drastically reduced so nodes float more freely and expand
-        const kGravity = 0.0008;    // Very weak gravity so the galaxy expands outward organically
-        const damping = 0.85;      // Kept the same so they don't lose all momentum instantly
+        // 1. Force calculations (Decoupled from visual zoom for stability)
+        const kRepulsion = 40000;
+        const kAttraction = 0.0003; 
+        const kGravity = 0.0005;    
+        const damping = 0.85;      
         
         // Repulsion between all nodes
         for (let i = 0; i < this.nodes.length; i++) {
@@ -319,13 +318,13 @@ class SwarmClient {
                 const dy = n2.y - n1.y;
                 
                 // Fast bounding box check to avoid Math.sqrt for distant nodes
-                const repulsionRadius = 800 * Math.max(0.5, Math.pow(this.zoom, 1.5));
+                const repulsionRadius = 600;
                 if (Math.abs(dx) > repulsionRadius || Math.abs(dy) > repulsionRadius) continue;
                 
                 const dist = Math.sqrt(dx * dx + dy * dy) || 1.0;
                 
                 if (dist < repulsionRadius) {
-                    const force = kRepulsion / (dist * dist + 800);
+                    const force = kRepulsion / (dist * dist + 500);
                     const fx = (dx / dist) * force;
                     const fy = (dy / dist) * force;
                     
@@ -348,8 +347,7 @@ class SwarmClient {
             const dy = n2.y - n1.y;
             const dist = Math.sqrt(dx * dx + dy * dy) || 1.0;
             
-            // Preferred link length scales with zoom
-            const restLength = 100 * Math.max(0.7, Math.pow(this.zoom, 0.8));
+            const restLength = 150;
             
             const force = kAttraction * (dist - restLength) * link.weight;
             const fx = (dx / dist) * force;
