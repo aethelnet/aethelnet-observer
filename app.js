@@ -215,7 +215,7 @@ class SwarmClient {
         const center = { x: width / 2, y: height / 2 };
         
         // 1. Force calculations with dynamic zoom scaling
-        const kRepulsion = 12000 * Math.max(0.5, Math.pow(this.zoom, 1.5));
+        const kRepulsion = 35000 * Math.max(0.5, Math.pow(this.zoom, 1.5));
         const kAttraction = 0.004; // Drastically reduced from 0.03 so nodes float more freely
         const kGravity = 0.006;    // Slightly reduced gravity to let them expand
         const damping = 0.85;      // Kept the same so they don't lose all momentum instantly
@@ -230,7 +230,7 @@ class SwarmClient {
                 const dist = Math.sqrt(dx * dx + dy * dy) || 1.0;
                 
                 // Repulsion radius also scales with zoom
-                const repulsionRadius = 400 * Math.max(0.7, this.zoom);
+                const repulsionRadius = 600 * Math.max(0.7, this.zoom);
                 if (dist < repulsionRadius) {
                     const force = kRepulsion / (dist * dist + 800);
                     const fx = (dx / dist) * force;
