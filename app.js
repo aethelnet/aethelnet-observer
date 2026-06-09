@@ -341,10 +341,11 @@ class SwarmClient {
             const dy = n.y - graphY;
             const dist = Math.sqrt(dx * dx + dy * dy);
             
-            const baseRadius = 6;
-            const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 20;
-            const centralityBonus = (n.centrality || 0) * 150;
-            const radius = baseRadius + activationBonus + centralityBonus;
+            const baseRadius = 8;
+            const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 15;
+            const centralityBonus = (n.centrality || 0) * 50;
+            const rawR = baseRadius + activationBonus + centralityBonus;
+            const radius = Math.max(0.1, rawR / Math.pow(this.zoom, 0.6));
             
             if (dist < radius + 10) {
                 clickedNode = n;
@@ -497,8 +498,9 @@ class SwarmClient {
             
             // Limit the maximum visual size so they don't become blobs when zoomed in
             const baseRadius = 8;
-            const activationBonus = Math.max(0, n.activation || 0) * 5;
-            const centralityBonus = (n.centrality || 0) * 100;
+            // Use tanh to strictly bound the activation bonus so nodes never explode in size
+            const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 15;
+            const centralityBonus = (n.centrality || 0) * 50;
             
             // Magic Trick: Since ctx.scale(zoom, zoom) multiplies everything by zoom automatically, 
             // we divide the logical radius by zoom^0.6 so the net visual size scales as zoom^0.4
