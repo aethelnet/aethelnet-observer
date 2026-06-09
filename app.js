@@ -42,6 +42,22 @@ class SwarmClient {
         this.init();
     }
 
+    // 2.5D Isometric Projection Math
+    toIso(x, y, z = 0) {
+        return {
+            x: x - y,
+            y: (x + y) / 2 - z
+        };
+    }
+
+    fromIso(isoX, isoY, z = 0) {
+        const yBase = isoY + z;
+        return {
+            x: yBase + isoX / 2,
+            y: yBase - isoX / 2
+        };
+    }
+
     init() {
         this.log('Initializing Aethelnet Unit...', 'info');
         this.setupCanvas();
@@ -547,8 +563,10 @@ class SwarmClient {
             if (!this.showNetwork && n.id.startsWith("Net_")) continue;
             if (!this.showStream && n.id.startsWith("Stream_")) continue;
             
-            const dx = n.x - graphX;
-            const dy = n.y - graphY;
+            const zOffset = n.is_leader ? 300 : (n.id.startsWith("Obs_") ? -200 : 0);
+            const iso = this.toIso(n.x, n.y, zOffset);
+            const dx = iso.x - graphX;
+            const dy = iso.y - graphY;
             const dist = Math.sqrt(dx * dx + dy * dy);
             
             const baseRadius = 8;
@@ -606,8 +624,15 @@ class SwarmClient {
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
             
-            this.draggedNode.x = (mouseX - this.panX) / this.zoom;
-            this.draggedNode.y = (mouseY - this.panY) / this.zoom;
+            const graphX = (mouseX - this.panX) / this.zoom;
+            const graphY = (mouseY - this.panY) / this.zoom;
+            
+            const n = this.draggedNode;
+            const zOffset = n.is_leader ? 300 : (n.id.startsWith("Obs_") ? -200 : 0);
+            const flatCoords = this.fromIso(graphX, graphY, zOffset);
+            
+            this.draggedNode.x = flatCoords.x;
+            this.draggedNode.y = flatCoords.y;
             this.draggedNode.vx = 0;
             this.draggedNode.vy = 0;
             return;
@@ -873,13 +898,22 @@ class SwarmClient {
             if (!this.showNetwork && (n1.id.startsWith("Net_") || n2.id.startsWith("Net_"))) continue;
             if (!this.showStream && (n1.id.startsWith("Stream_") || n2.id.startsWith("Stream_"))) continue;
 
-            ctx.beginPath();
-            ctx.moveTo(n1.x, n1.y);
-            // Manhattan Routing (Flowchart / PCB Style)
+            const z1 = n1.is_leader ? 300 : (n1.id.startsWith("Obs_") ? -200 : 0);
+            const z2 = n2.is_leader ? 300 : (n2.id.startsWith("Obs_") ? -200 : 0);
+            
+            const iso1 = this.toIso(n1.x, n1.y, z1);
+            const iso2 = this.toIso(n2.x, n2.y, z2);
+            
+            // Manhattan Routing (Calculated in 2D, projected to 2.5D)
             const midX = (n1.x + n2.x) / 2;
-            ctx.lineTo(midX, n1.y);
-            ctx.lineTo(midX, n2.y);
-            ctx.lineTo(n2.x, n2.y);
+            const midIso1 = this.toIso(midX, n1.y, z1);
+            const midIso2 = this.toIso(midX, n2.y, z2);
+
+            ctx.beginPath();
+            ctx.moveTo(iso1.x, iso1.y);
+            ctx.lineTo(midIso1.x, midIso1.y);
+            ctx.lineTo(midIso2.x, midIso2.y);
+            ctx.lineTo(iso2.x, iso2.y);
             
             // Constellation Focus Logic
             
@@ -936,8 +970,12 @@ class SwarmClient {
             // Radius scales slightly with zoom but not 1:1
             const r = Math.max(0.1, rawR / Math.pow(this.zoom, 0.6)); 
             
+            // Iso Projection
+            const zOffset = n.is_leader ? 300 : (n.id.startsWith("Obs_") ? -200 : 0);
+            const iso = this.toIso(n.x, n.y, zOffset);
+            
             // Off-screen Culling (Massive performance boost when zoomed in)
-            if (n.x + r < vLeft || n.x - r > vRight || n.y + r < vTop || n.y - r > vBottom) {
+            if (iso.x + r < vLeft || iso.x - r > vRight || iso.y + r < vTop || iso.y - r > vBottom) {
                 continue;
             }
             
@@ -949,7 +987,7 @@ class SwarmClient {
             ctx.globalAlpha = (isFocused ? 1.0 : 0.2) * lodAlpha;
             
             ctx.beginPath();
-            ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+            ctx.arc(iso.x, iso.y, r, 0, 2 * Math.PI);
             
             // Bauhaus Colors based on node type
             ctx.shadowBlur = 0; // No glowing in Bauhaus!
@@ -981,15 +1019,15 @@ class SwarmClient {
             if (this.zoom > 3.0 && isFocused && n.full_data) {
                 ctx.save();
                 ctx.beginPath();
-                ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+                ctx.arc(iso.x, iso.y, r, 0, 2 * Math.PI);
                 ctx.clip(); // Restrict drawing to inside the circle
                 
                 // Draw background image if it exists
                 if (n.cached_image) {
-                    ctx.drawImage(n.cached_image, n.x - r, n.y - r, r*2, r*2);
+                    ctx.drawImage(n.cached_image, iso.x - r, iso.y - r, r*2, r*2);
                     // Add dark overlay for text readability
                     ctx.fillStyle = "rgba(0,0,0,0.6)";
-                    ctx.fillRect(n.x - r, n.y - r, r*2, r*2);
+                    ctx.fillRect(iso.x - r, iso.y - r, r*2, r*2);
                 }
                 
                 ctx.fillStyle = n.cached_image ? "#FFFFFF" : "#1A1A1A";
@@ -1019,17 +1057,17 @@ class SwarmClient {
                 
                 const lineHeight = fontSize * 1.2;
                 const totalHeight = lines.length * lineHeight;
-                let startY = n.y - (totalHeight / 2) + (lineHeight / 2);
+                let startY = iso.y - (totalHeight / 2) + (lineHeight / 2);
                 
                 // Draw the wrapped text
                 for (let j = 0; j < lines.length; j++) {
-                    ctx.fillText(lines[j].trim(), n.x, startY + (j * lineHeight));
+                    ctx.fillText(lines[j].trim(), iso.x, startY + (j * lineHeight));
                 }
                 
                 // Draw Confidence Meta Tag at the bottom
                 ctx.font = `bold ${fontSize * 0.7}px 'Inter', monospace`;
                 ctx.fillStyle = n.cached_image ? "#F2C12E" : "#E03C31";
-                ctx.fillText(`CONF: ${(n.full_data.confidence * 100).toFixed(0)}%`, n.x, n.y + r - (fontSize * 1.5));
+                ctx.fillText(`CONF: ${(n.full_data.confidence * 100).toFixed(0)}%`, iso.x, iso.y + r - (fontSize * 1.5));
                 
                 ctx.restore();
                 
@@ -1048,7 +1086,7 @@ class SwarmClient {
                 ctx.textBaseline = "middle";
                 
                 const label = (n.label || n.id || '').split('_').pop().substring(0, 15);
-                ctx.fillText(label, n.x, n.y);
+                ctx.fillText(label, iso.x, iso.y);
             }
         }
         
