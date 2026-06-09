@@ -425,8 +425,22 @@ class SwarmClient {
             const distFromCenter = Math.sqrt((center.x - n.x)**2 + (center.y - n.y)**2);
             let currentGravity = centerGravity;
             
-            if (distFromCenter > 1500) {
-                currentGravity *= (distFromCenter / 500);
+            const isInfrastructure = n.id.startsWith("Obs_") || n.id.startsWith("Net_") || n.id.startsWith("Stream_");
+            
+            if (isInfrastructure) {
+                // Push infrastructure to the outer edges (orbit ring)
+                if (distFromCenter < 2500) {
+                    currentGravity = -centerGravity * 5.0; // Repel from center
+                } else if (distFromCenter > 3500) {
+                    currentGravity = centerGravity * 5.0; // Pull back into orbit ring
+                } else {
+                    currentGravity = 0; // Float happily in the ring
+                }
+            } else {
+                // Semantic nodes stay in the center
+                if (distFromCenter > 1500) {
+                    currentGravity *= (distFromCenter / 500);
+                }
             }
             
             n.vx += (center.x - n.x) * currentGravity;
