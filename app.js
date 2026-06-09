@@ -216,9 +216,9 @@ class SwarmClient {
         
         // 1. Force calculations with dynamic zoom scaling
         const kRepulsion = 12000 * Math.max(0.5, Math.pow(this.zoom, 1.5));
-        const kAttraction = 0.03;
-        const kGravity = 0.008;
-        const damping = 0.85;
+        const kAttraction = 0.004; // Drastically reduced from 0.03 so nodes float more freely
+        const kGravity = 0.006;    // Slightly reduced gravity to let them expand
+        const damping = 0.85;      // Kept the same so they don't lose all momentum instantly
         
         // Repulsion between all nodes
         for (let i = 0; i < this.nodes.length; i++) {
@@ -300,7 +300,12 @@ class SwarmClient {
             const dx = n.x - graphX;
             const dy = n.y - graphY;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            const radius = 8 + Math.abs(Math.tanh(n.activation || 0)) * 12;
+            
+            const baseRadius = 6;
+            const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 20;
+            const centralityBonus = (n.centrality || 0) * 150;
+            const radius = baseRadius + activationBonus + centralityBonus;
+            
             if (dist < radius + 10) {
                 clickedNode = n;
                 break;
@@ -419,7 +424,11 @@ class SwarmClient {
             if (!this.showNetwork && n.id.startsWith("Net_")) continue;
             if (!this.showStream && n.id.startsWith("Stream_")) continue;
             
-            const radius = 8 + Math.abs(Math.tanh(n.activation || 0)) * 12;
+            // Calculate node radius with more variance based on activation and centrality
+            const baseRadius = 6;
+            const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 20;
+            const centralityBonus = (n.centrality || 0) * 150; // Centrality is usually very small (e.g. 0.05), so we multiply by a large number
+            const radius = baseRadius + activationBonus + centralityBonus;
 
             // Highlight ring if selected
             if (n.id === this.selectedNodeId) {
