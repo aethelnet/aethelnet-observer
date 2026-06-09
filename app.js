@@ -34,7 +34,7 @@ class SwarmClient {
         this.isPanning = false;
         this.startX = 0;
         this.startY = 0;
-        this.showGossip = true;
+        this.showGossip = false;
         this.showNetwork = true;
         this.showStream = true;
         this.swarmHistory = [];
@@ -288,6 +288,9 @@ class SwarmClient {
     }
 
     updateGraph(newNodes, newLinks) {
+        // Ignore global updates if we are in a sub-swarm
+        if (this.swarmHistory && this.swarmHistory.length > 0) return;
+        
         // Keep positions of existing nodes, spawn new ones in center
         const width = this.canvas.width;
         const height = this.canvas.height;
@@ -352,6 +355,11 @@ class SwarmClient {
         const cellSize = separationDist;
         const grid = new Map();
         for (const n of this.nodes) {
+            // Skip hidden nodes from physics calculations
+            if (!this.showGossip && n.id.startsWith("Obs_")) continue;
+            if (!this.showNetwork && n.id.startsWith("Net_")) continue;
+            if (!this.showStream && n.id.startsWith("Stream_")) continue;
+            
             const gx = Math.floor(n.x / cellSize);
             const gy = Math.floor(n.y / cellSize);
             const key = `${gx},${gy}`;
@@ -361,6 +369,12 @@ class SwarmClient {
         
         for (let i = 0; i < this.nodes.length; i++) {
             const n = this.nodes[i];
+            
+            // Skip hidden nodes
+            if (!this.showGossip && n.id.startsWith("Obs_")) continue;
+            if (!this.showNetwork && n.id.startsWith("Net_")) continue;
+            if (!this.showStream && n.id.startsWith("Stream_")) continue;
+            
             if (n.vx === undefined) { n.vx = 0; n.vy = 0; }
             
             let centerOfMassX = 0, centerOfMassY = 0;
@@ -619,12 +633,6 @@ class SwarmClient {
         const zoomFactor = 1.1;
         if (e.deltaY < 0) {
             this.zoom *= zoomFactor;
-            
-            // INFINITE ZOOM TRANSITION
-            if (this.zoom > 10.0 && this.selectedNodeId) {
-                this.diveIntoNode(this.selectedNodeId);
-                return;
-            }
             
             // Hard limit if no node selected
             if (this.zoom > 5.0 && !this.selectedNodeId) {
