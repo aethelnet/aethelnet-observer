@@ -364,7 +364,10 @@ class SwarmClient {
         const sortedNodes = [...this.nodes].sort((a, b) => b.z - a.z);
 
         for (const n of sortedNodes) {
-            const scale = fov / (fov + n.z); // Perspective scale
+            // If the node is behind the camera, don't draw it
+            if (n.z <= -fov + 10) continue;
+
+            const scale = Math.max(0.01, fov / (fov + n.z)); // Perspective scale (clamped to avoid negative/infinity)
             const x = this.panX + (n.x - center.x) * this.zoom * scale + center.x;
             const y = this.panY + (n.y - center.y) * this.zoom * scale + center.y;
             
@@ -373,9 +376,9 @@ class SwarmClient {
             const activationBonus = Math.max(0, n.activation || 0) * 5;
             const centralityBonus = (n.centrality || 0) * 100;
             
-            // Scale radius relative to zoom AND 3D depth
+            // Scale radius relative to zoom AND 3D depth, ensuring it never goes negative
             const rawR = (baseRadius + activationBonus + centralityBonus);
-            const r = rawR * Math.pow(this.zoom, 0.4) * scale; 
+            const r = Math.max(0.1, rawR * Math.pow(this.zoom, 0.4) * scale); 
 
             // Color coding based on node ID/Type
             let nodeColor = 'rgba(6, 182, 212, 0.8)'; // Default Cyan
@@ -396,12 +399,12 @@ class SwarmClient {
             }
 
             // Alpha fade out for objects far in the background
-            const alpha = Math.max(0.1, Math.min(1.0, 1.5 - (n.z / 1000)));
+            const alpha = Math.max(0.05, Math.min(1.0, 1.5 - (n.z / 1000)));
 
             ctx.beginPath();
             ctx.arc(x, y, r, 0, Math.PI * 2);
             
-            // Apply depth alpha to colors
+            // Apply depth alpha to colors securely
             ctx.fillStyle = nodeColor.replace('1)', `${alpha})`).replace('0.8)', `${alpha * 0.8})`);
             ctx.shadowColor = glowColor.replace('0.6)', `${alpha * 0.6})`).replace('0.4)', `${alpha * 0.4})`).replace('0.8)', `${alpha * 0.8})`);
             
@@ -415,7 +418,7 @@ class SwarmClient {
                 ctx.fillStyle = `rgba(255,255,255,${alpha * 0.9})`;
                 ctx.font = `${Math.max(10, 12 * Math.pow(this.zoom, 0.5) * scale)}px 'JetBrains Mono'`;
                 ctx.textAlign = 'center';
-                ctx.fillText(n.label.substring(0, 24), x, y + r + 15 * scale);
+                ctx.fillText((n.label || n.id || '').substring(0, 24), x, y + r + 15 * Math.min(1, scale));
             }
         }
     }
