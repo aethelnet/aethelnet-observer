@@ -251,8 +251,11 @@ class SwarmClient {
         
         const width = this.canvas.width;
         const height = this.canvas.height;
-        const center = { x: width / 2, y: height / 2 };
-        
+        const center = { x: width / 2, y: height / 2, z: 0 };
+        const fov = 1000; // Field of view for 3D projection
+        const ctx = this.ctx;
+        ctx.clearRect(0, 0, width, height);
+
         // 1. Force calculations with dynamic zoom scaling
         // Scale repulsion exponentially with zoom so zooming in pushes nodes aggressively apart
         const kRepulsion = 40000 * Math.max(0.5, Math.pow(this.zoom, 2.5));
@@ -260,14 +263,30 @@ class SwarmClient {
         const kGravity = 0.006;    // Slightly reduced gravity to let them expand
         const damping = 0.85;      // Kept the same so they don't lose all momentum instantly
         
-        // Repulsion between all nodes
+        // Ensure nodes have Z coordinates
+        for (const n of this.nodes) {
+            if (n.z === undefined) {
+                n.z = (Math.random() - 0.5) * 800; // Random depth
+                n.vz = 0;
+            }
+        }
+
+        // Link resolution
+        const nodeLookup = new Map(this.nodes.map(n => [n.id, n]));
+        for (const link of this.links) {
+            link.sourceNode = nodeLookup.get(link.source);
+            link.targetNode = nodeLookup.get(link.target);
+        }
+
+        // Repulsion between all nodes (3D)
         for (let i = 0; i < this.nodes.length; i++) {
             const n1 = this.nodes[i];
             for (let j = i + 1; j < this.nodes.length; j++) {
                 const n2 = this.nodes[j];
                 const dx = n2.x - n1.x;
                 const dy = n2.y - n1.y;
-                const dist = Math.sqrt(dx * dx + dy * dy) || 1.0;
+                const dz = n2.z - n1.z;
+                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1.0;
                 
                 // Repulsion radius scales sharply with zoom
                 const repulsionRadius = 800 * Math.max(0.5, Math.pow(this.zoom, 1.5));
@@ -275,49 +294,129 @@ class SwarmClient {
                     const force = kRepulsion / (dist * dist + 800);
                     const fx = (dx / dist) * force;
                     const fy = (dy / dist) * force;
-                    
-                    n1.vx -= fx;
-                    n1.vy -= fy;
-                    n2.vx += fx;
-                    n2.vy += fy;
+                    const fz = (dz / dist) * force;
+                    n1.vx -= fx; n1.vy -= fy; n1.vz -= fz;
+                    n2.vx += fx; n2.vy += fy; n2.vz += fz;
                 }
             }
         }
         
-        // Attraction along links
-        const nodeLookup = new Map(this.nodes.map(n => [n.id, n]));
+        // Attraction along links (3D)
         for (const link of this.links) {
-            const n1 = nodeLookup.get(link.source);
-            const n2 = nodeLookup.get(link.target);
-            if (!n1 || !n2) continue;
-            
-            const dx = n2.x - n1.x;
-            const dy = n2.y - n1.y;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1.0;
-            
-            // Preferred link length scales with zoom
-            const restLength = 100 * Math.max(0.7, Math.pow(this.zoom, 0.8));
-            
-            const force = kAttraction * (dist - restLength) * link.weight;
-            const fx = (dx / dist) * force;
-            const fy = (dy / dist) * force;
-            
-            n1.vx += fx;
-            n1.vy += fy;
-            n2.vx -= fx;
-            n2.vy -= fy;
+            const s = link.sourceNode;
+            const t = link.targetNode;
+            if (s && t) {
+                const dx = t.x - s.x;
+                const dy = t.y - s.y;
+                const dz = t.z - s.z;
+                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1.0;
+                
+                const restLength = 100;
+                const force = kAttraction * (dist - restLength) * link.weight;
+                const fx = (dx / dist) * force;
+                const fy = (dy / dist) * force;
+                const fz = (dz / dist) * force;
+                
+                s.vx += fx; s.vy += fy; s.vz += fz;
+                t.vx -= fx; t.vy -= fy; t.vz -= fz;
+            }
         }
         
-        // Gravity pull to center and update positions
+        // Gravity, Damping, and Position update (3D)
         for (const n of this.nodes) {
             n.vx += (center.x - n.x) * kGravity;
             n.vy += (center.y - n.y) * kGravity;
+            n.vz += (center.z - n.z) * kGravity;
             
             n.vx *= damping;
             n.vy *= damping;
+            n.vz *= damping;
             
             n.x += n.vx;
             n.y += n.vy;
+            n.z += n.vz;
+        }
+
+        // 2. Draw bridges (Lines are drawn 2D projected)
+        ctx.lineWidth = 1;
+        for (const link of this.links) {
+            const s = link.sourceNode;
+            const t = link.targetNode;
+            if (s && t) {
+                // Project 3D to 2D
+                const sScale = fov / (fov + s.z);
+                const tScale = fov / (fov + t.z);
+
+                const sx = this.panX + (s.x - center.x) * this.zoom * sScale + center.x;
+                const sy = this.panY + (s.y - center.y) * this.zoom * sScale + center.y;
+                const tx = this.panX + (t.x - center.x) * this.zoom * tScale + center.x;
+                const ty = this.panY + (t.y - center.y) * this.zoom * tScale + center.y;
+
+                ctx.beginPath();
+                ctx.moveTo(sx, sy);
+                ctx.lineTo(tx, ty);
+                ctx.strokeStyle = `rgba(6, 182, 212, ${Math.min(0.8, 0.1 * link.weight)})`;
+                ctx.stroke();
+            }
+        }
+        
+        // 3. Draw nodes (Painters algorithm: sort by depth Z descending)
+        const sortedNodes = [...this.nodes].sort((a, b) => b.z - a.z);
+
+        for (const n of sortedNodes) {
+            const scale = fov / (fov + n.z); // Perspective scale
+            const x = this.panX + (n.x - center.x) * this.zoom * scale + center.x;
+            const y = this.panY + (n.y - center.y) * this.zoom * scale + center.y;
+            
+            // Limit the maximum visual size so they don't become blobs when zoomed in
+            const baseRadius = 8;
+            const activationBonus = Math.max(0, n.activation || 0) * 5;
+            const centralityBonus = (n.centrality || 0) * 100;
+            
+            // Scale radius relative to zoom AND 3D depth
+            const rawR = (baseRadius + activationBonus + centralityBonus);
+            const r = rawR * Math.pow(this.zoom, 0.4) * scale; 
+
+            // Color coding based on node ID/Type
+            let nodeColor = 'rgba(6, 182, 212, 0.8)'; // Default Cyan
+            let glowColor = 'rgba(6, 182, 212, 0.4)';
+            
+            if (n.is_leader) {
+                nodeColor = 'rgba(255, 215, 0, 1)'; // Gold Leader
+                glowColor = 'rgba(255, 215, 0, 0.6)';
+            } else if (n.id.startsWith('Stream_')) {
+                nodeColor = 'rgba(255, 0, 128, 1)'; // Pink Streams
+                glowColor = 'rgba(255, 0, 128, 0.6)';
+            } else if (n.id.includes('Spider')) {
+                nodeColor = 'rgba(0, 255, 128, 1)'; // Neon Green Spiders
+                glowColor = 'rgba(0, 255, 128, 0.6)';
+            } else if (['creativity', 'soziokratie3.0', 'neon genesis evangelion', 'unit734', 'aethelburg'].includes(n.id.toLowerCase())) {
+                nodeColor = 'rgba(147, 51, 234, 1)'; // Deep Purple Reality Anchors
+                glowColor = 'rgba(147, 51, 234, 0.8)';
+            }
+
+            // Alpha fade out for objects far in the background
+            const alpha = Math.max(0.1, Math.min(1.0, 1.5 - (n.z / 1000)));
+
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            
+            // Apply depth alpha to colors
+            ctx.fillStyle = nodeColor.replace('1)', `${alpha})`).replace('0.8)', `${alpha * 0.8})`);
+            ctx.shadowColor = glowColor.replace('0.6)', `${alpha * 0.6})`).replace('0.4)', `${alpha * 0.4})`).replace('0.8)', `${alpha * 0.8})`);
+            
+            ctx.shadowBlur = r * 2;
+            ctx.fill();
+            
+            ctx.shadowBlur = 0; // Reset
+            
+            // Draw Label if zoomed in enough or if it's a leader/anchor/stream, and not too far back
+            if ((this.zoom > 0.8 || n.is_leader || n.id.startsWith('Stream_') || ['creativity', 'unit734'].includes(n.id.toLowerCase())) && n.z < 500) {
+                ctx.fillStyle = `rgba(255,255,255,${alpha * 0.9})`;
+                ctx.font = `${Math.max(10, 12 * Math.pow(this.zoom, 0.5) * scale)}px 'JetBrains Mono'`;
+                ctx.textAlign = 'center';
+                ctx.fillText(n.label.substring(0, 24), x, y + r + 15 * scale);
+            }
         }
     }
 
