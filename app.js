@@ -496,14 +496,11 @@ class SwarmClient {
             if (!this.showNetwork && n.id.startsWith("Net_")) continue;
             if (!this.showStream && n.id.startsWith("Stream_")) continue;
             
-            // Limit the maximum visual size so they don't become blobs when zoomed in
-            const baseRadius = 8;
-            // Use tanh to strictly bound the activation bonus so nodes never explode in size
-            const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 15;
-            const centralityBonus = (n.centrality || 0) * 50;
+            // Nodes are bigger now for the inline text
+            const baseRadius = 25;
+            const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 25;
+            const centralityBonus = (n.centrality || 0) * 80;
             
-            // Magic Trick: Since ctx.scale(zoom, zoom) multiplies everything by zoom automatically, 
-            // we divide the logical radius by zoom^0.6 so the net visual size scales as zoom^0.4
             const rawR = (baseRadius + activationBonus + centralityBonus);
             const r = Math.max(0.1, rawR / Math.pow(this.zoom, 0.6)); 
 
@@ -511,31 +508,34 @@ class SwarmClient {
             if (n.id === this.selectedNodeId) {
                 ctx.shadowBlur = 0;
                 ctx.strokeStyle = "#eab308";
-                ctx.lineWidth = 2 / this.zoom;
+                ctx.lineWidth = 3 / this.zoom;
                 ctx.beginPath();
-                ctx.arc(n.x, n.y, r + 5 / this.zoom, 0, 2 * Math.PI);
+                ctx.arc(n.x, n.y, r + 8 / this.zoom, 0, 2 * Math.PI);
                 ctx.stroke();
             }
 
-            // Color coding based on node ID/Type
-            let nodeColor = 'rgba(6, 182, 212, 0.8)'; // Default Cyan
+            // Color coding
+            let nodeColor = 'rgba(6, 182, 212, 0.8)';
             let glowColor = 'rgba(6, 182, 212, 0.4)';
             
             if (n.is_leader) {
-                nodeColor = 'rgba(255, 215, 0, 1)'; // Gold Leader
+                nodeColor = 'rgba(255, 215, 0, 0.9)';
                 glowColor = 'rgba(255, 215, 0, 0.6)';
+            } else if (n.id.startsWith('Nightmare')) {
+                nodeColor = 'rgba(255, 0, 0, 0.8)';
+                glowColor = 'rgba(255, 0, 0, 0.8)';
             } else if (n.id.startsWith('Stream_')) {
-                nodeColor = 'rgba(255, 0, 128, 1)'; // Pink Streams
+                nodeColor = 'rgba(255, 0, 128, 0.8)';
                 glowColor = 'rgba(255, 0, 128, 0.6)';
             } else if (n.id.includes('Spider')) {
-                nodeColor = 'rgba(0, 255, 128, 1)'; // Neon Green Spiders
+                nodeColor = 'rgba(0, 255, 128, 0.8)';
                 glowColor = 'rgba(0, 255, 128, 0.6)';
             } else if (['creativity', 'soziokratie3.0', 'neon genesis evangelion', 'unit734', 'aethelburg'].includes(n.id.toLowerCase())) {
-                nodeColor = 'rgba(147, 51, 234, 1)'; // Deep Purple Reality Anchors
+                nodeColor = 'rgba(147, 51, 234, 0.9)';
                 glowColor = 'rgba(147, 51, 234, 0.8)';
             }
 
-            ctx.shadowBlur = r * 2;
+            ctx.shadowBlur = r * 1.5;
             ctx.shadowColor = glowColor;
             
             ctx.beginPath();
@@ -543,23 +543,18 @@ class SwarmClient {
             ctx.fillStyle = nodeColor;
             ctx.fill();
             
-            // Pulsing orbit ring for elected leader node
-            if (n.is_leader) {
+            // Draw inline text if the node is large enough to show it
+            if (r * this.zoom > 15) {
                 ctx.shadowBlur = 0;
-                ctx.strokeStyle = "rgba(234, 179, 8, 0.5)";
-                ctx.lineWidth = 1.5 / this.zoom;
-                const pulseRadius = r + 6 + Math.sin(Date.now() * 0.005) * 3;
-                ctx.beginPath();
-                ctx.arc(n.x, n.y, pulseRadius, 0, 2 * Math.PI);
-                ctx.stroke();
+                ctx.fillStyle = "#ffffff";
+                const fontSize = Math.min(12, Math.max(6, (r * 0.4))) / this.zoom;
+                ctx.font = `bold ${fontSize}px 'Inter', sans-serif`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                
+                const label = (n.label || n.id || '').split('_').pop().substring(0, 15);
+                ctx.fillText(label, n.x, n.y);
             }
-            
-            // Draw labels
-            ctx.shadowBlur = 0; // Disable shadow for clean text
-            ctx.fillStyle = n.is_leader ? "#eab308" : "#ffffff";
-            ctx.font = `bold ${11 / this.zoom}px 'JetBrains Mono', monospace`;
-            ctx.textAlign = "center";
-            ctx.fillText((n.label || n.id || '').substring(0, 24), n.x, n.y - (r + 6 / this.zoom));
         }
         
         ctx.restore();
