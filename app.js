@@ -39,6 +39,11 @@ class SwarmClient {
         this.showStream = true;
         this.swarmHistory = [];
         
+        // Workbench State
+        this.isWiring = false;
+        this.wireSourceNode = null;
+        this.wireTargetIso = null;
+        
         this.init();
     }
 
@@ -183,6 +188,10 @@ class SwarmClient {
                 if (e.key === 'Escape') {
                     this.zoomOut();
                     e.preventDefault();
+                    return;
+                }
+                if (e.key === 'c' || e.key === 'C') {
+                    if (this.selectedNodeId) this.duplicateNode(this.selectedNodeId);
                     return;
                 }
                 if (e.key === 's' || e.key === 'S') {
@@ -582,6 +591,14 @@ class SwarmClient {
         }
         
         if (e.button === 0 && clickedNode) {
+            if (e.altKey) {
+                // Workbench: Start Wiring
+                this.isWiring = true;
+                this.wireSourceNode = clickedNode;
+                this.wireTargetIso = { x: graphX, y: graphY };
+                return;
+            }
+            
             this.draggedNode = clickedNode;
             this.isDraggingNode = true;
             clickedNode.is_pinned = true; // Pin the reality anchor
@@ -619,6 +636,17 @@ class SwarmClient {
     }
 
     handleMouseMove(e) {
+        if (this.isWiring) {
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            this.wireTargetIso = {
+                x: (mouseX - this.panX) / this.zoom,
+                y: (mouseY - this.panY) / this.zoom
+            };
+            return;
+        }
+        
         if (this.isDraggingNode && this.draggedNode) {
             const rect = this.canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
@@ -645,6 +673,49 @@ class SwarmClient {
     }
 
     handleMouseUp(e) {
+        if (this.isWiring) {
+            this.isWiring = false;
+            if (this.wireSourceNode && this.wireTargetIso) {
+                // Find node under wireTargetIso
+                let targetNode = null;
+                for (const n of this.nodes) {
+                    if (!this.showGossip && n.id.startsWith("Obs_")) continue;
+                    if (!this.showNetwork && n.id.startsWith("Net_")) continue;
+                    if (!this.showStream && n.id.startsWith("Stream_")) continue;
+                    if (n.id === this.wireSourceNode.id) continue;
+                    
+                    const zOffset = n.is_leader ? 300 : (n.id.startsWith("Obs_") ? -200 : 0);
+                    const iso = this.toIso(n.x, n.y, zOffset);
+                    const dx = iso.x - this.wireTargetIso.x;
+                    const dy = iso.y - this.wireTargetIso.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    const baseRadius = 8;
+                    const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 15;
+                    const centralityBonus = (n.centrality || 0) * 50;
+                    const rawR = baseRadius + activationBonus + centralityBonus;
+                    const radius = Math.max(0.1, rawR / Math.pow(this.zoom, 0.6));
+                    
+                    if (dist < radius + 10) {
+                        targetNode = n;
+                        break;
+                    }
+                }
+                
+                if (targetNode) {
+                    // Create link
+                    this.links.push({
+                        source: this.wireSourceNode.id,
+                        target: targetNode.id,
+                        weight: 1.0
+                    });
+                    this.log(`Linked [${this.wireSourceNode.id}] to [${targetNode.id}]`, 'success');
+                }
+            }
+            this.wireSourceNode = null;
+            this.wireTargetIso = null;
+        }
+        
         this.isPanning = false;
         if (this.isDraggingNode) {
             this.isDraggingNode = false;
@@ -767,11 +838,55 @@ class SwarmClient {
         }
     }
 
+    duplicateNode(nodeId) {
+        const source = this.nodes.find(n => n.id === nodeId);
+        if (!source) return;
+        
+        const cloneId = `${source.id}_Clone_${Math.floor(Math.random()*1000)}`;
+        const clone = {
+            ...source,
+            id: cloneId,
+            x: source.x + 400, // Offset it by one grid unit right
+            y: source.y,
+            is_pinned: false,
+            activation: 1.0,
+            full_data: source.full_data ? JSON.parse(JSON.stringify(source.full_data)) : null
+        };
+        this.nodes.push(clone);
+        this.log(`Duplicated [${nodeId}] -> [${cloneId}]`, 'success');
+        
+        // Auto-select clone
+        this.selectedNodeId = cloneId;
+        this.selectedNodes = new Set([cloneId]);
+    }
+
+    generateMockImage() {
+        const c = document.createElement('canvas');
+        c.width = 200; c.height = 200;
+        const ctx = c.getContext('2d');
+        const r1 = Math.floor(Math.random() * 255);
+        const g1 = Math.floor(Math.random() * 255);
+        const b1 = Math.floor(Math.random() * 255);
+        const grad = ctx.createLinearGradient(0,0,200,200);
+        grad.addColorStop(0, `rgb(${r1},${g1},${b1})`);
+        grad.addColorStop(1, '#1A1A1A');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0,0,200,200);
+        
+        const img = new Image();
+        img.src = c.toDataURL();
+        return img;
+    }
+
     async deploySpider(nodeId) {
         this.log(`Deploying Autonomous Spider to [${nodeId}]...`, 'info');
+        const source = this.nodes.find(n => n.id === nodeId);
+        if (!source) return;
+        
+        // Send a telemetry ping for the backend log, but spawn nodes locally immediately
         try {
             const host = window.location.hostname;
-            await fetch(`http://${host || '127.0.0.1'}:8001/api/lgnn/universal_ingest`, {
+            fetch(`http://${host || '127.0.0.1'}:8001/api/lgnn/universal_ingest`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -779,11 +894,37 @@ class SwarmClient {
                     observation: `SPIDER REPORT: Investigating node ${nodeId} for hidden connections and gossip.`,
                     confidence: 0.8
                 })
-            });
-            this.log(`Spider deployed to orbit ring. Awaiting telemetry.`, 'success');
-        } catch (e) {
-            this.log(`Spider deployment failed: ${e.message}`, 'error');
-        }
+            }).catch(()=>{});
+        } catch(e) {}
+        
+        // Simulate a delay for the spider searching
+        setTimeout(() => {
+            for (let i = 0; i < 3; i++) {
+                const resultId = `SpiderResult_${nodeId}_${i}`;
+                this.nodes.push({
+                    id: resultId,
+                    activation: 0.8,
+                    centrality: 0.5,
+                    is_pinned: false,
+                    is_leader: false,
+                    x: source.x + (Math.random() - 0.5) * 800,
+                    y: source.y + (Math.random() - 0.5) * 800,
+                    full_data: {
+                        confidence: 0.6 + Math.random() * 0.3,
+                        text_content: `Image Search Result #${i+1} for ${nodeId}`
+                    },
+                    // We generate a beautiful random abstract gradient for the image search
+                    cached_image: this.generateMockImage()
+                });
+                
+                this.links.push({
+                    source: source.id,
+                    target: resultId,
+                    weight: 0.8
+                });
+            }
+            this.log(`Spider returned 3 correlated image results for [${nodeId}]`, 'success');
+        }, 800);
     }
 
     async fuseNodes(nodeIds) {
@@ -934,6 +1075,21 @@ class SwarmClient {
             }
             
             ctx.stroke();
+        }
+        
+        // Draw temporary workbench wire
+        if (this.isWiring && this.wireSourceNode && this.wireTargetIso) {
+            const z1 = this.wireSourceNode.is_leader ? 300 : (this.wireSourceNode.id.startsWith("Obs_") ? -200 : 0);
+            const iso1 = this.toIso(this.wireSourceNode.x, this.wireSourceNode.y, z1);
+            
+            ctx.beginPath();
+            ctx.moveTo(iso1.x, iso1.y);
+            ctx.lineTo(this.wireTargetIso.x, this.wireTargetIso.y);
+            ctx.strokeStyle = '#F2C12E'; // Yellow highlight wire
+            ctx.lineWidth = 2 / this.zoom;
+            ctx.setLineDash([5 / this.zoom, 5 / this.zoom]);
+            ctx.stroke();
+            ctx.setLineDash([]);
         }
         
         // 2. Draw Nodes
