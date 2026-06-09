@@ -333,11 +333,22 @@ class SwarmClient {
         
         const nodeLookup = new Map(this.nodes.map(n => [n.id, n]));
         
-        // Pre-calculate neighbor data for Boids
-        const neighbors = new Map(this.nodes.map(n => [n.id, []]));
+        // Pre-calculate neighbor data for fast O(1) lookup
+        const neighbors = new Map(this.nodes.map(n => [n.id, new Set()]));
         for (const link of this.links) {
-            if (neighbors.has(link.source)) neighbors.get(link.source).push({ id: link.target, weight: link.weight });
-            if (neighbors.has(link.target)) neighbors.get(link.target).push({ id: link.source, weight: link.weight });
+            if (neighbors.has(link.source)) neighbors.get(link.source).add(link.target);
+            if (neighbors.has(link.target)) neighbors.get(link.target).add(link.source);
+        }
+
+        // --- SPATIAL HASH GRID (O(N) Optimization) ---
+        const cellSize = separationDist;
+        const grid = new Map();
+        for (const n of this.nodes) {
+            const gx = Math.floor(n.x / cellSize);
+            const gy = Math.floor(n.y / cellSize);
+            const key = `${gx},${gy}`;
+            if (!grid.has(key)) grid.set(key, []);
+            grid.get(key).push(n);
         }
         
         for (let i = 0; i < this.nodes.length; i++) {
@@ -349,42 +360,47 @@ class SwarmClient {
             let separationFx = 0, separationFy = 0;
             let neighborCount = 0;
             
-            const nbrs = neighbors.get(n.id) || [];
+            const nbrIds = neighbors.get(n.id) || new Set();
             
             // 1. Cohesion & Alignment (from topological links)
-            for (const nbrInfo of nbrs) {
-                const neighbor = nodeLookup.get(nbrInfo.id);
+            for (const nbrId of nbrIds) {
+                const neighbor = nodeLookup.get(nbrId);
                 if (!neighbor) continue;
                 
-                // Cohesion (Center of Mass of linked concepts)
                 centerOfMassX += neighbor.x;
                 centerOfMassY += neighbor.y;
-                
-                // Alignment (Match velocity of linked concepts)
                 avgVx += neighbor.vx || 0;
                 avgVy += neighbor.vy || 0;
                 neighborCount++;
             }
             
-            // 2. Separation (from all nearby nodes to prevent clumping)
-            for (let j = 0; j < this.nodes.length; j++) {
-                if (i === j) continue;
-                const other = this.nodes[j];
-                const dx = n.x - other.x;
-                const dy = n.y - other.y;
-                
-                // Topology-aware spacing: allow neighbors to get closer
-                const isNeighbor = nbrs.some(nbr => nbr.id === other.id);
-                const actualSepDist = isNeighbor ? 60 : separationDist;
-                
-                if (Math.abs(dx) > actualSepDist || Math.abs(dy) > actualSepDist) continue;
-                
-                const dist = Math.sqrt(dx * dx + dy * dy) || 1.0;
-                if (dist < actualSepDist) {
-                    // Stronger repulsion for strangers to force clustering
-                    const weight = isNeighbor ? separationWeight * 0.2 : separationWeight;
-                    separationFx += (dx / dist) * (weight / dist);
-                    separationFy += (dy / dist) * (weight / dist);
+            // 2. Separation (Spatial Grid O(N) instead of O(N^2))
+            const myGx = Math.floor(n.x / cellSize);
+            const myGy = Math.floor(n.y / cellSize);
+            
+            for (let xOff = -1; xOff <= 1; xOff++) {
+                for (let yOff = -1; yOff <= 1; yOff++) {
+                    const key = `${myGx + xOff},${myGy + yOff}`;
+                    const cellNodes = grid.get(key);
+                    if (!cellNodes) continue;
+                    
+                    for (const other of cellNodes) {
+                        if (n === other) continue;
+                        const dx = n.x - other.x;
+                        const dy = n.y - other.y;
+                        
+                        const isNeighbor = nbrIds.has(other.id);
+                        const actualSepDist = isNeighbor ? 60 : separationDist;
+                        
+                        if (Math.abs(dx) > actualSepDist || Math.abs(dy) > actualSepDist) continue;
+                        
+                        const dist = Math.sqrt(dx * dx + dy * dy) || 1.0;
+                        if (dist < actualSepDist) {
+                            const weight = isNeighbor ? separationWeight * 0.2 : separationWeight;
+                            separationFx += (dx / dist) * (weight / dist);
+                            separationFy += (dy / dist) * (weight / dist);
+                        }
+                    }
                 }
             }
             
