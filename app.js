@@ -1027,13 +1027,19 @@ class SwarmClient {
             
             const isConnectedToSelected = this.selectedNodeId && (n1.id === this.selectedNodeId || n2.id === this.selectedNodeId);
             
-            // Smooth LOD for bridges with Performance Hardware Scaling
-            // Strict LOD for bridges
+            // Strict LOD for bridges with staggered vanishing points
             let lodAlpha = 1.0;
             if (!isConnectedToSelected) {
                 const perfPenalty = (1.0 - (this.perfScale || 1.0)) * 2.0;
-                let c1 = !n1.is_leader && this.zoom < (0.6 - (n1.centrality || 0) * 0.5 + perfPenalty);
-                let c2 = !n2.is_leader && this.zoom < (0.6 - (n2.centrality || 0) * 0.5 + perfPenalty);
+                
+                // Stagger cull points based on node IDs to prevent simultaneous vanishing
+                const charHash1 = (n1.id.charCodeAt(0) + n1.id.charCodeAt(n1.id.length - 1)) % 100;
+                const stagger1 = charHash1 / 250.0;
+                const charHash2 = (n2.id.charCodeAt(0) + n2.id.charCodeAt(n2.id.length - 1)) % 100;
+                const stagger2 = charHash2 / 250.0;
+                
+                let c1 = !n1.is_leader && this.zoom < (0.3 - (n1.centrality || 0) * 0.5 + perfPenalty + stagger1);
+                let c2 = !n2.is_leader && this.zoom < (0.3 - (n2.centrality || 0) * 0.5 + perfPenalty + stagger2);
                 
                 // Hard Cull if either end is uninteresting and we are zoomed out
                 if (c1 || c2) {
@@ -1107,13 +1113,19 @@ class SwarmClient {
             if (!this.showNetwork && n.id.startsWith("Net_")) continue;
             if (!this.showStream && n.id.startsWith("Stream_")) continue;
             
-            // Strict LOD: Cull unimportant worker nodes when zoomed out
+            // Strict LOD: Cull unimportant worker nodes when zoomed out (Staggered)
             const isSelected = this.selectedNodeId === n.id;
             let lodAlpha = 1.0;
             
             if (!isSelected && !n.is_leader) {
                 const perfPenalty = (1.0 - (this.perfScale || 1.0)) * 2.0;
-                const cullThreshold = 0.6 - (n.centrality || 0) * 0.5 + perfPenalty;
+                
+                // Stagger the culling based on a stable pseudo-random hash of the node ID
+                // This prevents the visual "pop" of 1000 nodes vanishing simultaneously
+                const charHash = (n.id.charCodeAt(0) + n.id.charCodeAt(n.id.length - 1)) % 100;
+                const stagger = charHash / 250.0; // 0.0 to 0.4
+                
+                const cullThreshold = 0.3 - (n.centrality || 0) * 0.5 + perfPenalty + stagger;
                 
                 if (this.zoom < cullThreshold) {
                     lodAlpha = 0;
