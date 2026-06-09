@@ -324,12 +324,12 @@ class SwarmClient {
         const timeScale = this.selectedNodeId ? 0.02 : 1.0;
         
         // 1. Semantic Boids Swarm Logic
-        const separationDist = 400; // Increased significantly for more whitespace
-        const cohesionWeight = 0.0005 * timeScale; // Reduced to let them spread
-        const alignmentWeight = 0.02 * timeScale;
-        const separationWeight = 5000 * timeScale; // Stronger push away from non-neighbors
-        const maxSpeed = 12.0 * timeScale; // Allow faster expansion
-        const centerGravity = 0.00001 * timeScale; // Halved gravity so the network can breathe
+        const separationDist = 800; // Extreme whitespace
+        const cohesionWeight = 0.0002 * timeScale; // Minimal cohesion
+        const alignmentWeight = 0.01 * timeScale;
+        const separationWeight = 1000 * timeScale; // Softer, wider push
+        const maxSpeed = 15.0 * timeScale;
+        const centerGravity = 0.000005 * timeScale; // Minimal gravity
         
         const nodeLookup = new Map(this.nodes.map(n => [n.id, n]));
         
@@ -390,7 +390,7 @@ class SwarmClient {
                         const dy = n.y - other.y;
                         
                         const isNeighbor = nbrIds.has(other.id);
-                        const actualSepDist = isNeighbor ? 180 : separationDist;
+                        const actualSepDist = isNeighbor ? 300 : separationDist;
                         
                         if (Math.abs(dx) > actualSepDist || Math.abs(dy) > actualSepDist) continue;
                         
@@ -432,17 +432,17 @@ class SwarmClient {
             n.vx += (center.x - n.x) * currentGravity;
             n.vy += (center.y - n.y) * currentGravity;
             
-            // Friction for crystallization (strong dampening)
-            n.vx *= 0.85;
-            n.vy *= 0.85;
+            // Friction for crystallization (strong dampening to prevent jitter)
+            n.vx *= 0.5;
+            n.vy *= 0.5;
             
             // Speed limits and freezing (Crystallization)
             const speed = Math.sqrt(n.vx * n.vx + n.vy * n.vy) || 0;
             if (speed > maxSpeed) {
                 n.vx = (n.vx / Math.max(speed, 0.1)) * maxSpeed;
                 n.vy = (n.vy / Math.max(speed, 0.1)) * maxSpeed;
-            } else if (speed < 0.1) {
-                // Completely freeze when settled (Rigid Architecture)
+            } else if (speed < 0.5) {
+                // Completely freeze when settled to prevent micro-jittering
                 n.vx = 0;
                 n.vy = 0;
             }
