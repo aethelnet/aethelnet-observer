@@ -70,11 +70,35 @@ canvas { display: block; width: 100%; height: 100%; outline: none; }
 
 /* Settings HUD (Top Right) */
 #settings-hud { top: 20px; right: 20px; }
-.gear-icon { font-size: 1.5rem; cursor: pointer; user-select: none; transition: transform 0.3s; }
-.gear-icon:hover { transform: rotate(90deg); }
-#settings-menu { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+.settings-panel { 
+    border: 1px solid rgba(255, 255, 255, 0.15); 
+    background: rgba(0, 0, 0, 0.6); 
+    backdrop-filter: blur(10px); 
+    padding: 10px;
+}
+.sys-btn { 
+    font-size: 0.8rem; font-family: var(--font-mono); color: var(--accent-primary); 
+    cursor: pointer; user-select: none; letter-spacing: 1px; text-align: right;
+    transition: color 0.2s;
+}
+.sys-btn:hover { color: #fff; }
+
+#settings-menu { margin-top: 15px; display: flex; flex-direction: column; gap: 12px; }
 #settings-menu.hidden { display: none; }
-#settings-menu label { color: #ccc; font-size: 0.8rem; font-family: var(--font-mono); display: flex; gap: 8px; cursor: pointer; }
+
+.bauhaus-toggle {
+    display: flex; align-items: center; gap: 10px;
+    color: #aaa; font-size: 0.75rem; font-family: var(--font-mono); 
+    cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
+}
+.bauhaus-toggle input[type="checkbox"] {
+    appearance: none; width: 14px; height: 14px;
+    border: 1px solid var(--accent-primary); background: transparent;
+    cursor: pointer; position: relative;
+}
+.bauhaus-toggle input[type="checkbox"]:checked { background: var(--accent-primary); }
+.bauhaus-toggle:hover .toggle-text { color: #fff; }
+
 hr { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 5px 0; }
 
 /* Status Indicator */

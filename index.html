@@ -31,18 +31,19 @@
         </div>
 
         <!-- Top Right: Gear & Toggles -->
-        <div id="settings-hud" class="floating-hud">
-            <div id="settings-toggle" class="gear-icon">⚙️</div>
+        <div id="settings-hud" class="floating-hud settings-panel">
+            <div id="settings-toggle" class="sys-btn">[ SYS_CFG ]</div>
             <div id="settings-menu" class="hidden">
                 <div class="status-indicator">
                     <div id="ws-light" class="indicator-light disconnected"></div>
                     <span id="ws-status">Disconnected</span>
                 </div>
                 <hr>
-                <label><input type="checkbox" id="chk-gossip" checked> Show Gossip</label>
-                <label><input type="checkbox" id="chk-network" checked> Network Nodes</label>
-                <label><input type="checkbox" id="chk-stream" checked> Live Streams</label>
-                <button id="btn-reconnect" class="action-btn">Force Sync</button>
+                <label class="bauhaus-toggle"><input type="checkbox" id="chk-gossip" checked> <span class="toggle-text">Show Gossip</span></label>
+                <label class="bauhaus-toggle"><input type="checkbox" id="chk-network" checked> <span class="toggle-text">Network Nodes</span></label>
+                <label class="bauhaus-toggle"><input type="checkbox" id="chk-stream" checked> <span class="toggle-text">Live Streams</span></label>
+                <hr>
+                <button id="btn-reconnect" class="action-btn">FORCE_SYNC</button>
             </div>
         </div>
 
