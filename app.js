@@ -451,47 +451,28 @@ class SwarmClient {
                 }
             }
             
-            // Apply Boids Rules
-            if (neighborCount > 0) {
-                centerOfMassX /= neighborCount;
-                centerOfMassY /= neighborCount;
-                avgVx /= neighborCount;
-                avgVy /= neighborCount;
+            // Brutalist Flowchart Grid Snapping
+            const GRID_SIZE = 400; // Large rigid blocks
+            
+            // If the node is pinned/selected, don't force it, but let others snap
+            const isSelected = this.selectedNodeId === n.id;
+            
+            if (!isSelected) {
+                const targetX = Math.round(n.x / GRID_SIZE) * GRID_SIZE;
+                const targetY = Math.round(n.y / GRID_SIZE) * GRID_SIZE;
                 
-                n.vx += (centerOfMassX - n.x) * cohesionWeight;
-                n.vy += (centerOfMassY - n.y) * cohesionWeight;
-                
-                n.vx += avgVx * alignmentWeight;
-                n.vy += avgVy * alignmentWeight;
+                // Magnetic force snapping them to the nearest rigid grid point
+                n.vx += (targetX - n.x) * 0.1 * timeScale;
+                n.vy += (targetY - n.y) * 0.1 * timeScale;
             }
             
-            n.vx += separationFx;
-            n.vy += separationFy;
+            // Separation ensures nodes pushed to the same grid point push each other to the NEXT grid point
+            n.vx += separationFx * 3.0;
+            n.vy += separationFy * 3.0;
             
-            // Galaxy Center Gravity (Rubber-band boundary effect)
-            const distFromCenter = Math.sqrt((center.x - n.x)**2 + (center.y - n.y)**2);
-            let currentGravity = centerGravity;
-            
-            const isInfrastructure = n.id.startsWith("Obs_") || n.id.startsWith("Net_") || n.id.startsWith("Stream_");
-            
-            if (isInfrastructure) {
-                // Push infrastructure to the outer edges (orbit ring)
-                if (distFromCenter < 2500) {
-                    currentGravity = -centerGravity * 5.0; // Repel from center
-                } else if (distFromCenter > 3500) {
-                    currentGravity = centerGravity * 5.0; // Pull back into orbit ring
-                } else {
-                    currentGravity = 0; // Float happily in the ring
-                }
-            } else {
-                // Semantic nodes stay in the center
-                if (distFromCenter > 1500) {
-                    currentGravity *= (distFromCenter / 500);
-                }
-            }
-            
-            n.vx += (center.x - n.x) * currentGravity;
-            n.vy += (center.y - n.y) * currentGravity;
+            // Gentle center gravity just to keep the grid from drifting infinitely into the void
+            n.vx += (center.x - n.x) * 0.000001;
+            n.vy += (center.y - n.y) * 0.000001;
             
             // Friction for crystallization (strong dampening to prevent jitter)
             n.vx *= 0.5;
@@ -894,6 +875,10 @@ class SwarmClient {
 
             ctx.beginPath();
             ctx.moveTo(n1.x, n1.y);
+            // Manhattan Routing (Flowchart / PCB Style)
+            const midX = (n1.x + n2.x) / 2;
+            ctx.lineTo(midX, n1.y);
+            ctx.lineTo(midX, n2.y);
             ctx.lineTo(n2.x, n2.y);
             
             // Constellation Focus Logic
