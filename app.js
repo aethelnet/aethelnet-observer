@@ -373,9 +373,17 @@ class SwarmClient {
             n.vx += separationFx;
             n.vy += separationFy;
             
-            // Weak galaxy center gravity
-            n.vx += (center.x - n.x) * centerGravity;
-            n.vy += (center.y - n.y) * centerGravity;
+            // Galaxy Center Gravity (Rubber-band boundary effect)
+            const distFromCenter = Math.sqrt((center.x - n.x)**2 + (center.y - n.y)**2);
+            let currentGravity = centerGravity;
+            
+            // If they drift further than 1500 pixels, gravity increases exponentially to yank them back
+            if (distFromCenter > 1500) {
+                currentGravity *= (distFromCenter / 500);
+            }
+            
+            n.vx += (center.x - n.x) * currentGravity;
+            n.vy += (center.y - n.y) * currentGravity;
             
             // Enforce minimum continuous movement (Nodes never fully sleep in a swarm)
             const speed = Math.sqrt(n.vx * n.vx + n.vy * n.vy) || 1.0;
