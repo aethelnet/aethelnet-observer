@@ -832,8 +832,22 @@ class SwarmClient {
             
             const isConnectedToSelected = this.selectedNodeId && (n1.id === this.selectedNodeId || n2.id === this.selectedNodeId);
             
-            // Dynamic LOD: Hide bridges entirely when zoomed out far to remove spaghetti noise
-            if (!isConnectedToSelected && this.zoom < 0.25) continue;
+            // Smooth LOD for bridges
+            let lodAlpha = 1.0;
+            if (!isConnectedToSelected) {
+                let a1 = 1.0;
+                if (!n1.is_leader) {
+                    const f1 = 0.8 - (n1.centrality || 0) * 0.7;
+                    if (this.zoom < f1) a1 = Math.max(0, (this.zoom - 0.05) / (f1 - 0.05));
+                }
+                let a2 = 1.0;
+                if (!n2.is_leader) {
+                    const f2 = 0.8 - (n2.centrality || 0) * 0.7;
+                    if (this.zoom < f2) a2 = Math.max(0, (this.zoom - 0.05) / (f2 - 0.05));
+                }
+                lodAlpha = Math.min(a1, a2);
+            }
+            if (lodAlpha <= 0.01) continue;
             
             // Skip hidden nodes
             if (!this.showGossip && (n1.id.startsWith("Obs_") || n2.id.startsWith("Obs_"))) continue;
@@ -849,16 +863,16 @@ class SwarmClient {
             if (this.selectedNodeId) {
                 if (isConnectedToSelected) {
                     // Stark black lines for the direct constellation
-                    ctx.strokeStyle = `rgba(26, 26, 26, 0.8)`;
+                    ctx.strokeStyle = `rgba(26, 26, 26, ${0.8 * lodAlpha})`;
                     ctx.lineWidth = 2 / this.zoom;
                 } else {
                     // Extremely faint for background context
-                    ctx.strokeStyle = `rgba(26, 26, 26, 0.05)`;
+                    ctx.strokeStyle = `rgba(26, 26, 26, ${0.05 * lodAlpha})`;
                     ctx.lineWidth = 0.5 / this.zoom;
                 }
             } else {
                 // Default view: Faint hints of structure
-                ctx.strokeStyle = `rgba(26, 26, 26, ${0.05 + link.weight * 0.15})`;
+                ctx.strokeStyle = `rgba(26, 26, 26, ${(0.05 + link.weight * 0.15) * lodAlpha})`;
                 ctx.lineWidth = 1 / this.zoom;
             }
             
@@ -872,11 +886,18 @@ class SwarmClient {
             if (!this.showNetwork && n.id.startsWith("Net_")) continue;
             if (!this.showStream && n.id.startsWith("Stream_")) continue;
             
-            // Dynamic LOD: Hide unimportant worker nodes when zoomed out far
+            // Smooth LOD: Fade unimportant worker nodes smoothly when zoomed out
             const isSelected = this.selectedNodeId === n.id;
-            if (!isSelected && this.zoom < 0.25 && !n.is_leader && (n.centrality || 0) < 0.5) {
-                continue; // Cluster visually merges into its leader
+            let lodAlpha = 1.0;
+            
+            if (!isSelected && !n.is_leader) {
+                const fadeStartZoom = 0.8 - (n.centrality || 0) * 0.7; // 0.1 to 0.8 based on centrality
+                if (this.zoom < fadeStartZoom) {
+                    lodAlpha = Math.max(0, (this.zoom - 0.05) / (fadeStartZoom - 0.05));
+                }
             }
+            
+            if (lodAlpha <= 0.01) continue; // Skip rendering entirely if invisible
             
             // Nodes are bigger now for the inline text
             const baseRadius = 25;
@@ -891,7 +912,7 @@ class SwarmClient {
                               this.links.some(l => (l.source === n.id && l.target === this.selectedNodeId) || 
                                                  (l.target === n.id && l.source === this.selectedNodeId));
             
-            ctx.globalAlpha = isFocused ? 1.0 : 0.2;
+            ctx.globalAlpha = (isFocused ? 1.0 : 0.2) * lodAlpha;
             
             ctx.beginPath();
             ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
