@@ -309,14 +309,21 @@ class SwarmClient {
         // Repulsion between all nodes
         for (let i = 0; i < this.nodes.length; i++) {
             const n1 = this.nodes[i];
+            
+            // Skip fully sleeping nodes (massive CPU optimization)
+            if (Math.abs(n1.vx) < 0.05 && Math.abs(n1.vy) < 0.05) continue;
+            
             for (let j = i + 1; j < this.nodes.length; j++) {
                 const n2 = this.nodes[j];
                 const dx = n2.x - n1.x;
                 const dy = n2.y - n1.y;
+                
+                // Fast bounding box check to avoid Math.sqrt for distant nodes
+                const repulsionRadius = 800 * Math.max(0.5, Math.pow(this.zoom, 1.5));
+                if (Math.abs(dx) > repulsionRadius || Math.abs(dy) > repulsionRadius) continue;
+                
                 const dist = Math.sqrt(dx * dx + dy * dy) || 1.0;
                 
-                // Repulsion radius scales sharply with zoom
-                const repulsionRadius = 800 * Math.max(0.5, Math.pow(this.zoom, 1.5));
                 if (dist < repulsionRadius) {
                     const force = kRepulsion / (dist * dist + 800);
                     const fx = (dx / dist) * force;
