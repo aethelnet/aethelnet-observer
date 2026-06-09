@@ -320,13 +320,16 @@ class SwarmClient {
         const height = this.canvas.height;
         const center = { x: width / 2, y: height / 2 };
         
+        // --- TIME DILATION ---
+        const timeScale = this.selectedNodeId ? 0.02 : 1.0;
+        
         // 1. Semantic Boids Swarm Logic
-        const separationDist = 200;
-        const cohesionWeight = 0.002;
-        const alignmentWeight = 0.05;
-        const separationWeight = 800;
-        const maxSpeed = 8.0;
-        const centerGravity = 0.0001;
+        const separationDist = 100; // Optimized for performance
+        const cohesionWeight = 0.002 * timeScale;
+        const alignmentWeight = 0.05 * timeScale;
+        const separationWeight = 800 * timeScale;
+        const maxSpeed = 8.0 * timeScale;
+        const centerGravity = 0.0001 * timeScale;
         
         const nodeLookup = new Map(this.nodes.map(n => [n.id, n]));
         
@@ -339,6 +342,7 @@ class SwarmClient {
         
         for (let i = 0; i < this.nodes.length; i++) {
             const n = this.nodes[i];
+            if (n.vx === undefined) { n.vx = 0; n.vy = 0; }
             
             let centerOfMassX = 0, centerOfMassY = 0;
             let avgVx = 0, avgVy = 0;
@@ -398,7 +402,6 @@ class SwarmClient {
             const distFromCenter = Math.sqrt((center.x - n.x)**2 + (center.y - n.y)**2);
             let currentGravity = centerGravity;
             
-            // If they drift further than 1500 pixels, gravity increases exponentially to yank them back
             if (distFromCenter > 1500) {
                 currentGravity *= (distFromCenter / 500);
             }
@@ -409,12 +412,12 @@ class SwarmClient {
             // Enforce minimum continuous movement (Nodes never fully sleep in a swarm)
             const speed = Math.sqrt(n.vx * n.vx + n.vy * n.vy) || 1.0;
             if (speed > maxSpeed) {
-                n.vx = (n.vx / speed) * maxSpeed;
-                n.vy = (n.vy / speed) * maxSpeed;
-            } else if (speed < 0.5) {
+                n.vx = (n.vx / Math.max(speed, 0.1)) * maxSpeed;
+                n.vy = (n.vy / Math.max(speed, 0.1)) * maxSpeed;
+            } else if (speed < 0.5 * timeScale) {
                 // Add a tiny random Brownian drift to keep the swarm alive
-                n.vx += (Math.random() - 0.5) * 0.2;
-                n.vy += (Math.random() - 0.5) * 0.2;
+                n.vx += (Math.random() - 0.5) * 0.2 * timeScale;
+                n.vy += (Math.random() - 0.5) * 0.2 * timeScale;
             }
             
             n.x += n.vx;
