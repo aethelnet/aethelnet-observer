@@ -37,6 +37,7 @@ class SwarmClient {
         this.showGossip = true;
         this.showNetwork = true;
         this.showStream = true;
+        this.swarmHistory = [];
         
         this.init();
     }
@@ -83,15 +84,26 @@ class SwarmClient {
             } else {
                 this.connect();
             }
+        });
 
-            // Format Selector Event Listeners
-            document.querySelectorAll('input[name="format"]').forEach(radio => {
-                radio.addEventListener('change', () => {
-                    if (this.selectedNodeId) {
-                        this.inspectNode(this.selectedNodeId);
-                    }
-                });
+        // Format Selector Event Listeners
+        document.querySelectorAll('input[name="format"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (this.selectedNodeId) {
+                    this.inspectNode(this.selectedNodeId);
+                }
             });
+        });
+
+        // Dive and Zoom Out Buttons
+        document.getElementById('btn-dive').addEventListener('click', () => {
+            if (this.selectedNodeId) {
+                this.diveIntoNode(this.selectedNodeId);
+            }
+        });
+        
+        document.getElementById('btn-zoomout').addEventListener('click', () => {
+            this.zoomOut();
         });
         
         window.addEventListener('resize', () => this.resizeCanvas());
@@ -477,6 +489,8 @@ class SwarmClient {
         if (e.button === 0 && clickedNode) {
             // Left click on node: Select/Inspect
             this.inspectNode(clickedNode.id);
+            // Smoothly auto-zoom in
+            this.zoom = 2.0;
         } else if (e.button === 1 || e.button === 2 || (e.button === 0 && !clickedNode)) {
             // Middle, Right, or Left-drag in empty space: start panning
             this.isPanning = true;
@@ -534,6 +548,13 @@ class SwarmClient {
         
         this.log(`Initiating fractal dive into [${nodeId}]...`, 'info');
         
+        // Save history for zooming out
+        this.swarmHistory.push({
+            nodes: [...this.nodes],
+            links: [...this.links],
+            selectedNodeId: this.selectedNodeId
+        });
+        
         // Visual Flash
         const flash = document.createElement('div');
         flash.style.position = 'absolute';
@@ -543,6 +564,10 @@ class SwarmClient {
         flash.style.zIndex = '9999';
         flash.style.transition = 'opacity 1s ease-out';
         document.body.appendChild(flash);
+        
+        // Show Zoom Out Button
+        const btnZoomOut = document.getElementById('btn-zoomout');
+        if (btnZoomOut) btnZoomOut.style.display = 'block';
         
         setTimeout(() => {
             // Reset state
@@ -586,6 +611,24 @@ class SwarmClient {
             
             this.log(`Successfully materialized interior of [${nodeId}]`, 'success');
         }, 100);
+    }
+
+    zoomOut() {
+        if (this.swarmHistory.length === 0) return;
+        
+        this.log('Ascending to parent swarm...', 'info');
+        
+        const previousState = this.swarmHistory.pop();
+        this.nodes = previousState.nodes;
+        this.links = previousState.links;
+        this.selectedNodeId = previousState.selectedNodeId;
+        
+        this.zoom = 2.0; // Keep it somewhat zoomed so we see what we popped out of
+        
+        if (this.swarmHistory.length === 0) {
+            const btnZoomOut = document.getElementById('btn-zoomout');
+            if (btnZoomOut) btnZoomOut.style.display = 'none';
+        }
     }
 
     async inspectNode(nodeId, forceFormat = null) {
@@ -678,8 +721,8 @@ class SwarmClient {
             ctx.moveTo(n1.x, n1.y);
             ctx.lineTo(n2.x, n2.y);
             
-            // Glowing connections: opacity and color based on Hebbian weight
-            ctx.strokeStyle = `rgba(32, 197, 240, ${0.1 + link.weight * 0.4})`;
+            // Bauhaus Connection Lines (Black)
+            ctx.strokeStyle = `rgba(26, 26, 26, ${0.1 + link.weight * 0.3})`;
             ctx.stroke();
         }
         
@@ -693,18 +736,19 @@ class SwarmClient {
             // Nodes are bigger now for the inline text
             const baseRadius = 25;
             const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 25;
-            const centralityBonus = (n.centrality || 0) * 80;
-            
-            const rawR = (baseRadius + activationBonus + centralityBonus);
+            const centralityBonus = (n.centrality || 0) * 50;
+            const rawR = baseRadius + activationBonus + centralityBonus;
+            // Radius scales slightly with zoom but not 1:1
             const r = Math.max(0.1, rawR / Math.pow(this.zoom, 0.6)); 
-
-            // Highlight ring if selected
+            
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+            
+            // Bauhaus Colors based on node type
             if (n.id === this.selectedNodeId) {
-                ctx.shadowBlur = 0;
-                ctx.strokeStyle = "#eab308";
+                ctx.fillStyle = '#F2C12E'; // Yellow highlight
+                ctx.strokeStyle = '#1A1A1A'; // Black border
                 ctx.lineWidth = 3 / this.zoom;
-                ctx.beginPath();
-                ctx.arc(n.x, n.y, r + 8 / this.zoom, 0, 2 * Math.PI);
                 ctx.stroke();
             }
 

@@ -1,26 +1,35 @@
 :root {
-    --bg-base: #000000;
-    --text-main: #e0e0e0;
-    --text-muted: #888888;
-    --accent-primary: #06b6d4;
-    --accent-success: #00ff66;
-    --accent-danger: #ff4444;
-    --font-ui: 'Inter', system-ui, sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
+    --bg-color: #F4F4F0; /* Warm off-white */
+    --text-color: #1A1A1A; /* Stark black */
+    --accent-red: #E03C31;
+    --accent-blue: #005096;
+    --accent-yellow: #F2C12E;
+    --panel-bg: rgba(255, 255, 255, 0.9);
+    --panel-border: 2px solid #1A1A1A;
+    --font-mono: 'Courier New', Courier, monospace;
+    --font-sans: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
 body {
-    background-color: var(--bg-base);
-    color: var(--text-main);
-    font-family: var(--font-ui);
-    overflow: hidden; /* No scrolling, pure canvas */
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: var(--font-sans);
+    overflow: hidden;
+    margin: 0;
+}
+
+#graph-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100vw;
     height: 100vh;
-}
-
-/* Fullscreen Canvas */
-.canvas-container {
     position: absolute;
     top: 0; left: 0; width: 100vw; height: 100vh;
     z-index: 1;
