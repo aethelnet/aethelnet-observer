@@ -270,49 +270,12 @@ class SwarmClient {
                     e.preventDefault();
                     return;
                 }
-                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                    if (this.selectedNodeId) {
-                        const currentNode = this.nodes.find(n => n.id === this.selectedNodeId);
-                        if (currentNode) {
-                            const neighborIds = this.links
-                                .filter(l => l.source === currentNode.id || l.target === currentNode.id)
-                                .map(l => l.source === currentNode.id ? l.target : l.source);
-                            
-                            const neighbors = this.nodes.filter(n => neighborIds.includes(n.id));
-                            if (neighbors.length > 0) {
-                                let bestMatch = null;
-                                let bestScore = -Infinity;
-                                
-                                for (const neighbor of neighbors) {
-                                    const isoCurr = this.toIso(currentNode.x, currentNode.y, 0);
-                                    const isoNeigh = this.toIso(neighbor.x, neighbor.y, 0);
-                                    const idx = isoNeigh.x - isoCurr.x;
-                                    const idy = isoNeigh.y - isoCurr.y;
-                                    
-                                    let score = 0;
-                                    if (e.key === 'ArrowUp') score = -idy - Math.abs(idx)*0.5;
-                                    if (e.key === 'ArrowDown') score = idy - Math.abs(idx)*0.5;
-                                    if (e.key === 'ArrowLeft') score = -idx - Math.abs(idy)*0.5;
-                                    if (e.key === 'ArrowRight') score = idx - Math.abs(idy)*0.5;
-                                    
-                                    if (score > bestScore) {
-                                        bestScore = score;
-                                        bestMatch = neighbor;
-                                    }
-                                }
-                                
-                                if (bestMatch) {
-                                    this.selectedNodes = new Set([bestMatch.id]);
-                                    this.inspectNode(bestMatch.id);
-                                }
-                            }
-                        }
-                    }
-                    e.preventDefault();
-                    return;
-                }
                 if (e.key === 'c' || e.key === 'C') {
                     if (this.selectedNodeId) this.duplicateNode(this.selectedNodeId);
+                    return;
+                }
+                if (e.key === 'p' || e.key === 'P') {
+                    this.spawnConnector();
                     return;
                 }
                 if (e.key === 's' || e.key === 'S') {
@@ -855,7 +818,11 @@ class SwarmClient {
         }
         
         this.isPanning = false;
-        if (this.isDraggingNode) {
+        if (this.isDraggingNode && this.draggedNode) {
+            // Blueprint Grid Snapping (400x400 units)
+            this.draggedNode.x = Math.round(this.draggedNode.x / 400) * 400;
+            this.draggedNode.y = Math.round(this.draggedNode.y / 400) * 400;
+            
             this.isDraggingNode = false;
             this.draggedNode = null;
         }
@@ -996,6 +963,39 @@ class SwarmClient {
         // Auto-select clone
         this.selectedNodeId = cloneId;
         this.selectedNodes = new Set([cloneId]);
+    }
+
+    spawnConnector() {
+        const rect = this.canvas.getBoundingClientRect();
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        
+        const graphX = (centerX - this.panX) / this.zoom;
+        const graphY = (centerY - this.panY) / this.zoom;
+        const flatCoords = this.fromIso(graphX, graphY, 0);
+        
+        // Blueprint Grid Snapping (400x400 units)
+        const snappedX = Math.round(flatCoords.x / 400) * 400;
+        const snappedY = Math.round(flatCoords.y / 400) * 400;
+
+        const connectorId = `Connector_${Math.floor(Math.random()*10000)}`;
+        const connector = {
+            id: connectorId,
+            x: snappedX,
+            y: snappedY,
+            is_pinned: true,
+            activation: 0,
+            centrality: 0,
+            is_leader: false,
+            full_data: {
+                text_content: "Workbench Connector Node\nUse this to anchor your subgraphs."
+            }
+        };
+        this.nodes.push(connector);
+        this.log(`Spawned Workbench Connector at [${snappedX}, ${snappedY}]`, 'success');
+        
+        this.selectedNodeId = connectorId;
+        this.selectedNodes = new Set([connectorId]);
     }
 
     generateMockImage() {
@@ -1307,6 +1307,11 @@ class SwarmClient {
                 ctx.fillStyle = '#1A1A1A'; // Inverted for selected
                 ctx.strokeStyle = '#F2C12E'; // Yellow highlight border
                 ctx.lineWidth = 3 / this.zoom;
+            } else if (n.id.startsWith("Connector_")) {
+                ctx.fillStyle = '#1A1A1A'; // Black core
+                ctx.strokeStyle = '#FFFFFF'; // White border
+                ctx.lineWidth = 2 / this.zoom;
+                ctx.setLineDash([5 / this.zoom, 5 / this.zoom]);
             } else if (n.is_leader || n.id.startsWith('Nightmare')) {
                 ctx.fillStyle = '#E03C31'; // Safety Red
                 ctx.strokeStyle = '#1A1A1A';
@@ -1335,6 +1340,7 @@ class SwarmClient {
             
             ctx.fill();
             ctx.stroke();
+            ctx.setLineDash([]); // Reset for other nodes!
             
             ctx.globalAlpha = 1.0; // reset for labels
             
