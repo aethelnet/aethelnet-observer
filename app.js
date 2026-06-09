@@ -75,6 +75,7 @@ class SwarmClient {
         this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
         this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault()); // Disable right-click menu
         this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
         
         document.getElementById('btn-reconnect').addEventListener('click', () => {
@@ -475,8 +476,13 @@ class SwarmClient {
                 n.vy = 0;
             }
             
-            n.x += n.vx;
-            n.y += n.vy;
+            if (!n.is_pinned) {
+                n.x += n.vx;
+                n.y += n.vy;
+            } else {
+                n.vx = 0;
+                n.vy = 0;
+            }
         }
 
         // Cinematic Camera Tracking
@@ -545,6 +551,10 @@ class SwarmClient {
         }
         
         if (e.button === 0 && clickedNode) {
+            this.draggedNode = clickedNode;
+            this.isDraggingNode = true;
+            clickedNode.is_pinned = true; // Pin the reality anchor
+
             // Left click on node: Select/Inspect
             if (!this.selectedNodes) this.selectedNodes = new Set();
             
@@ -572,6 +582,11 @@ class SwarmClient {
             this.startX = e.clientX - this.panX;
             this.startY = e.clientY - this.panY;
         } else if (e.button === 1 || e.button === 2) {
+            if (e.button === 2 && clickedNode) {
+                clickedNode.is_pinned = false;
+                this.log(`Reality anchor lifted. [${clickedNode.id}] unpinned.`, 'info');
+                return; // Don't pan
+            }
             // Middle or Right click: start panning
             this.isPanning = true;
             this.startX = e.clientX - this.panX;
@@ -580,6 +595,18 @@ class SwarmClient {
     }
 
     handleMouseMove(e) {
+        if (this.isDraggingNode && this.draggedNode) {
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            this.draggedNode.x = (mouseX - this.panX) / this.zoom;
+            this.draggedNode.y = (mouseY - this.panY) / this.zoom;
+            this.draggedNode.vx = 0;
+            this.draggedNode.vy = 0;
+            return;
+        }
+        
         if (this.isPanning) {
             this.panX = e.clientX - this.startX;
             this.panY = e.clientY - this.startY;
@@ -588,6 +615,10 @@ class SwarmClient {
 
     handleMouseUp(e) {
         this.isPanning = false;
+        if (this.isDraggingNode) {
+            this.isDraggingNode = false;
+            this.draggedNode = null;
+        }
     }
 
     handleWheel(e) {
