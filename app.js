@@ -255,9 +255,9 @@ class SwarmClient {
         
         // 1. Force calculations with dynamic zoom scaling
         // Scale repulsion exponentially with zoom so zooming in pushes nodes aggressively apart
-        const kRepulsion = 40000 * Math.max(0.5, Math.pow(this.zoom, 2.5));
-        const kAttraction = 0.004; // Drastically reduced from 0.03 so nodes float more freely
-        const kGravity = 0.006;    // Slightly reduced gravity to let them expand
+        const kRepulsion = 50000 * Math.max(0.5, Math.pow(this.zoom, 2.5));
+        const kAttraction = 0.0005; // Drastically reduced so nodes float more freely and expand
+        const kGravity = 0.0008;    // Very weak gravity so the galaxy expands outward organically
         const damping = 0.85;      // Kept the same so they don't lose all momentum instantly
         
         // Repulsion between all nodes
