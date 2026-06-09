@@ -679,13 +679,17 @@ class SwarmClient {
             const dy = iso.y - graphY;
             const dist = Math.sqrt(dx * dx + dy * dy);
             
-            const baseRadius = 8;
-            const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 15;
+            // Arcade-style forgiving hitbox matching the new larger visual size
+            const baseRadius = 25;
+            const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 25;
             const centralityBonus = (n.centrality || 0) * 50;
             const rawR = baseRadius + activationBonus + centralityBonus;
             const radius = Math.max(0.1, rawR / Math.pow(this.zoom, 0.6));
             
-            if (dist < radius + 10) {
+            // Generous padding that scales up when zoomed out so it's always easy to click
+            const hitPadding = 30 / this.zoom;
+            
+            if (dist < radius + hitPadding) {
                 clickedNode = n;
                 break;
             }
@@ -791,13 +795,15 @@ class SwarmClient {
                     const dy = iso.y - this.wireTargetIso.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     
-                    const baseRadius = 8;
-                    const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 15;
+                    const baseRadius = 25;
+                    const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 25;
                     const centralityBonus = (n.centrality || 0) * 50;
                     const rawR = baseRadius + activationBonus + centralityBonus;
                     const radius = Math.max(0.1, rawR / Math.pow(this.zoom, 0.6));
                     
-                    if (dist < radius + 10) {
+                    const hitPadding = 30 / this.zoom;
+                    
+                    if (dist < radius + hitPadding) {
                         targetNode = n;
                         break;
                     }
@@ -1038,17 +1044,18 @@ class SwarmClient {
         // Simulate a delay for the spider searching
         setTimeout(() => {
             for (let i = 0; i < 3; i++) {
+                const conf = 0.6 + Math.random() * 0.4; // 60% to 100% confidence
                 const resultId = `Image_${nodeId}_${i}`;
                 this.nodes.push({
                     id: resultId,
-                    activation: 0.8,
-                    centrality: 0.5,
+                    activation: conf * 1.5, // Scale visual radius by confidence
+                    centrality: conf * 0.5,
                     is_pinned: true, // Pin to workbench!
                     is_leader: false,
                     x: source.x + (Math.random() - 0.5) * 800,
                     y: source.y + (Math.random() - 0.5) * 800,
                     full_data: {
-                        confidence: 0.6 + Math.random() * 0.3,
+                        confidence: conf,
                         text_content: `Image Search Result #${i+1} for ${nodeId}`
                     },
                     // We generate a beautiful random abstract gradient for the image search
@@ -1304,7 +1311,7 @@ class SwarmClient {
             ctx.shadowBlur = 0; // No glowing in Bauhaus!
             
             if (n.id === this.selectedNodeId) {
-                ctx.fillStyle = '#1A1A1A'; // Inverted for selected
+                ctx.fillStyle = '#FFFFFF'; // White/Empty inside
                 ctx.strokeStyle = '#F2C12E'; // Yellow highlight border
                 ctx.lineWidth = 3 / this.zoom;
             } else if (n.id.startsWith("Connector_")) {
@@ -1400,22 +1407,22 @@ class SwarmClient {
                 
                 ctx.restore();
                 
-            } else if (this.zoom > 0.8 && isFocused) {
+            } else if (this.zoom > 0.3) {
                 // X220 Performance Safeguard: Text rendering is incredibly slow.
                 // If FPS is bad, don't draw text labels for unimportant nodes unless zoomed in very close!
-                if (this.perfScale < 0.8 && this.zoom < 2.5 && !n.is_leader && (n.centrality || 0) < 0.8) {
+                if (this.perfScale < 0.8 && this.zoom < 1.0 && !n.is_leader && !n.is_pinned && (n.centrality || 0) < 0.8) {
                     continue; 
                 }
 
-                // Minimalistic text label (default view)
+                // Minimalistic text label BELOW the node
                 ctx.fillStyle = "#1A1A1A"; // Dark text for Light Mode
-                const fontSize = Math.min(12, Math.max(6, (r * 0.4))) / this.zoom;
+                const fontSize = Math.min(14, Math.max(8, (r * 0.6))) / this.zoom;
                 ctx.font = `bold ${fontSize}px 'Inter', sans-serif`;
                 ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
+                ctx.textBaseline = "top";
                 
                 const label = (n.label || n.id || '').split('_').pop().substring(0, 15);
-                ctx.fillText(label, iso.x, iso.y);
+                ctx.fillText(label, iso.x, iso.y + r + (5 / this.zoom));
             }
         }
         
