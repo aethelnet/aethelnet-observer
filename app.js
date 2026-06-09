@@ -272,10 +272,10 @@ class SwarmClient {
                 activation: nn.activation,
                 is_leader: nn.is_leader || false,
                 centrality: nn.centrality || 0.0,
-                x: existing ? existing.x : width / 2 + (Math.random() - 0.5) * 100,
-                y: existing ? existing.y : height / 2 + (Math.random() - 0.5) * 100,
-                vx: existing ? existing.vx : 0,
-                vy: existing ? existing.vy : 0
+                x: existing ? existing.x : width / 2 + (Math.random() - 0.5) * 800,
+                y: existing ? existing.y : height / 2 + (Math.random() - 0.5) * 800,
+                vx: existing ? existing.vx : (Math.random() - 0.5) * 10.0,
+                vy: existing ? existing.vy : (Math.random() - 0.5) * 10.0
             };
         });
         
@@ -301,10 +301,10 @@ class SwarmClient {
         
         // 1. Semantic Boids Swarm Logic
         const separationDist = 200;
-        const cohesionWeight = 0.005;
+        const cohesionWeight = 0.002;
         const alignmentWeight = 0.05;
         const separationWeight = 800;
-        const maxSpeed = 3.0;
+        const maxSpeed = 8.0;
         const centerGravity = 0.0001;
         
         const nodeLookup = new Map(this.nodes.map(n => [n.id, n]));
