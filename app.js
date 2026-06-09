@@ -91,6 +91,13 @@ class SwarmClient {
                 this.log(this.showStream ? 'Showing live streams' : 'Hiding live streams', 'info');
             });
         }
+        const chkWorkbench = document.getElementById('chk-workbench');
+        if (chkWorkbench) {
+            chkWorkbench.addEventListener('change', (e) => {
+                this.isWorkbenchMode = e.target.checked;
+                this.log(this.isWorkbenchMode ? 'Entered WORKBENCH MODE' : 'Exited WORKBENCH MODE', 'success');
+            });
+        }
         
         this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
         this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
@@ -183,6 +190,13 @@ class SwarmClient {
                 if (e.key === ' ' || e.key === 'Enter') {
                     if (this.selectedNodeId) this.diveIntoNode(this.selectedNodeId);
                     e.preventDefault();
+                    return;
+                }
+                if (e.key === 'w' || e.key === 'W') {
+                    this.isWorkbenchMode = !this.isWorkbenchMode;
+                    const chkWorkbench = document.getElementById('chk-workbench');
+                    if (chkWorkbench) chkWorkbench.checked = this.isWorkbenchMode;
+                    this.log(this.isWorkbenchMode ? 'Entered WORKBENCH MODE' : 'Exited WORKBENCH MODE', 'success');
                     return;
                 }
                 if (e.key === 'Escape') {
@@ -1024,12 +1038,12 @@ class SwarmClient {
         // Simulate a delay for the spider searching
         setTimeout(() => {
             for (let i = 0; i < 3; i++) {
-                const resultId = `SpiderResult_${nodeId}_${i}`;
+                const resultId = `Image_${nodeId}_${i}`;
                 this.nodes.push({
                     id: resultId,
                     activation: 0.8,
                     centrality: 0.5,
-                    is_pinned: false,
+                    is_pinned: true, // Pin to workbench!
                     is_leader: false,
                     x: source.x + (Math.random() - 0.5) * 800,
                     y: source.y + (Math.random() - 0.5) * 800,
@@ -1125,9 +1139,23 @@ class SwarmClient {
         
         const nodeLookup = new Map(this.nodes.map(n => [n.id, n]));
         
+        // --- Workbench Filtering ---
+        let visibleNodes = this.nodes;
+        let visibleLinks = this.links;
+        
+        if (this.isWorkbenchMode) {
+            visibleNodes = this.nodes.filter(n => 
+                n.is_pinned || 
+                n.id === this.selectedNodeId || 
+                (this.selectedNodes && this.selectedNodes.has(n.id))
+            );
+            const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
+            visibleLinks = this.links.filter(l => visibleNodeIds.has(l.source) && visibleNodeIds.has(l.target));
+        }
+        
         // 1. Draw Links
         ctx.lineWidth = Math.max(0.5, 2 * this.zoom);
-        for (const link of this.links) {
+        for (const link of visibleLinks) {
             const n1 = nodeLookup.get(link.source);
             const n2 = nodeLookup.get(link.target);
             if (!n1 || !n2) continue;
@@ -1218,7 +1246,7 @@ class SwarmClient {
         }
         
         // 2. Draw Nodes
-        for (const n of this.nodes) {
+        for (const n of visibleNodes) {
             // Skip drawing if node type is hidden
             if (!this.showGossip && n.id.startsWith("Obs_")) continue;
             if (!this.showNetwork && n.id.startsWith("Net_")) continue;
