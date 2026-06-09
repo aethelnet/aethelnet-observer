@@ -121,6 +121,13 @@ class SwarmClient {
             }
         });
         
+        document.getElementById('btn-close-inspector').addEventListener('click', () => {
+            this.selectedNodeId = null;
+            if (this.selectedNodes) this.selectedNodes.clear();
+            const panel = document.getElementById('inspector-panel');
+            if (panel) panel.style.display = 'none';
+        });
+        
         window.addEventListener('resize', () => this.resizeCanvas());
         
         const tuner = document.getElementById('resonance-tuner');
@@ -571,13 +578,7 @@ class SwarmClient {
             // Smoothly auto-zoom in
             this.zoom = 2.0;
         } else if (e.button === 0 && !clickedNode) {
-            // Deselect if left-clicking empty space
-            this.selectedNodeId = null;
-            if (this.selectedNodes) this.selectedNodes.clear();
-            const panel = document.getElementById('inspector-panel');
-            if (panel) panel.style.display = 'none';
-            
-            // Start panning
+            // Start panning (Don't deselect or hide the window automatically!)
             this.isPanning = true;
             this.startX = e.clientX - this.panX;
             this.startY = e.clientY - this.panY;
