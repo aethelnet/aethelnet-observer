@@ -122,10 +122,12 @@ hr { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 5px 0; }
     backdrop-filter: blur(10px);
 }
 .icon-btn {
-    background: none; border: none; color: #aaa; font-size: 1.2rem;
-    cursor: pointer; padding: 5px; transition: color 0.2s, transform 0.2s;
+    background: none; border: none; color: var(--accent-primary); 
+    font-family: var(--font-mono); font-size: 0.85rem; font-weight: bold;
+    cursor: pointer; padding: 5px 10px; transition: color 0.2s, transform 0.2s;
+    white-space: nowrap; display: flex; align-items: center; justify-content: center;
 }
-.icon-btn:hover { color: #fff; transform: scale(1.1); }
+.icon-btn:hover { color: #fff; transform: scale(1.05); }
 
 #resonance-tuner {
     width: 100%; padding: 10px 5px; border: none;
