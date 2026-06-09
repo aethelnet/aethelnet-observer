@@ -494,8 +494,18 @@ class SwarmClient {
             this.inspectNode(clickedNode.id);
             // Smoothly auto-zoom in
             this.zoom = 2.0;
-        } else if (e.button === 1 || e.button === 2 || (e.button === 0 && !clickedNode)) {
-            // Middle, Right, or Left-drag in empty space: start panning
+        } else if (e.button === 0 && !clickedNode) {
+            // Deselect if left-clicking empty space
+            this.selectedNodeId = null;
+            const panel = document.getElementById('inspector-panel');
+            if (panel) panel.style.display = 'none';
+            
+            // Start panning
+            this.isPanning = true;
+            this.startX = e.clientX - this.panX;
+            this.startY = e.clientY - this.panY;
+        } else if (e.button === 1 || e.button === 2) {
+            // Middle or Right click: start panning
             this.isPanning = true;
             this.startX = e.clientX - this.panX;
             this.startY = e.clientY - this.panY;
