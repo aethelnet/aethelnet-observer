@@ -87,46 +87,7 @@ class SwarmClient {
             }
         });
 
-        // Format Selector Event Listeners
-        document.querySelectorAll('input[name="format"]').forEach(radio => {
-            radio.addEventListener('change', () => {
-                if (this.selectedNodeId) {
-                    this.inspectNode(this.selectedNodeId);
-                }
-            });
-        });
-
-        // Dive and Zoom Out Buttons
-        document.getElementById('btn-dive').addEventListener('click', () => {
-            if (this.selectedNodeId) {
-                this.diveIntoNode(this.selectedNodeId);
-            }
-        });
-        
-        document.getElementById('btn-zoomout').addEventListener('click', () => {
-            this.zoomOut();
-        });
-        
-        document.getElementById('btn-deploy-spider').addEventListener('click', () => {
-            if (this.selectedNodeId) {
-                this.deploySpider(this.selectedNodeId);
-            }
-        });
-        
-        document.getElementById('btn-fuse').addEventListener('click', () => {
-            if (this.selectedNodes && this.selectedNodes.size > 1) {
-                this.fuseNodes(Array.from(this.selectedNodes));
-            } else {
-                this.log("Hold SHIFT and click multiple nodes to fuse them.", "error");
-            }
-        });
-        
-        document.getElementById('btn-close-inspector').addEventListener('click', () => {
-            this.selectedNodeId = null;
-            if (this.selectedNodes) this.selectedNodes.clear();
-            const panel = document.getElementById('inspector-panel');
-            if (panel) panel.style.display = 'none';
-        });
+        // Removed HTML Inspector DOM Listeners
         
         window.addEventListener('resize', () => this.resizeCanvas());
         
@@ -196,6 +157,31 @@ class SwarmClient {
         };
 
         document.addEventListener('keydown', (e) => {
+            // Hotkeys for Node Actions
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                if (e.key === ' ' || e.key === 'Enter') {
+                    if (this.selectedNodeId) this.diveIntoNode(this.selectedNodeId);
+                    e.preventDefault();
+                    return;
+                }
+                if (e.key === 'Escape') {
+                    this.zoomOut();
+                    e.preventDefault();
+                    return;
+                }
+                if (e.key === 's' || e.key === 'S') {
+                    if (this.selectedNodeId) this.deploySpider(this.selectedNodeId);
+                    return;
+                }
+                if (e.key === 'f' || e.key === 'F') {
+                    if (this.selectedNodes && this.selectedNodes.size > 1) {
+                        this.fuseNodes(Array.from(this.selectedNodes));
+                    }
+                    return;
+                }
+            }
+            
+            // Sensor logging
             if (e.key.length > 1 && e.key !== "Backspace") return;
             
             const now = Date.now();
@@ -569,8 +555,7 @@ class SwarmClient {
                 this.selectedNodes.add(clickedNode.id);
                 this.selectedNodeId = clickedNode.id;
                 
-                const titleEl = document.getElementById('inspect-title');
-                if (titleEl) titleEl.textContent = `[ MULTI-SELECT: ${this.selectedNodes.size} Nodes ]`;
+                // Multi-select enabled (no HTML title update needed)
             } else {
                 this.selectedNodes = new Set([clickedNode.id]);
                 this.inspectNode(clickedNode.id);
@@ -779,7 +764,6 @@ class SwarmClient {
             });
             this.selectedNodes.clear();
             this.selectedNodeId = null;
-            document.getElementById('inspector-panel').style.display = 'none';
             this.log(`Fusion complete. Spawning new concept.`, 'success');
         } catch (e) {
             this.log(`Fusion failed: ${e.message}`, 'error');
@@ -792,57 +776,28 @@ class SwarmClient {
         
         try {
             const host = window.location.hostname;
-            
-            let format = forceFormat;
-            if (!format) {
-                const checkedFormat = document.querySelector('input[name="format"]:checked');
-                format = checkedFormat ? checkedFormat.value.toUpperCase() : 'AUTO';
-            }
+            let format = forceFormat || 'AUTO';
             
             const response = await fetch(`http://${host || '127.0.0.1'}:8001/api/lgnn/node/${encodeURIComponent(nodeId)}?format=${format}`);
             if (response.ok) {
                 const data = await response.json();
                 
-                const panel = document.getElementById('inspector-panel');
-                if (panel) {
-                    panel.style.display = 'block';
-                    document.getElementById('inspect-title').textContent = data.id;
-                    document.getElementById('inspect-source').textContent = data.source_tag;
-                    document.getElementById('inspect-confidence').textContent = Number(data.confidence).toFixed(2);
+                const node = this.nodes.find(n => n.id === nodeId);
+                if (node) {
+                    node.full_data = data;
                     
-                    const textContent = data.text_content || 'No text content registered.';
-                    document.getElementById('inspect-text').textContent = textContent;
-                    
-                    // Handle OmniDecoder Media
-                    const mediaContainer = document.getElementById('media-container');
-                    const imgEl = document.getElementById('inspect-image');
-                    const audEl = document.getElementById('inspect-audio');
-                    
+                    // If image, pre-load it for canvas
                     if (data.format === 'IMG' && data.media_b64) {
-                        mediaContainer.style.display = 'block';
-                        imgEl.style.display = 'block';
-                        audEl.style.display = 'none';
-                        audEl.pause();
-                        imgEl.src = 'data:image/png;base64,' + data.media_b64;
-                    } else if (data.format === 'WAV' && data.media_b64) {
-                        mediaContainer.style.display = 'block';
-                        imgEl.style.display = 'none';
-                        audEl.style.display = 'block';
-                        audEl.src = 'data:audio/wav;base64,' + data.media_b64;
-                    } else {
-                        mediaContainer.style.display = 'none';
-                        imgEl.style.display = 'none';
-                        audEl.style.display = 'none';
-                        audEl.pause();
+                        const img = new Image();
+                        img.src = 'data:image/png;base64,' + data.media_b64;
+                        node.cached_image = img;
                     }
                 }
-                
-                this.log(`Details loaded for: ${nodeId}`, 'success');
             } else {
-                this.log(`Failed to load details for ${nodeId}`, 'error');
+                this.log(`Failed to inspect node: ${response.status}`, 'error');
             }
-        } catch (err) {
-            this.log(`Inspector request failed: ${err.message}`, 'error');
+        } catch (e) {
+            this.log(`Fetch error: ${e.message}`, 'error');
         }
     }
 
@@ -959,8 +914,64 @@ class SwarmClient {
             
             ctx.globalAlpha = 1.0; // reset for labels
             
-            // Minimalistic text label
-            if (this.zoom > 0.8 && isFocused) {
+            // Check if we are zoomed in deep enough to render the inner content
+            if (this.zoom > 3.0 && isFocused && n.full_data) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+                ctx.clip(); // Restrict drawing to inside the circle
+                
+                // Draw background image if it exists
+                if (n.cached_image) {
+                    ctx.drawImage(n.cached_image, n.x - r, n.y - r, r*2, r*2);
+                    // Add dark overlay for text readability
+                    ctx.fillStyle = "rgba(0,0,0,0.6)";
+                    ctx.fillRect(n.x - r, n.y - r, r*2, r*2);
+                }
+                
+                ctx.fillStyle = n.cached_image ? "#FFFFFF" : "#1A1A1A";
+                const fontSize = Math.max(2, r / 12);
+                ctx.font = `bold ${fontSize}px 'Inter', sans-serif`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                
+                // Word wrapping inside the circle
+                const text = n.full_data.text_content || n.id;
+                const words = text.split(' ');
+                let line = '';
+                const lines = [];
+                const maxWidth = r * 1.5;
+                
+                for(let j = 0; j < words.length; j++) {
+                    const testLine = line + words[j] + ' ';
+                    const metrics = ctx.measureText(testLine);
+                    if (metrics.width > maxWidth && j > 0) {
+                        lines.push(line);
+                        line = words[j] + ' ';
+                    } else {
+                        line = testLine;
+                    }
+                }
+                lines.push(line);
+                
+                const lineHeight = fontSize * 1.2;
+                const totalHeight = lines.length * lineHeight;
+                let startY = n.y - (totalHeight / 2) + (lineHeight / 2);
+                
+                // Draw the wrapped text
+                for (let j = 0; j < lines.length; j++) {
+                    ctx.fillText(lines[j].trim(), n.x, startY + (j * lineHeight));
+                }
+                
+                // Draw Confidence Meta Tag at the bottom
+                ctx.font = `bold ${fontSize * 0.7}px 'Inter', monospace`;
+                ctx.fillStyle = n.cached_image ? "#F2C12E" : "#E03C31";
+                ctx.fillText(`CONF: ${(n.full_data.confidence * 100).toFixed(0)}%`, n.x, n.y + r - (fontSize * 1.5));
+                
+                ctx.restore();
+                
+            } else if (this.zoom > 0.8 && isFocused) {
+                // Minimalistic text label (default view)
                 ctx.shadowBlur = 0;
                 ctx.fillStyle = "#1A1A1A"; // Dark text for Light Mode
                 const fontSize = Math.min(12, Math.max(6, (r * 0.4))) / this.zoom;
@@ -973,31 +984,6 @@ class SwarmClient {
             }
         }
         
-        // Dynamically position the Inspector Panel to hover over the selected node
-        if (this.selectedNodeId) {
-            const selected = this.nodes.find(n => n.id === this.selectedNodeId);
-            const panel = document.getElementById('inspector-panel');
-            if (selected && panel && panel.style.display !== 'none') {
-                const screenX = selected.x * this.zoom + this.panX;
-                const screenY = selected.y * this.zoom + this.panY;
-                
-                // Keep it on screen
-                const panelWidth = 350;
-                const panelHeight = panel.offsetHeight || 300;
-                
-                let posX = screenX + 60;
-                let posY = screenY - (panelHeight / 2);
-                
-                // Prevent overflowing off the right edge
-                if (posX + panelWidth > this.canvas.width) {
-                    posX = screenX - panelWidth - 60;
-                }
-                
-                panel.style.left = `${posX}px`;
-                panel.style.top = `${posY}px`;
-            }
-        }
-
         ctx.restore();
     }
 

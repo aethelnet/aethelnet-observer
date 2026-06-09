@@ -58,44 +58,7 @@
             </div>
         </div>
 
-        <!-- Concept Inspector Panel (Floating) -->
-        <section class="panel floating-inspector" id="inspector-panel" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: var(--panel-border); padding-bottom: 0.5rem; margin-bottom: 1rem;">
-                <h2 style="margin: 0; border: none; padding: 0;">Concept Inspector</h2>
-                <button id="btn-close-inspector" style="background: none; border: none; color: #FFF; cursor: pointer; font-family: var(--font-mono); font-weight: bold; font-size: 1.2rem;">[ X ]</button>
-            </div>
-            <div class="inspector-content">
-                <h3 id="inspect-title">Node Title</h3>
-                <div class="meta-row">
-                    <span>Source: <strong id="inspect-source">internal</strong></span>
-                    <span>Conf: <strong id="inspect-confidence">0.80</strong></span>
-                </div>
-                
-                <div class="decode-format-selector">
-                    <span class="decode-label">DECODE AS:</span>
-                    <div class="decode-options">
-                        <label class="radio-btn"><input type="radio" name="format" value="auto" checked> AUTO</label>
-                        <label class="radio-btn"><input type="radio" name="format" value="text"> TXT</label>
-                        <label class="radio-btn"><input type="radio" name="format" value="image"> IMG</label>
-                        <label class="radio-btn"><input type="radio" name="format" value="audio"> WAV</label>
-                    </div>
-                </div>
-                
-                <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                    <button class="icon-btn" id="btn-dive" style="flex: 1 1 45%; white-space: nowrap; border: var(--panel-border);">[ DIVE IN ]</button>
-                    <button class="icon-btn" id="btn-zoomout" style="flex: 1 1 45%; white-space: nowrap; display: none; background: var(--accent-blue); color: #FFF; border: var(--panel-border);">[ ZOOM OUT ]</button>
-                    <button class="icon-btn" id="btn-deploy-spider" style="flex: 1 1 45%; white-space: nowrap; border: var(--panel-border); color: #F2C12E;">[ DEPLOY SPIDER ]</button>
-                    <button class="icon-btn" id="btn-fuse" style="flex: 1 1 45%; white-space: nowrap; border: var(--panel-border); color: #E03C31;">[ FUSE NODES ]</button>
-                </div>
-
-                <div id="media-container" style="display: none;">
-                    <img id="inspect-image" src="" style="display: none;">
-                    <audio id="inspect-audio" controls style="display: none;"></audio>
-                </div>
-
-                <div id="inspect-text" class="terminal-log"></div>
-            </div>
-        </section>
+        <!-- No HTML Inspector. Pure Canvas rendering only. -->
 
         <!-- Event Log (Floating Bottom Left) -->
         <section class="panel log-panel floating-log">
