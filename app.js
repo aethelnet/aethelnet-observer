@@ -100,6 +100,30 @@ class SwarmClient {
                     }
                 }, 500); // 500ms debounce
             });
+
+            // Allow dropping Memory Fragments into the graph via Enter
+            tuner.addEventListener('keydown', async (e) => {
+                if (e.key === 'Enter') {
+                    const query = e.target.value.trim();
+                    if (query.length > 0) {
+                        this.log(`Injecting Memory Fragment: "${query}"`, 'success');
+                        try {
+                            const host = window.location.hostname;
+                            await fetch(`http://${host || '127.0.0.1'}:8001/api/lgnn/universal_ingest`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    bot_name: "ObserverDashboard",
+                                    observation: query
+                                })
+                            });
+                            e.target.value = ''; // Clear after injection
+                        } catch (err) {
+                            this.log(`Failed to inject fragment: ${err.message}`, 'error');
+                        }
+                    }
+                }
+            });
         }
         
         // Start animation frame loop
