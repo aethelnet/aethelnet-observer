@@ -324,12 +324,12 @@ class SwarmClient {
         const timeScale = this.selectedNodeId ? 0.02 : 1.0;
         
         // 1. Semantic Boids Swarm Logic
-        const separationDist = 250; // Increased to spread them out
-        const cohesionWeight = 0.001 * timeScale;
+        const separationDist = 400; // Increased significantly for more whitespace
+        const cohesionWeight = 0.0005 * timeScale; // Reduced to let them spread
         const alignmentWeight = 0.02 * timeScale;
-        const separationWeight = 2500 * timeScale; // Stronger push away from non-neighbors
-        const maxSpeed = 8.0 * timeScale;
-        const centerGravity = 0.00002 * timeScale; // Barely any global gravity, let topology dictate structure
+        const separationWeight = 5000 * timeScale; // Stronger push away from non-neighbors
+        const maxSpeed = 12.0 * timeScale; // Allow faster expansion
+        const centerGravity = 0.00001 * timeScale; // Halved gravity so the network can breathe
         
         const nodeLookup = new Map(this.nodes.map(n => [n.id, n]));
         
@@ -390,7 +390,7 @@ class SwarmClient {
                         const dy = n.y - other.y;
                         
                         const isNeighbor = nbrIds.has(other.id);
-                        const actualSepDist = isNeighbor ? 60 : separationDist;
+                        const actualSepDist = isNeighbor ? 180 : separationDist;
                         
                         if (Math.abs(dx) > actualSepDist || Math.abs(dy) > actualSepDist) continue;
                         
