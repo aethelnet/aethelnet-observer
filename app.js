@@ -225,9 +225,9 @@ class SwarmClient {
         try {
             const data = JSON.parse(event.data);
             if (data.type === 'telemetry') {
-                this.elNodes.textContent = data.nodes;
-                this.elBridges.textContent = data.bridges;
-                this.elState.textContent = data.state;
+                if (this.elNodes) this.elNodes.textContent = data.nodes;
+                if (this.elBridges) this.elBridges.textContent = data.bridges;
+                if (this.elState) this.elState.textContent = data.state;
                 if (this.elLeader) {
                     this.elLeader.textContent = data.leader || 'None';
                     this.elLeader.title = data.leader || 'Calculating...';
