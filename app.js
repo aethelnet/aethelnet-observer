@@ -592,17 +592,6 @@ class SwarmClient {
             const n2 = nodeLookup.get(link.target);
             if (!n1 || !n2) continue;
             
-            // Spatial Culling: Don't draw links if both nodes are completely off-screen
-            const n1sx = n1.x * this.zoom + this.panX;
-            const n1sy = n1.y * this.zoom + this.panY;
-            const n2sx = n2.x * this.zoom + this.panX;
-            const n2sy = n2.y * this.zoom + this.panY;
-            
-            if ((n1sx < -100 || n1sx > width + 100 || n1sy < -100 || n1sy > height + 100) && 
-                (n2sx < -100 || n2sx > width + 100 || n2sy < -100 || n2sy > height + 100)) {
-                continue;
-            }
-            
             ctx.beginPath();
             ctx.moveTo(n1.x, n1.y);
             ctx.lineTo(n2.x, n2.y);
@@ -618,11 +607,6 @@ class SwarmClient {
             if (!this.showGossip && n.id.startsWith("Obs_")) continue;
             if (!this.showNetwork && n.id.startsWith("Net_")) continue;
             if (!this.showStream && n.id.startsWith("Stream_")) continue;
-            
-            // Spatial Culling: Don't draw nodes that are off-screen
-            const sx = n.x * this.zoom + this.panX;
-            const sy = n.y * this.zoom + this.panY;
-            if (sx < -150 || sx > width + 150 || sy < -150 || sy > height + 150) continue;
             
             // Nodes are bigger now for the inline text
             const baseRadius = 25;
