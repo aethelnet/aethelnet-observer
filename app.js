@@ -186,7 +186,32 @@ class SwarmClient {
                     return;
                 }
                 if (e.key === 'Escape') {
-                    this.zoomOut();
+                    if (this.selectedNodeId || (this.selectedNodes && this.selectedNodes.size > 0)) {
+                        this.selectedNodeId = null;
+                        this.selectedNodes = new Set();
+                        this.log('Deselected all nodes', 'info');
+                    } else {
+                        this.zoomOut();
+                    }
+                    e.preventDefault();
+                    return;
+                }
+                if (e.key === 'PageUp' || e.key === 'PageDown') {
+                    const rect = this.canvas.getBoundingClientRect();
+                    const centerX = rect.width / 2;
+                    const centerY = rect.height / 2;
+                    const graphX = (centerX - this.panX) / this.zoom;
+                    const graphY = (centerY - this.panY) / this.zoom;
+                    
+                    const zoomFactor = e.key === 'PageUp' ? 1.5 : (1 / 1.5);
+                    this.zoom *= zoomFactor;
+                    
+                    if (this.zoom > 5.0 && !this.selectedNodeId) this.zoom = 5.0;
+                    if (this.zoom < 0.05) this.zoom = 0.05;
+                    
+                    this.panX = centerX - graphX * this.zoom;
+                    this.panY = centerY - graphY * this.zoom;
+                    
                     e.preventDefault();
                     return;
                 }
@@ -1188,7 +1213,7 @@ class SwarmClient {
             ctx.globalAlpha = 1.0; // reset for labels
             
             // Check if we are zoomed in deep enough to render the inner content
-            if (this.zoom > 3.0 && isFocused && n.full_data) {
+            if (this.zoom > 1.8 && isFocused && n.full_data) {
                 ctx.save();
                 ctx.beginPath();
                 ctx.arc(iso.x, iso.y, r, 0, 2 * Math.PI);
