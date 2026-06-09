@@ -498,13 +498,85 @@ class SwarmClient {
         
         const zoomFactor = 1.1;
         if (e.deltaY < 0) {
-            this.zoom = Math.min(this.zoom * zoomFactor, 5.0);
+            this.zoom *= zoomFactor;
+            
+            // INFINITE ZOOM TRANSITION
+            if (this.zoom > 10.0 && this.selectedNodeId) {
+                this.diveIntoNode(this.selectedNodeId);
+                return;
+            }
+            
+            // Hard limit if no node selected
+            if (this.zoom > 5.0 && !this.selectedNodeId) {
+                this.zoom = 5.0;
+            }
         } else {
-            this.zoom = Math.max(this.zoom / zoomFactor, 0.2);
+            this.zoom = Math.max(this.zoom / zoomFactor, 0.1);
         }
         
         this.panX = mouseX - graphX * this.zoom;
         this.panY = mouseY - graphY * this.zoom;
+    }
+
+    diveIntoNode(nodeId) {
+        // Prevent multiple dives
+        if (this.isDiving) return;
+        this.isDiving = true;
+        
+        this.log(`Initiating fractal dive into [${nodeId}]...`, 'info');
+        
+        // Visual Flash
+        const flash = document.createElement('div');
+        flash.style.position = 'absolute';
+        flash.style.top = '0'; flash.style.left = '0';
+        flash.style.width = '100vw'; flash.style.height = '100vh';
+        flash.style.backgroundColor = '#fff';
+        flash.style.zIndex = '9999';
+        flash.style.transition = 'opacity 1s ease-out';
+        document.body.appendChild(flash);
+        
+        setTimeout(() => {
+            // Reset state
+            this.zoom = 0.5;
+            this.panX = this.canvas.width / 2;
+            this.panY = this.canvas.height / 2;
+            
+            // Generate fractal children for prototype
+            const children = [];
+            const links = [];
+            for (let i=0; i<15; i++) {
+                const childId = `${nodeId}_frag_${i}`;
+                children.push({
+                    id: childId,
+                    activation: Math.random(),
+                    centrality: Math.random() * 0.5,
+                    x: this.canvas.width / 2 + (Math.random() - 0.5) * 400,
+                    y: this.canvas.height / 2 + (Math.random() - 0.5) * 400,
+                    vx: (Math.random() - 0.5) * 15.0,
+                    vy: (Math.random() - 0.5) * 15.0
+                });
+                if (i > 0) {
+                    links.push({
+                        source: children[Math.floor(Math.random() * i)].id,
+                        target: childId,
+                        weight: Math.random()
+                    });
+                }
+            }
+            
+            this.nodes = children;
+            this.links = links;
+            this.selectedNodeId = null;
+            
+            // Fade out flash
+            flash.style.opacity = '0';
+            setTimeout(() => {
+                document.body.removeChild(flash);
+                this.isDiving = false;
+            }, 1000);
+            
+            this.log(`Successfully materialized interior of [${nodeId}]`, 'success');
+        }, 100);
     }
 
     async inspectNode(nodeId) {
