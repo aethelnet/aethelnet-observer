@@ -6,13 +6,25 @@
     <title>Sovereign Swarm - Sphere UI</title>
     
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=5">
     
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#000000">
     
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <script>
+        window.addEventListener('error', function(e) {
+            const logPanel = document.getElementById('event-log');
+            if (logPanel) {
+                const el = document.createElement('div');
+                el.className = 'log-entry';
+                el.innerHTML = `<span style="color:#E03C31;font-weight:bold;">[CRASH] ${e.message} at ${e.filename.split('/').pop()}:${e.lineno}</span>`;
+                logPanel.appendChild(el);
+                logPanel.scrollTop = logPanel.scrollHeight;
+            }
+        });
+    </script>
 </head>
 <body>
     <!-- Fullscreen Canvas -->
@@ -32,6 +44,45 @@
                 <span class="wallet-amount" id="val-aethel">0.0000</span>
                 <span class="wallet-symbol">$AETHEL</span>
             </div>
+        </div>
+
+        <!-- Left Side: GNN Command Deck (Tuning + Spiders + Personas) -->
+        <div id="command-deck" class="floating-hud panel" style="position: absolute; top: 100px; left: 20px; display: flex; flex-direction: column; gap: 15px; pointer-events: auto; z-index: 10; width: 240px; max-height: calc(100vh - 140px); overflow-y: auto;">
+            <h3 style="margin: 0; font-size: 0.8rem; border-bottom: 2px solid var(--text-color); padding-bottom: 4px;">GNN SYSTEM COMMANDS</h3>
+            
+            <!-- Sliders -->
+            <component-control-slider id="slider-decay" label="Hebbian Decay" min="0.001" max="0.2" step="0.001" value="0.05"></component-control-slider>
+            <component-control-slider id="slider-resonance" label="Resonance Limit" min="0.1" max="0.9" step="0.01" value="0.6"></component-control-slider>
+            
+            <component-drift-chart id="drift-chart-widget"></component-drift-chart>
+            
+            <hr>
+            
+            <!-- Spider Ingestion -->
+            <div style="display: flex; flex-direction: column; gap: 5px;">
+                <span style="font-family: var(--font-mono); font-size: 0.7rem; font-weight: bold; text-transform: uppercase;">[ Data Spider ]</span>
+                <input type="text" id="spider-query" placeholder="Search arXiv..." style="width: 100%; font-family: var(--font-mono); font-size: 0.8rem; padding: 6px; border: 2px solid var(--text-color); background: #FFF; outline: none; margin-top: 5px;">
+                <button id="btn-deploy-spider" class="icon-btn" style="width: 100%; border: 2px solid var(--text-color); background: var(--accent-yellow); font-size: 0.75rem; padding: 6px 10px; margin-top: 5px;">Deploy Hunt</button>
+            </div>
+            
+            <hr>
+            
+            <!-- Persona Activator -->
+            <div style="display: flex; flex-direction: column; gap: 5px;">
+                <span style="font-family: var(--font-mono); font-size: 0.7rem; font-weight: bold; text-transform: uppercase;">[ Personas ]</span>
+                <div id="personas-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; margin-top: 5px;">
+                    <span style="font-size: 0.75rem; color: #888; font-family: var(--font-mono);">Loading personas...</span>
+                </div>
+                <button id="btn-create-persona" class="icon-btn" style="width: 100%; border: 2px solid var(--text-color); background: var(--accent-blue); color: #FFF; font-size: 0.75rem; padding: 6px 10px; margin-top: 5px;">Create Persona</button>
+            </div>
+        </div>
+
+        <!-- Top Middle: GNN Observer HUD -->
+        <div id="observer-hud" class="floating-hud" style="position: absolute; top: 20px; left: 280px; display: flex; gap: 15px; pointer-events: auto; z-index: 10;">
+            <component-system-status id="system-status-widget" connected="false" ping="0" fps="60"></component-system-status>
+            <component-metrics-card id="metric-nodes" label="Active Nodes" value="0" color="var(--accent-blue)"></component-metrics-card>
+            <component-metrics-card id="metric-bridges" label="Active Bridges" value="0" color="var(--accent-yellow)"></component-metrics-card>
+            <component-metrics-card id="metric-state" label="Entropy / State" value="0.00" color="var(--accent-red)"></component-metrics-card>
         </div>
 
         <!-- Top Right: Gear & Toggles -->
@@ -71,7 +122,25 @@
             </div>
         </div>
 
-        <!-- No HTML Inspector. Pure Canvas rendering only. -->
+        <!-- Inspector Panel (Floating Right) -->
+        <div id="inspector-hud" class="floating-hud panel floating-inspector" style="top: 80px; right: 20px; display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--text-color); margin-bottom: 10px; padding-bottom: 5px;">
+                <h3 id="inspector-title" style="margin: 0; border: none; padding: 0; width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Node Details</h3>
+                <button id="btn-close-inspector" class="icon-btn" style="padding: 2px 8px; border: 2px solid var(--text-color); margin-left: 10px;">X</button>
+            </div>
+            <div class="meta-row">
+                <span>Confidence:</span> <strong id="inspector-confidence">--</strong>
+            </div>
+            <div class="meta-row">
+                <span>Tag:</span> <strong id="inspector-tag">--</strong>
+            </div>
+            <textarea id="inspector-content" style="width: 100%; height: 120px; font-family: var(--font-mono); font-size: 0.85rem; padding: 5px; border: var(--panel-border); background: #FFF; outline: none; resize: vertical; margin-top: 10px;"></textarea>
+            <hr>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button id="btn-pin-node" class="icon-btn" style="flex: 1; border: 2px solid var(--text-color); border-left: none;">[ PIN ]</button>
+                <button id="btn-delete-node" class="icon-btn" style="flex: 1; border: 2px solid var(--text-color); color: var(--accent-red);">[ DEL ]</button>
+            </div>
+        </div>
 
         <!-- Event Log (Floating Bottom Left) -->
         <section class="panel log-panel floating-log">
@@ -80,11 +149,15 @@
     </div>
 
     <!-- Scripts -->
-    <script src="app.js"></script>
+    <script src="components.js?v=5"></script>
+    <script src="app.js?v=5"></script>
     <script>
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js').catch(err => console.error(err));
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                for (let registration of registrations) {
+                    registration.unregister();
+                    console.log('Unregistered service worker to prevent development caching.');
+                }
             });
         }
         
