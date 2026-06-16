@@ -5,7 +5,8 @@
 
 class SwarmClient {
     constructor() {
-        this.wsUrl = 'ws://' + (window.location.hostname || '127.0.0.1') + ':8001/ws';
+        const host = window.location.hostname || 'localhost';
+        this.wsUrl = `ws://${host}:8001/ws`;
         this.socket = null;
         this.reconnectTimer = null;
         this.reconnectAttempts = 0;
@@ -18,7 +19,14 @@ class SwarmClient {
         this.elBridges = document.getElementById('val-bridges');
         this.elState = document.getElementById('val-state');
         this.elLeader = document.getElementById('val-leader');
+        this.elAethel = document.getElementById('val-aethel');
         this.canvasContainer = document.getElementById('manifold-canvas');
+
+        // Web Components HUD
+        this.compStatus = document.getElementById('system-status-widget');
+        this.compNodes = document.getElementById('metric-nodes');
+        this.compBridges = document.getElementById('metric-bridges');
+        this.compState = document.getElementById('metric-state');
         
         // Visualizer Physics State
         this.canvas = null;
@@ -34,6 +42,7 @@ class SwarmClient {
         this.isPanning = false;
         this.startX = 0;
         this.startY = 0;
+        this.isCameraTracking = true;
         this.showGossip = false;
         this.showNetwork = true;
         this.showStream = true;
@@ -43,6 +52,19 @@ class SwarmClient {
         this.isWiring = false;
         this.wireSourceNode = null;
         this.wireTargetIso = null;
+
+        // Custom Visual & Dynamic parameters state
+        this.activePersonaNodes = new Set();
+        this.isSpiderHunting = false;
+        this.spiderPulseRadius = 0;
+        this.selectedNodes = new Set();
+        this.radialMenu = {
+            active: false,
+            x: 0,
+            y: 0,
+            nodeId: null,
+            options: []
+        };
         
         this.init();
     }
@@ -103,8 +125,68 @@ class SwarmClient {
         this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
         this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
-        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault()); // Disable right-click menu
-        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        // Context Menu Radial Trigger
+        this.canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            const graphX = (mouseX - this.panX) / this.zoom;
+            const graphY = (mouseY - this.panY) / this.zoom;
+            
+            let targetNode = null;
+            for (const n of this.nodes) {
+                const zOffset = n.is_leader ? 300 : (n.id.startsWith("Obs_") ? -200 : 0);
+                const iso = this.toIso(n.x, n.y, zOffset);
+                const dx = iso.x - graphX;
+                const dy = iso.y - graphY;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                
+                const baseRadius = 25;
+                const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 25;
+                const centralityBonus = (n.centrality || 0) * 50;
+                const radius = Math.max(0.1, (baseRadius + activationBonus + centralityBonus) / Math.pow(this.zoom, 0.6));
+                
+                if (dist < radius + 25) {
+                    targetNode = n;
+                    break;
+                }
+            }
+            
+            this.radialMenu.active = true;
+            this.radialMenu.x = e.clientX;
+            this.radialMenu.y = e.clientY;
+            
+            if (targetNode) {
+                this.radialMenu.nodeId = targetNode.id;
+                this.radialMenu.options = ["Inspect", "Link Source", "Pin/Unpin", "Delete Node"];
+            } else {
+                this.radialMenu.nodeId = null;
+                this.radialMenu.options = ["Spawn Node", "Force Sync", "Close Menu"];
+            }
+        });
+        
+        // Double-click to create new node
+        this.canvas.addEventListener('dblclick', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            const graphX = (mouseX - this.panX) / this.zoom;
+            const graphY = (mouseY - this.panY) / this.zoom;
+            const flatCoords = this.fromIso(graphX, graphY, 0);
+
+            const label = prompt("Enter text content for the new GNN Node:");
+            if (label && label.trim().length > 0) {
+                const nodeName = prompt("Enter a unique name/ID for this node (optional):", "Node_" + Math.floor(Math.random()*1000));
+                if (nodeName && nodeName.trim().length > 0) {
+                    this.log(`Creating manual GNN Node: [${nodeName}]`, 'info');
+                    this.createNode(nodeName, label.trim(), flatCoords.x, flatCoords.y);
+                }
+            }
+        });
         
         document.getElementById('btn-reconnect').addEventListener('click', () => {
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
@@ -115,8 +197,140 @@ class SwarmClient {
             }
         });
 
-        // Removed HTML Inspector DOM Listeners
-        
+        // Live-Sync Auto-Saving Node Content
+        const contentArea = document.getElementById('inspector-content');
+        if (contentArea) {
+            let autoSaveTimer;
+            contentArea.addEventListener('input', () => {
+                clearTimeout(autoSaveTimer);
+                autoSaveTimer = setTimeout(async () => {
+                    if (!this.selectedNodeId) return;
+                    const newContent = contentArea.value;
+                    
+                    try {
+                        const apiHost = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
+                        await fetch(`http://${apiHost}:8001/api/lgnn/node/update`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                id: this.selectedNodeId,
+                                text_content: newContent
+                            })
+                        });
+                        
+                        // Update local node full_data
+                        const node = this.nodes.find(n => n.id === this.selectedNodeId);
+                        if (node && node.full_data) {
+                            node.full_data.text_content = newContent;
+                        }
+                    } catch (err) {}
+                }, 800); // 800ms debounce
+            });
+        }
+
+        // Bind Spider Hunt Controller
+        const btnDeploySpider = document.getElementById('btn-deploy-spider');
+        const inputSpider = document.getElementById('spider-query');
+        if (btnDeploySpider && inputSpider) {
+            btnDeploySpider.addEventListener('click', async () => {
+                const query = inputSpider.value.trim();
+                if (query.length === 0) return;
+                
+                this.log(`Deploying ArXiv Spider for hunt: "${query}"`, 'info');
+                try {
+                    const apiHost = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
+                    const res = await fetch(`http://${apiHost}:8001/api/lgnn/universal_ingest`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            bot_name: "AethelSpider_ArXiv",
+                            observation: query
+                        })
+                    });
+                    if (res.ok) {
+                        this.log(`Spider deployed. Mining results in background...`, 'success');
+                        inputSpider.value = '';
+                        this.isSpiderHunting = true;
+                        this.spiderPulseRadius = 0;
+                        if (this.spiderTimer) clearTimeout(this.spiderTimer);
+                        this.spiderTimer = setTimeout(() => {
+                            this.isSpiderHunting = false;
+                            this.spiderTimer = null;
+                        }, 12000); // Pulse for 12 seconds
+                    } else {
+                        this.log(`Failed to deploy spider`, 'error');
+                    }
+                } catch (e) {
+                    this.log(`Deploy error: ${e.message}`, 'error');
+                }
+            });
+        }
+
+        // Bind Persona Creator from Multi-Selection
+        const btnCreatePersona = document.getElementById('btn-create-persona');
+        if (btnCreatePersona) {
+            btnCreatePersona.addEventListener('click', async () => {
+                if (!this.selectedNodes || this.selectedNodes.size === 0) {
+                    alert("Please select one or more nodes first (Hold Shift and Click on nodes).");
+                    return;
+                }
+                const name = prompt("Enter a name for the new GNN Persona:");
+                if (!name || name.trim().length === 0) return;
+                
+                this.log(`Creating persona [${name}] with ${this.selectedNodes.size} nodes...`, 'info');
+                try {
+                    const apiHost = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
+                    const res = await fetch(`http://${apiHost}:8001/api/lgnn/persona/create`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: name.trim(),
+                            nodes: Array.from(this.selectedNodes)
+                        })
+                    });
+                    if (res.ok) {
+                        this.log(`Persona [${name}] created successfully!`, 'success');
+                        this.selectedNodes = new Set(); // Reset selection
+                        this.loadPersonas(); // Reload persona list
+                    } else {
+                        const err = await res.text();
+                        this.log(`Failed to create persona: ${err}`, 'error');
+                    }
+                } catch (e) {
+                    this.log(`Persona creation failed: ${e.message}`, 'error');
+                }
+            });
+        }
+
+        // Bind Control Sliders for Dynamic GNN Tuning
+        const sliderDecay = document.getElementById('slider-decay');
+        if (sliderDecay) {
+            sliderDecay.addEventListener('change', (e) => {
+                const value = e.detail.value;
+                this.log(`Tuning Hebbian Decay to: ${value}`, 'info');
+                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                    this.socket.send(JSON.stringify({
+                        type: 'update_params',
+                        decay_rate: value
+                    }));
+                }
+            });
+        }
+
+        const sliderResonance = document.getElementById('slider-resonance');
+        if (sliderResonance) {
+            sliderResonance.addEventListener('change', (e) => {
+                const value = e.detail.value;
+                this.log(`Tuning Resonance Limit to: ${value}`, 'info');
+                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                    this.socket.send(JSON.stringify({
+                        type: 'update_params',
+                        resonance_threshold: value
+                    }));
+                }
+            });
+        }
+
         window.addEventListener('resize', () => this.resizeCanvas());
         
         const tuner = document.getElementById('resonance-tuner');
@@ -138,15 +352,27 @@ class SwarmClient {
                 if (e.key === 'Enter') {
                     const query = e.target.value.trim();
                     if (query.length > 0) {
-                        this.log(`Injecting Memory Fragment: "${query}"`, 'success');
+                        let botName = "ObserverDashboard";
+                        let actualQuery = query;
+                        
+                        // Villain Arc: Spider Command Override
+                        if (query.toLowerCase().startsWith('/spider ')) {
+                            botName = "AethelSpider_ArXiv";
+                            actualQuery = query.substring(8);
+                            this.log(`[SYSTEM] Deploying ArXiv Spider to hunt for: "${actualQuery}"`, 'success');
+                        } else {
+                            this.log(`Injecting Memory Fragment: "${query}"`, 'success');
+                        }
+                        
                         try {
-                            const host = window.location.hostname;
-                            await fetch(`http://${host || '127.0.0.1'}:8001/api/lgnn/universal_ingest`, {
+                            // Determine host for API call (fallback to localhost if running locally)
+                            const apiHost = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
+                            await fetch(`http://${apiHost}:8001/api/lgnn/universal_ingest`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
-                                    bot_name: "ObserverDashboard",
-                                    observation: query
+                                    bot_name: botName,
+                                    observation: actualQuery
                                 })
                             });
                             e.target.value = ''; // Clear after injection
@@ -158,31 +384,7 @@ class SwarmClient {
             });
         }
         
-        // --- Continuous Time Keystream Sensor ---
-        this.keyBuffer = [];
-        this.lastKeyTime = Date.now();
-        this.keystreamTimer = null;
-        
-        const flushKeystream = () => {
-            if (this.keyBuffer.length > 0) {
-                const streamData = JSON.stringify(this.keyBuffer);
-                this.keyBuffer = []; // reset
-                
-                try {
-                    const host = window.location.hostname;
-                    fetch(`http://${host || '127.0.0.1'}:8001/api/lgnn/universal_ingest`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            bot_name: "Raw_Keystream",
-                            observation: `KEYSTREAM_WITH_TIMING: ${streamData}`,
-                            confidence: 1.0
-                        })
-                    });
-                    this.log(`[Sensor] Flushed time-series keystream`, 'info');
-                } catch (err) {}
-            }
-        };
+
 
         document.addEventListener('keydown', (e) => {
             // Hotkeys for Node Actions
@@ -199,11 +401,19 @@ class SwarmClient {
                     this.log(this.isWorkbenchMode ? 'Entered WORKBENCH MODE' : 'Exited WORKBENCH MODE', 'success');
                     return;
                 }
+                
                 if (e.key === 'Escape') {
+                    if (this.currentDimension !== "root" && this.dimensionHistory.length > 0) {
+                        this.currentDimension = this.dimensionHistory.pop();
+                        this.log(`Ascended back to dimension: ${this.currentDimension}`, 'info');
+                        // In a real app we'd restore the nodes from a dictionary. For now we just sync with backend.
+                        this.socket.send(JSON.stringify({ type: "request_full_sync" }));
+                        e.preventDefault();
+                        return;
+                    }
+
                     if (this.selectedNodeId || (this.selectedNodes && this.selectedNodes.size > 0)) {
-                        this.selectedNodeId = null;
-                        this.selectedNodes = new Set();
-                        this.log('Deselected all nodes', 'info');
+                        this.deselectAll();
                     } else {
                         this.zoomOut();
                     }
@@ -289,26 +499,7 @@ class SwarmClient {
                     return;
                 }
             }
-            
-            // Sensor logging
-            if (e.key.length > 1 && e.key !== "Backspace") return;
-            
-            const now = Date.now();
-            const deltaMs = now - this.lastKeyTime;
-            this.lastKeyTime = now;
-            
-            let keyObj = e.key === " " ? "[SPACE]" : e.key;
-            this.keyBuffer.push([keyObj, deltaMs]);
-            
-            clearTimeout(this.keystreamTimer);
-            
-            if (this.keyBuffer.length >= 20) {
-                flushKeystream();
-            } else {
-                // Flush if user pauses for more than 2 seconds
-                this.keystreamTimer = setTimeout(flushKeystream, 2000);
-            }
-        });
+
         
         // Start animation frame loop
         requestAnimationFrame(() => this.tick());
@@ -323,9 +514,13 @@ class SwarmClient {
     }
 
     resizeCanvas() {
-        if (this.canvas) {
-            this.canvas.width = this.canvasContainer.clientWidth;
-            this.canvas.height = this.canvasContainer.clientHeight;
+        if (this.canvas && this.canvasContainer) {
+            const w = this.canvasContainer.clientWidth;
+            const h = this.canvasContainer.clientHeight;
+            if (this.canvas.width !== w || this.canvas.height !== h) {
+                this.canvas.width = w;
+                this.canvas.height = h;
+            }
         }
     }
 
@@ -333,6 +528,9 @@ class SwarmClient {
         if (this.elStatus) this.elStatus.textContent = text;
         if (this.elLight) {
             this.elLight.className = `indicator-light ${className}`;
+        }
+        if (this.compStatus) {
+            this.compStatus.setAttribute('connected', className === 'connected' ? 'true' : 'false');
         }
     }
 
@@ -357,6 +555,7 @@ class SwarmClient {
         this.reconnectAttempts = 0;
         this.updateStatus('Connected', 'connected');
         this.log('Quantum conduit established with Aethelnet.', 'success');
+        this.loadPersonas();
     }
 
     onMessage(event) {
@@ -366,13 +565,32 @@ class SwarmClient {
                 if (this.elNodes) this.elNodes.textContent = data.nodes;
                 if (this.elBridges) this.elBridges.textContent = data.bridges;
                 if (this.elState) this.elState.textContent = data.state;
+                
+                if (this.compNodes) this.compNodes.setAttribute('value', data.nodes);
+                if (this.compBridges) this.compBridges.setAttribute('value', data.bridges);
+                if (this.compState) {
+                    const stateVal = typeof data.state === 'number' ? data.state.toFixed(4) : data.state;
+                    this.compState.setAttribute('value', stateVal);
+                }
+
                 if (this.elLeader) {
-                    this.elLeader.textContent = data.leader || 'None';
-                    this.elLeader.title = data.leader || 'Calculating...';
+                    this.elLeader.textContent = typeof data.leader === 'string' ? data.leader : 
+                        (data.leader && data.leader.length > 0 ? data.leader[0] : 'None');
                 }
                 
+                // Live AETHEL Wallet Sync
+                if (data.balance !== undefined && this.elAethel) {
+                    const current = parseFloat(this.elAethel.textContent) || 0;
+                    const target = parseFloat(data.balance);
+                    if (current !== target) {
+                        this.elAethel.textContent = target.toFixed(4);
+                        this.elAethel.style.color = 'var(--accent-yellow)';
+                        setTimeout(() => this.elAethel.style.color = 'var(--text-color)', 500);
+                    }
+                }
+
                 if (data.graph) {
-                    this.updateGraph(data.graph.nodes, data.graph.links);
+                    this.updateGraph(data.graph.nodes || [], data.graph.links || []);
                 }
             }
         } catch (e) {
@@ -408,15 +626,41 @@ class SwarmClient {
         
         this.nodes = newNodes.map(nn => {
             const existing = nodeMap.get(nn.id);
+            if (existing) {
+                // Preserve reference, positions, velocity and pinned state
+                existing.activation = nn.activation;
+                existing.is_leader = nn.is_leader || false;
+                existing.centrality = nn.centrality || 0.0;
+                existing.label = nn.label || nn.id;
+                if (!existing.full_data) {
+                    existing.full_data = {
+                        text_content: nn.text_content || '',
+                        confidence: nn.confidence || 0.8,
+                        is_public: nn.is_public !== undefined ? nn.is_public : true,
+                        parent_id: nn.parent_id || 'root'
+                    };
+                } else {
+                    existing.full_data.text_content = nn.text_content || existing.full_data.text_content;
+                    existing.full_data.is_public = nn.is_public !== undefined ? nn.is_public : existing.full_data.is_public;
+                }
+                return existing;
+            }
             return {
                 id: nn.id,
+                label: nn.label || nn.id,
                 activation: nn.activation,
                 is_leader: nn.is_leader || false,
                 centrality: nn.centrality || 0.0,
-                x: existing ? existing.x : width / 2 + (Math.random() - 0.5) * 4000,
-                y: existing ? existing.y : height / 2 + (Math.random() - 0.5) * 4000,
-                vx: existing ? existing.vx : (Math.random() - 0.5) * 10.0,
-                vy: existing ? existing.vy : (Math.random() - 0.5) * 10.0
+                x: width / 2 + (Math.random() - 0.5) * 1000,
+                y: height / 2 + (Math.random() - 0.5) * 1000,
+                vx: (Math.random() - 0.5) * 10.0,
+                vy: (Math.random() - 0.5) * 10.0,
+                full_data: {
+                    text_content: nn.text_content || '',
+                    confidence: nn.confidence || 0.8,
+                    is_public: nn.is_public !== undefined ? nn.is_public : true,
+                    parent_id: nn.parent_id || 'root'
+                }
             };
         });
         
@@ -428,6 +672,7 @@ class SwarmClient {
     }
 
     tick(timestamp) {
+        this.resizeCanvas();
         if (!this.lastFrameTime) {
             this.lastFrameTime = timestamp || performance.now();
             this.perfScale = 1.0;
@@ -451,6 +696,9 @@ class SwarmClient {
         if (fpsCounter) {
             fpsCounter.textContent = `${Math.round(this.avgFps)} FPS [LOD: ${(this.perfScale*100).toFixed(0)}%]`;
             fpsCounter.style.color = this.avgFps < 15 ? '#E03C31' : (this.avgFps < 25 ? '#F2C12E' : 'var(--accent-blue)');
+        }
+        if (this.compStatus) {
+            this.compStatus.setAttribute('fps', Math.round(this.avgFps));
         }
 
         this.physicsUpdate();
@@ -566,7 +814,7 @@ class SwarmClient {
                 }
             }
             
-            // Brutalist Flowchart Grid Snapping
+            /* Commented out Brutalist Flowchart Grid Snapping for smooth, default node physics behavior
             const GRID_SIZE = 400; // Large rigid blocks
             
             // If the node is pinned/selected, don't force it, but let others snap
@@ -580,6 +828,7 @@ class SwarmClient {
                 n.vx += (targetX - n.x) * 0.1 * timeScale;
                 n.vy += (targetY - n.y) * 0.1 * timeScale;
             }
+            */
             
             // Separation ensures nodes pushed to the same grid point push each other to the NEXT grid point
             n.vx += separationFx * 3.0;
@@ -614,7 +863,7 @@ class SwarmClient {
         }
 
         // Cinematic Camera Tracking
-        if (!this.isPanning && this.nodes.length > 0) {
+        if (this.isCameraTracking && !this.isPanning && !this.isDraggingNode && this.nodes.length > 0) {
             let targetX = center.x;
             let targetY = center.y;
             let targetZ = 0;
@@ -658,11 +907,67 @@ class SwarmClient {
     }
 
     handleMouseDown(e) {
-        if (!this.canvas || this.nodes.length === 0) return;
+        if (!this.canvas) return;
         const rect = this.canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
         
+        // Handle Radial menu clicks
+        if (this.radialMenu && this.radialMenu.active) {
+            this.radialMenu.active = false;
+            const dx = e.clientX - this.radialMenu.x;
+            const dy = e.clientY - this.radialMenu.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist > 15 && dist < 110) {
+                let angle = Math.atan2(dy, dx) + Math.PI/2;
+                if (angle < 0) angle += Math.PI * 2;
+                const slice = (Math.PI * 2) / this.radialMenu.options.length;
+                const index = Math.floor((angle + slice/2) / slice) % this.radialMenu.options.length;
+                const option = this.radialMenu.options[index];
+                
+                this.log(`Radial Action: ${option}`, 'success');
+                
+                if (option === "Inspect" && this.radialMenu.nodeId) {
+                    this.inspectNode(this.radialMenu.nodeId);
+                } else if (option === "Link Source" && this.radialMenu.nodeId) {
+                    this.isWiring = true;
+                    this.wireSourceNode = this.nodes.find(n => n.id === this.radialMenu.nodeId);
+                    this.wireTargetIso = null;
+                } else if (option === "Pin/Unpin" && this.radialMenu.nodeId) {
+                    const node = this.nodes.find(n => n.id === this.radialMenu.nodeId);
+                    if (node) {
+                        node.is_pinned = !node.is_pinned;
+                        this.log(`Toggled pinned state of [${node.id}]`, 'info');
+                    }
+                } else if (option === "Delete Node" && this.radialMenu.nodeId) {
+                    if (confirm(`Delete GNN Node [${this.radialMenu.nodeId}]?`)) {
+                        this.socket.send(JSON.stringify({
+                            type: 'delete_nodes',
+                            nodes: [this.radialMenu.nodeId]
+                        }));
+                        this.nodes = this.nodes.filter(n => n.id !== this.radialMenu.nodeId);
+                        this.selectedNodeId = null;
+                    }
+                } else if (option === "Spawn Node") {
+                    const graphX = (this.radialMenu.x - rect.left - this.panX) / this.zoom;
+                    const graphY = (this.radialMenu.y - rect.top - this.panY) / this.zoom;
+                    const flatCoords = this.fromIso(graphX, graphY, 0);
+                    
+                    const label = prompt("Enter text content for the new GNN Node:");
+                    if (label && label.trim().length > 0) {
+                        const nodeName = prompt("Enter unique ID/name:", "Node_" + Math.floor(Math.random()*1000));
+                        if (nodeName) this.createNode(nodeName, label.trim(), flatCoords.x, flatCoords.y);
+                    }
+                } else if (option === "Force Sync") {
+                    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                        this.socket.send(JSON.stringify({ type: 'sync_request' }));
+                    }
+                }
+            }
+            return;
+        }
+
         // Convert screen coordinates to graph coordinates by reversing pan and zoom
         const graphX = (mouseX - this.panX) / this.zoom;
         const graphY = (mouseY - this.panY) / this.zoom;
@@ -704,39 +1009,52 @@ class SwarmClient {
                 return;
             }
             
+            if (e.shiftKey) {
+                if (!this.selectedNodes) this.selectedNodes = new Set();
+                if (this.selectedNodes.has(clickedNode.id)) {
+                    this.selectedNodes.delete(clickedNode.id);
+                } else {
+                    this.selectedNodes.add(clickedNode.id);
+                }
+                this.log(`Selected nodes count: ${this.selectedNodes.size}`, 'info');
+                return;
+            }
+
             this.draggedNode = clickedNode;
             this.isDraggingNode = true;
             clickedNode.is_pinned = true; // Pin the reality anchor
+            
+            // Calculate drag offset to prevent coordinate snapping
+            const zOffset = clickedNode.is_leader ? 300 : (clickedNode.id.startsWith("Obs_") ? -200 : 0);
+            const nodeIso = this.toIso(clickedNode.x, clickedNode.y, zOffset);
+            this.dragOffsetX = graphX - nodeIso.x;
+            this.dragOffsetY = graphY - nodeIso.y;
 
             // Left click on node: Select/Inspect
             if (!this.selectedNodes) this.selectedNodes = new Set();
-            
-            if (e.shiftKey) {
-                this.selectedNodes.add(clickedNode.id);
-                this.selectedNodeId = clickedNode.id;
-                
-                // Multi-select enabled (no HTML title update needed)
-            } else {
-                this.selectedNodes = new Set([clickedNode.id]);
-                this.inspectNode(clickedNode.id);
-            }
-            // Smoothly auto-zoom in
-            this.zoom = 2.0;
+            this.selectedNodes = new Set([clickedNode.id]);
+            this.inspectNode(clickedNode.id);
         } else if (e.button === 0 && !clickedNode) {
-            // Start panning (Don't deselect or hide the window automatically!)
+            // Start panning
             this.isPanning = true;
+            this.isCameraTracking = false;
             this.startX = e.clientX - this.panX;
             this.startY = e.clientY - this.panY;
+            this.panStartDistance = 0;
+            this.panMouseStartX = e.clientX;
+            this.panMouseStartY = e.clientY;
         } else if (e.button === 1 || e.button === 2) {
             if (e.button === 2 && clickedNode) {
-                clickedNode.is_pinned = false;
-                this.log(`Reality anchor lifted. [${clickedNode.id}] unpinned.`, 'info');
-                return; // Don't pan
+                // Prevent default menu & handle radial opening instead (done in contextmenu listener)
+                return;
             }
             // Middle or Right click: start panning
             this.isPanning = true;
+            this.isCameraTracking = false;
             this.startX = e.clientX - this.panX;
             this.startY = e.clientY - this.panY;
+            this.panMouseStartX = e.clientX;
+            this.panMouseStartY = e.clientY;
         }
     }
 
@@ -762,7 +1080,10 @@ class SwarmClient {
             
             const n = this.draggedNode;
             const zOffset = n.is_leader ? 300 : (n.id.startsWith("Obs_") ? -200 : 0);
-            const flatCoords = this.fromIso(graphX, graphY, zOffset);
+            
+            const targetIsoX = graphX - (this.dragOffsetX || 0);
+            const targetIsoY = graphY - (this.dragOffsetY || 0);
+            const flatCoords = this.fromIso(targetIsoX, targetIsoY, zOffset);
             
             this.draggedNode.x = flatCoords.x;
             this.draggedNode.y = flatCoords.y;
@@ -774,6 +1095,9 @@ class SwarmClient {
         if (this.isPanning) {
             this.panX = e.clientX - this.startX;
             this.panY = e.clientY - this.startY;
+            const dx = e.clientX - this.panMouseStartX;
+            const dy = e.clientY - this.panMouseStartY;
+            this.panStartDistance = Math.sqrt(dx * dx + dy * dy);
         }
     }
 
@@ -810,11 +1134,17 @@ class SwarmClient {
                 }
                 
                 if (targetNode) {
-                    // Create link
+                    // Create link locally for immediate visual feedback
                     this.links.push({
                         source: this.wireSourceNode.id,
                         target: targetNode.id,
                         weight: 1.0
+                    });
+                    
+                    // Send to backend
+                    this.sendAction('create_link', {
+                        source: this.wireSourceNode.id,
+                        target: targetNode.id
                     });
                     this.log(`Linked [${this.wireSourceNode.id}] to [${targetNode.id}]`, 'success');
                 }
@@ -823,12 +1153,14 @@ class SwarmClient {
             this.wireTargetIso = null;
         }
         
-        this.isPanning = false;
+        if (this.isPanning) {
+            this.isPanning = false;
+            if (typeof this.panStartDistance === 'number' && this.panStartDistance < 5) {
+                this.deselectAll();
+            }
+        }
         if (this.isDraggingNode && this.draggedNode) {
-            // Blueprint Grid Snapping (400x400 units)
-            this.draggedNode.x = Math.round(this.draggedNode.x / 400) * 400;
-            this.draggedNode.y = Math.round(this.draggedNode.y / 400) * 400;
-            
+            // Smooth natural placement (No snap-to-grid jumps)
             this.isDraggingNode = false;
             this.draggedNode = null;
         }
@@ -1029,8 +1361,7 @@ class SwarmClient {
         
         // Send a telemetry ping for the backend log, but spawn nodes locally immediately
         try {
-            const host = window.location.hostname;
-            fetch(`http://${host || '127.0.0.1'}:8001/api/lgnn/universal_ingest`, {
+            fetch(`http://${window.location.hostname}:8001/api/lgnn/universal_ingest`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1077,8 +1408,7 @@ class SwarmClient {
         this.log(`Fusing ${nodeIds.length} nodes into new synthesis...`, 'info');
         const fusionName = `Fusion_${nodeIds[0].substring(0,8)}...`;
         try {
-            const host = window.location.hostname;
-            await fetch(`http://${host || '127.0.0.1'}:8001/api/lgnn/universal_ingest`, {
+            await fetch(`http://${window.location.hostname}:8001/api/lgnn/universal_ingest`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1097,13 +1427,12 @@ class SwarmClient {
 
     async inspectNode(nodeId, forceFormat = null) {
         this.selectedNodeId = nodeId;
+        this.isCameraTracking = true;
         this.log(`Loading node data: ${nodeId}`, 'info');
         
         try {
-            const host = window.location.hostname;
             let format = forceFormat || 'AUTO';
-            
-            const response = await fetch(`http://${host || '127.0.0.1'}:8001/api/lgnn/node/${encodeURIComponent(nodeId)}?format=${format}`);
+            const response = await fetch(`http://${window.location.hostname}:8001/api/lgnn/node/${encodeURIComponent(nodeId)}?format=${format}`);
             if (response.ok) {
                 const data = await response.json();
                 
@@ -1118,6 +1447,43 @@ class SwarmClient {
                         node.cached_image = img;
                     }
                 }
+                
+                // Populate Inspector UI
+                const inspector = document.getElementById('inspector-hud');
+                const title = document.getElementById('inspector-title');
+                const conf = document.getElementById('inspector-confidence');
+                const tag = document.getElementById('inspector-tag');
+                const content = document.getElementById('inspector-content');
+                
+                if (inspector) {
+                    inspector.style.display = 'block';
+                    title.textContent = nodeId;
+                    
+                    // Format node based on whether it's local graph data or full fetched data
+                    const graphNode = this.nodes.find(n => n.id === nodeId);
+                    const isGrounded = graphNode ? graphNode.is_grounded : false;
+                    let confidenceStr = '--';
+                    if (graphNode && graphNode.confidence !== undefined) {
+                        confidenceStr = (graphNode.confidence * 100).toFixed(1) + '%';
+                    }
+                    const sourceTag = graphNode ? graphNode.source_tag : 'unknown';
+                    
+                    conf.textContent = confidenceStr;
+                    tag.textContent = sourceTag;
+                    
+                    if (isGrounded) {
+                        conf.style.color = 'var(--accent-yellow)';
+                    } else {
+                        conf.style.color = 'var(--text-color)';
+                    }
+                    
+                    if (data.format === 'IMG' && data.media_b64) {
+                        content.style.display = 'none';
+                    } else {
+                        content.style.display = 'block';
+                        content.value = data.text_content || data.content || '';
+                    }
+                }
             } else {
                 this.log(`Failed to inspect node: ${response.status}`, 'error');
             }
@@ -1126,12 +1492,180 @@ class SwarmClient {
         }
     }
 
+    deselectAll() {
+        this.selectedNodeId = null;
+        this.selectedNodes = new Set();
+        this.isCameraTracking = true;
+        const hud = document.getElementById('inspector-hud');
+        if (hud) hud.style.display = 'none';
+        this.log('Deselected all nodes', 'info');
+    }
+
+    async loadPersonas() {
+        try {
+            const apiHost = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
+            const res = await fetch(`http://${apiHost}:8001/api/lgnn/personas`);
+            if (res.ok) {
+                const personas = await res.json();
+                const container = document.getElementById('personas-list');
+                if (container) {
+                    container.innerHTML = ''; // Clear loading text/previous items
+                    if (personas.length === 0) {
+                        container.innerHTML = `<span style="font-size: 0.75rem; color: #888; font-family: var(--font-mono);">No personas defined</span>`;
+                        return;
+                    }
+                    this.activePersonaNodes = new Set();
+                    personas.forEach(p => {
+                    if (p.active && p.nodes) {
+                        p.nodes.forEach(nid => this.activePersonaNodes.add(nid));
+                    }
+                    
+                    const row = document.createElement('div');
+                        row.style.display = 'flex';
+                        row.style.justifyContent = 'space-between';
+                        row.style.alignItems = 'center';
+                        row.style.fontFamily = 'var(--font-mono)';
+                        row.style.fontSize = '0.75rem';
+                        row.style.marginBottom = '6px';
+                        
+                        const label = document.createElement('span');
+                        label.textContent = p.name;
+                        label.style.fontWeight = 'bold';
+                        label.style.color = 'var(--text-color)';
+                        label.style.overflow = 'hidden';
+                        label.style.textOverflow = 'ellipsis';
+                        label.style.whiteSpace = 'nowrap';
+                        label.style.marginRight = '8px';
+                        
+                        const toggle = document.createElement('button');
+                        toggle.textContent = p.active ? '[ ACTIVE ]' : '[ DORMANT ]';
+                        toggle.style.background = p.active ? 'var(--accent-blue)' : '#FFF';
+                        toggle.style.color = p.active ? '#FFF' : '#1A1A1A';
+                        toggle.style.border = '2px solid #1A1A1A';
+                        toggle.style.fontSize = '0.65rem';
+                        toggle.style.padding = '2px 6px';
+                        toggle.style.cursor = 'pointer';
+                        toggle.style.fontFamily = 'var(--font-mono)';
+                        toggle.style.whiteSpace = 'nowrap';
+                        toggle.style.flexShrink = '0';
+                        
+                        toggle.addEventListener('click', async () => {
+                            const newActive = !p.active;
+                            this.log(`Toggling persona ${p.name} to ${newActive ? 'active' : 'dormant'}...`, 'info');
+                            try {
+                                const toggleRes = await fetch(`http://${apiHost}:8001/api/lgnn/persona/toggle`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        name: p.name,
+                                        active: newActive
+                                    })
+                                });
+                                if (toggleRes.ok) {
+                                    p.active = newActive;
+                                    toggle.textContent = p.active ? '[ ACTIVE ]' : '[ DORMANT ]';
+                                    toggle.style.background = p.active ? 'var(--accent-blue)' : '#FFF';
+                                    toggle.style.color = p.active ? '#FFF' : '#1A1A1A';
+                                    this.log(`Persona ${p.name} toggled successfully.`, 'success');
+                                } else {
+                                    this.log(`Failed to toggle persona`, 'error');
+                                }
+                            } catch (e) {
+                                this.log(`Error toggling: ${e.message}`, 'error');
+                            }
+                        });
+                        
+                        row.appendChild(label);
+                        row.appendChild(toggle);
+                        container.appendChild(row);
+                    });
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load personas', e);
+        }
+    }
+
+    async createNode(nodeId, textContent, x, y) {
+        try {
+            const apiHost = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
+            const res = await fetch(`http://${apiHost}:8001/api/lgnn/node`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: nodeId,
+                    text_content: textContent,
+                    connections: [],
+                    source_tag: "user_injected"
+                })
+            });
+            if (res.ok) {
+                this.log(`Successfully created GNN Node [${nodeId}]`, 'success');
+                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                    this.socket.send(JSON.stringify({ type: 'sync_request' }));
+                }
+            } else {
+                const err = await res.text();
+                this.log(`Failed to create node: ${err}`, 'error');
+            }
+        } catch (err) {
+            this.log(`Create node failed: ${err.message}`, 'error');
+        }
+    }
+
     draw() {
         if (!this.canvas || !this.ctx) return;
         
         const ctx = this.ctx;
-        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
+        // Clear screen with faint grid lines
+        ctx.fillStyle = '#F4F4F0';
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Draw grid
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.04)';
+        ctx.lineWidth = 1;
+        const gridGap = 40;
+        const startX = this.panX % gridGap;
+        const startY = this.panY % gridGap;
+        for (let x = startX; x < this.canvas.width; x += gridGap) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, this.canvas.height);
+            ctx.stroke();
+        }
+        for (let y = startY; y < this.canvas.height; y += gridGap) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(this.canvas.width, y);
+            ctx.stroke();
+        }
+        
+        // Draw Spider Radar Ingestion pulse
+        if (this.isSpiderHunting) {
+            this.spiderPulseRadius += 4;
+            if (this.spiderPulseRadius > Math.max(this.canvas.width, this.canvas.height) * 1.5) {
+                this.spiderPulseRadius = 0;
+            }
+            
+            ctx.save();
+            // Reset to screen coordinates
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            
+            ctx.beginPath();
+            ctx.arc(this.canvas.width / 2, this.canvas.height / 2, this.spiderPulseRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(242, 193, 46, 0.15)';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.arc(this.canvas.width / 2, this.canvas.height / 2, Math.max(0, this.spiderPulseRadius - 200), 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(242, 193, 46, 0.06)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            
+            ctx.restore();
+        }
         ctx.save();
         
         // Apply pan and zoom
@@ -1146,6 +1680,23 @@ class SwarmClient {
         
         const nodeLookup = new Map(this.nodes.map(n => [n.id, n]));
         
+        // --- Central Workbench Dropzone (Villain Overseer) ---
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(0, 0, 800, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255, 0, 50, 0.15)'; // Crimson Red Override
+        ctx.lineWidth = 6 / this.zoom;
+        ctx.setLineDash([15 / this.zoom, 30 / this.zoom]);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.arc(0, 0, 810, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255, 50, 50, 0.3)';
+        ctx.lineWidth = 2 / this.zoom;
+        ctx.setLineDash([]);
+        ctx.stroke();
+        ctx.restore();
+        
         // --- Workbench Filtering ---
         let visibleNodes = this.nodes;
         let visibleLinks = this.links;
@@ -1154,7 +1705,8 @@ class SwarmClient {
             visibleNodes = this.nodes.filter(n => 
                 n.is_pinned || 
                 n.id === this.selectedNodeId || 
-                (this.selectedNodes && this.selectedNodes.has(n.id))
+                (this.selectedNodes && this.selectedNodes.has(n.id)) ||
+                (n.source_tag && (n.source_tag === 'upload' || n.source_tag === 'MVP_Tuner' || n.source_tag === 'DragDrop_Injector'))
             );
             const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
             visibleLinks = this.links.filter(l => visibleNodeIds.has(l.source) && visibleNodeIds.has(l.target));
@@ -1201,33 +1753,45 @@ class SwarmClient {
             const iso1 = this.toIso(n1.x, n1.y, z1);
             const iso2 = this.toIso(n2.x, n2.y, z2);
             
-            // Vector-program style Bezier curves
-            const cp1x = iso1.x + (iso2.x - iso1.x) / 2;
-            const cp1y = iso1.y;
-            const cp2x = iso1.x + (iso2.x - iso1.x) / 2;
-            const cp2y = iso2.y;
-
+            // Draw straight lines
             ctx.beginPath();
             ctx.moveTo(iso1.x, iso1.y);
-            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, iso2.x, iso2.y);
+            ctx.lineTo(iso2.x, iso2.y);
             
-            // Constellation Focus Logic
+            // Constellation & Persona Focus Logic
+            const hasSelection = this.selectedNodeId || (this.selectedNodes && this.selectedNodes.size > 0);
+            const isLinkSelected = (this.selectedNodeId && (n1.id === this.selectedNodeId || n2.id === this.selectedNodeId)) ||
+                                   (this.selectedNodes && (this.selectedNodes.has(n1.id) || this.selectedNodes.has(n2.id)));
             
-            if (this.selectedNodeId) {
-                if (isConnectedToSelected) {
-                    // Stark black lines for the direct constellation
-                    ctx.strokeStyle = `rgba(26, 26, 26, ${0.8 * lodAlpha})`;
-                    ctx.lineWidth = 2 / this.zoom;
+            const hasActivePersona = this.activePersonaNodes && this.activePersonaNodes.size > 0;
+            const isLinkInActivePersona = hasActivePersona && this.activePersonaNodes.has(n1.id) && this.activePersonaNodes.has(n2.id);
+
+            let strokeStyle = '';
+            let lineWidth = 1 / this.zoom;
+
+            if (hasActivePersona) {
+                if (isLinkInActivePersona) {
+                    strokeStyle = `rgba(0, 80, 150, ${0.9 * lodAlpha})`;
+                    lineWidth = 3 / this.zoom;
                 } else {
-                    // Extremely faint for background context
-                    ctx.strokeStyle = `rgba(26, 26, 26, ${0.05 * lodAlpha})`;
-                    ctx.lineWidth = 0.5 / this.zoom;
+                    strokeStyle = `rgba(26, 26, 26, ${0.01 * lodAlpha})`;
+                    lineWidth = 0.5 / this.zoom;
+                }
+            } else if (hasSelection) {
+                if (isLinkSelected) {
+                    strokeStyle = `rgba(26, 26, 26, ${0.8 * lodAlpha})`;
+                    lineWidth = 2.5 / this.zoom;
+                } else {
+                    strokeStyle = `rgba(26, 26, 26, ${0.03 * lodAlpha})`;
+                    lineWidth = 0.5 / this.zoom;
                 }
             } else {
-                // Default view: Faint hints of structure
-                ctx.strokeStyle = `rgba(26, 26, 26, ${(0.05 + link.weight * 0.15) * lodAlpha})`;
-                ctx.lineWidth = 1 / this.zoom;
+                strokeStyle = `rgba(26, 26, 26, ${(0.05 + link.weight * 0.15) * lodAlpha})`;
+                lineWidth = 1 / this.zoom;
             }
+
+            ctx.strokeStyle = strokeStyle;
+            ctx.lineWidth = lineWidth;
             
             ctx.stroke();
         }
@@ -1237,14 +1801,10 @@ class SwarmClient {
             const z1 = this.wireSourceNode.is_leader ? 300 : (this.wireSourceNode.id.startsWith("Obs_") ? -200 : 0);
             const iso1 = this.toIso(this.wireSourceNode.x, this.wireSourceNode.y, z1);
             
-            const cp1x = iso1.x + (this.wireTargetIso.x - iso1.x) / 2;
-            const cp1y = iso1.y;
-            const cp2x = iso1.x + (this.wireTargetIso.x - iso1.x) / 2;
-            const cp2y = this.wireTargetIso.y;
-            
+            // Draw straight lines for temporary wire
             ctx.beginPath();
             ctx.moveTo(iso1.x, iso1.y);
-            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, this.wireTargetIso.x, this.wireTargetIso.y);
+            ctx.lineTo(this.wireTargetIso.x, this.wireTargetIso.y);
             ctx.strokeStyle = '#F2C12E'; // Yellow highlight wire
             ctx.lineWidth = 2 / this.zoom;
             ctx.setLineDash([5 / this.zoom, 5 / this.zoom]);
@@ -1286,26 +1846,74 @@ class SwarmClient {
             const centralityBonus = (n.centrality || 0) * 50;
             const rawR = baseRadius + activationBonus + centralityBonus;
             // Radius scales slightly with zoom but not 1:1
-            const r = Math.max(0.1, rawR / Math.pow(this.zoom, 0.6)); 
+            const radius = Math.max(0.1, rawR / Math.pow(this.zoom, 0.6)); 
             
             // Iso Projection
             const zOffset = n.is_leader ? 300 : (n.id.startsWith("Obs_") ? -200 : 0);
             const iso = this.toIso(n.x, n.y, zOffset);
             
             // Off-screen Culling (Massive performance boost when zoomed in)
-            if (iso.x + r < vLeft || iso.x - r > vRight || iso.y + r < vTop || iso.y - r > vBottom) {
+            if (iso.x + radius < vLeft || iso.x - radius > vRight || iso.y + radius < vTop || iso.y - radius > vBottom) {
                 continue;
             }
             
             // Dim nodes that are not part of the active constellation
-            const isFocused = !this.selectedNodeId || n.id === this.selectedNodeId || 
-                              this.links.some(l => (l.source === n.id && l.target === this.selectedNodeId) || 
-                                                 (l.target === n.id && l.source === this.selectedNodeId));
+            const hasSelection = this.selectedNodeId || (this.selectedNodes && this.selectedNodes.size > 0);
+            const isFocused = !hasSelection || 
+                              n.id === this.selectedNodeId || 
+                              (this.selectedNodes && this.selectedNodes.has(n.id)) ||
+                              this.links.some(l => {
+                                  if (this.selectedNodeId && (l.source === this.selectedNodeId || l.target === this.selectedNodeId)) {
+                                      if (l.source === n.id || l.target === n.id) return true;
+                                  }
+                                  if (this.selectedNodes && this.selectedNodes.size > 0) {
+                                      if (this.selectedNodes.has(l.source) && l.target === n.id) return true;
+                                      if (this.selectedNodes.has(l.target) && l.source === n.id) return true;
+                                  }
+                                  return false;
+                              });
             
-            ctx.globalAlpha = (isFocused ? 1.0 : 0.2) * lodAlpha;
+            const hasActivePersona = this.activePersonaNodes && this.activePersonaNodes.size > 0;
+            let baseAlpha = isFocused ? 1.0 : 0.2;
+            if (hasActivePersona) {
+                if (this.activePersonaNodes.has(n.id)) {
+                    baseAlpha = 1.0;
+                } else {
+                    baseAlpha = 0.05;
+                }
+            }
             
+            ctx.globalAlpha = baseAlpha * lodAlpha;
+            // Render active persona indicator
+            const isPersonaActive = this.activePersonaNodes && this.activePersonaNodes.has(n.id);
+            if (isPersonaActive) {
+                ctx.beginPath();
+                ctx.arc(iso.x, iso.y, radius * 1.5, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 80, 150, 0.12)';
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(iso.x, iso.y, radius * 1.35, 0, Math.PI * 2);
+                ctx.strokeStyle = 'var(--accent-blue)';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Render selected node indicator
+            const isMultiSelected = this.selectedNodes && this.selectedNodes.has(n.id);
+            if (isMultiSelected) {
+                ctx.beginPath();
+                ctx.arc(iso.x, iso.y, radius * 1.45, 0, Math.PI * 2);
+                ctx.strokeStyle = 'var(--accent-yellow)';
+                ctx.lineWidth = 3.5;
+                ctx.stroke();
+            }
+
+            // Draw Node Circle
             ctx.beginPath();
-            ctx.arc(iso.x, iso.y, r, 0, 2 * Math.PI);
+            ctx.arc(iso.x, iso.y, radius, 0, 2 * Math.PI);
             
             // Bauhaus Colors based on node type
             ctx.shadowBlur = 0; // No glowing in Bauhaus!
@@ -1323,10 +1931,37 @@ class SwarmClient {
                 ctx.fillStyle = '#E03C31'; // Safety Red
                 ctx.strokeStyle = '#1A1A1A';
                 ctx.lineWidth = 1.5 / this.zoom;
+                
+                if (n.id.startsWith('Nightmare')) {
+                    // Glitchy/Dashed external warning ring for Nightmare Inversions
+                    const time = Date.now() / 1000;
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(iso.x, iso.y, radius * 1.35, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(224, 60, 49, 0.8)';
+                    ctx.lineWidth = 1.5 / this.zoom;
+                    ctx.setLineDash([4 / this.zoom, 6 / this.zoom]);
+                    ctx.stroke();
+                    ctx.restore();
+                }
             } else if (n.id.startsWith("Spider_")) {
                 ctx.fillStyle = '#F2C12E'; // Electric Yellow
                 ctx.strokeStyle = '#1A1A1A';
                 ctx.lineWidth = 1.5 / this.zoom;
+                
+                // Concentric Radar Rings
+                const time = Date.now() / 1000;
+                ctx.save();
+                for (let rIndex = 1; rIndex <= 3; rIndex++) {
+                    const pulseRadius = radius * (1.0 + ((time * 0.5 + rIndex / 3) % 1.0) * 1.5);
+                    const alpha = 1.0 - ((time * 0.5 + rIndex / 3) % 1.0);
+                    ctx.beginPath();
+                    ctx.arc(iso.x, iso.y, pulseRadius, 0, Math.PI * 2);
+                    ctx.strokeStyle = `rgba(242, 193, 46, ${alpha * 0.6})`;
+                    ctx.lineWidth = 2 / this.zoom;
+                    ctx.stroke();
+                }
+                ctx.restore();
             } else if (n.id.startsWith("Decoder_")) {
                 ctx.fillStyle = '#E87A00'; // Safety Orange
                 ctx.strokeStyle = '#1A1A1A';
@@ -1355,7 +1990,24 @@ class SwarmClient {
             if (this.zoom > 1.8 && isFocused && n.full_data) {
                 ctx.save();
                 ctx.beginPath();
-                ctx.arc(iso.x, iso.y, r, 0, 2 * Math.PI);
+                if (n.id.startsWith("Anchor_")) {
+                ctx.fillStyle = '#FF0033'; // Aggressive Crimson
+                ctx.fillRect(iso.x - r/2, iso.y - r/2, r, r);
+                ctx.strokeStyle = 'rgba(255, 0, 50, 0.8)';
+                ctx.lineWidth = 2 / this.zoom;
+                ctx.strokeRect(iso.x - r*1.5, iso.y - r*1.5, r*3, r*3);
+            } else if (n.id.startsWith("Obs_")) {
+                ctx.fillStyle = '#00FF66'; // Toxic Green
+                ctx.beginPath();
+                ctx.arc(iso.x, iso.y, r/2, 0, Math.PI*2);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(0, 255, 102, 0.5)';
+                ctx.lineWidth = 1 / this.zoom;
+                ctx.stroke();
+            } else {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(iso.x - r/2, iso.y - r/2, r, r);
+            }
                 ctx.clip(); // Restrict drawing to inside the circle
                 
                 // Draw background image if it exists
@@ -1428,6 +2080,68 @@ class SwarmClient {
         ctx.restore();
         
         this.updateHolograms();
+
+        // Draw Radial Menu (in screen coordinates) on top of everything
+        if (this.radialMenu && this.radialMenu.active) {
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0); // reset to screen coordinates
+            
+            const rx = this.radialMenu.x;
+            const ry = this.radialMenu.y;
+            
+            // Hard shadow offset
+            ctx.fillStyle = '#1A1A1A';
+            ctx.beginPath();
+            ctx.arc(rx + 6, ry + 6, 110, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Outer Ring (Bauhaus solid white)
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath();
+            ctx.arc(rx, ry, 110, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#1A1A1A';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            const numOptions = this.radialMenu.options.length;
+            const slice = (Math.PI * 2) / numOptions;
+            
+            // Draw lines separating options
+            ctx.strokeStyle = '#1A1A1A';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < numOptions; i++) {
+                const angle = i * slice - Math.PI / 2;
+                ctx.beginPath();
+                ctx.moveTo(rx, ry);
+                ctx.lineTo(rx + Math.cos(angle) * 110, ry + Math.sin(angle) * 110);
+                ctx.stroke();
+            }
+            
+            // Render Option Text
+            for (let i = 0; i < numOptions; i++) {
+                const angle = i * slice - Math.PI / 2 + slice / 2;
+                const tx = rx + Math.cos(angle) * 65;
+                const ty = ry + Math.sin(angle) * 65;
+                
+                ctx.fillStyle = '#1A1A1A';
+                ctx.font = 'bold 0.75rem "JetBrains Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.radialMenu.options[i], tx, ty);
+            }
+            
+            // Center Core circle
+            ctx.fillStyle = 'var(--accent-red)';
+            ctx.beginPath();
+            ctx.arc(rx, ry, 15, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#1A1A1A';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            ctx.restore();
+        }
     }
     
     updateHolograms() {
@@ -1496,8 +2210,8 @@ class SwarmClient {
         }
         
         // Position it right next to the node!
-        widget.style.left = \`\${screenX + r + 20}px\`;
-        widget.style.top = \`\${screenY - r}px\`;
+        widget.style.left = `${screenX + r + 20}px`;
+        widget.style.top = `${screenY - r}px`;
         
         // Hide if offscreen or zoomed out too far
         if (this.zoom < 0.4) {
@@ -1520,6 +2234,103 @@ class SwarmClient {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function startApp() {
+    if (window.swarmClient) return; // Prevent double initialization
     window.swarmClient = new SwarmClient();
-});
+    
+    // Tuner Input Logic
+    const tunerInput = document.getElementById('resonance-tuner');
+    if (tunerInput) {
+        tunerInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && tunerInput.value.trim() !== '') {
+                if (window.swarmClient) {
+                    window.swarmClient.sendAction('tune_resonance', { query: tunerInput.value.trim() });
+                    
+                    fetch(`http://${window.location.hostname}:8001/api/lgnn/universal_ingest`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            bot_name: "MVP_Tuner",
+                            observation: tunerInput.value.trim(),
+                            confidence: 0.9,
+                            context_tags: ["manual_input"]
+                        })
+                    }).catch(err => console.error(err));
+                    
+                    tunerInput.value = '';
+                }
+            }
+        });
+    }
+    
+    // Inspector UI Bindings
+    document.getElementById('btn-close-inspector')?.addEventListener('click', () => {
+        document.getElementById('inspector-hud').style.display = 'none';
+    });
+    
+    document.getElementById('btn-pin-node')?.addEventListener('click', () => {
+        if (window.swarmClient && window.swarmClient.selectedNodeId) {
+            const n = window.swarmClient.nodes.find(node => node.id === window.swarmClient.selectedNodeId);
+            if (n) {
+                n.is_pinned = !n.is_pinned;
+                window.swarmClient.log(`Node ${n.id} ${n.is_pinned ? 'pinned' : 'unpinned'}`, 'success');
+                document.getElementById('btn-pin-node').style.background = n.is_pinned ? 'var(--accent-blue)' : 'transparent';
+                document.getElementById('btn-pin-node').style.color = n.is_pinned ? '#FFF' : 'var(--text-color)';
+            }
+        }
+    });
+    
+    document.getElementById('btn-delete-node')?.addEventListener('click', () => {
+        if (window.swarmClient && window.swarmClient.selectedNodeId) {
+            window.swarmClient.sendAction('delete_nodes', { nodes: [window.swarmClient.selectedNodeId] });
+            document.getElementById('inspector-hud').style.display = 'none';
+            window.swarmClient.selectedNodeId = null;
+        }
+    });
+
+    // Drag and Drop Upload
+    document.body.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+    document.body.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+    document.body.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+    document.body.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const file = e.dataTransfer.files[0];
+            window.swarmClient.log(`Absorbing file into swarm: ${file.name}`, 'info');
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const b64 = event.target.result.split(',')[1]; // remove data:image/png;base64,
+                fetch(`http://${window.location.hostname}:8001/api/lgnn/universal_ingest`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bot_name: "DragDrop_Injector",
+                        observation: `File Uploaded: ${file.name}`,
+                        confidence: 0.9,
+                        context_tags: ["upload", file.name],
+                        media_b64: b64,
+                        media_type: file.type
+                    })
+                }).catch(err => console.error(err));
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startApp);
+} else {
+    startApp();
+}
