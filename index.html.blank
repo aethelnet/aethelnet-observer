@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aethelnet - Blank Canvas</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #e5e5e5; /* Light grey background */
+        }
+        #manifold-canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            cursor: grab;
+        }
+        #manifold-canvas:active {
+            cursor: grabbing;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="manifold-canvas"></canvas>
+    <script src="app.js"></script>
+</body>
+</html>

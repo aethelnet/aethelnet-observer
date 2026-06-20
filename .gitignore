@@ -1,0 +1,80 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production
+dist/
+dist-ssr/
+*.local
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+.cursor/debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Input folder (backups - reference only)
+input/
+
+# TypeScript
+*.tsbuildinfo
+
+# Aider
+.aider.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# ML/Checkpoints (large files)
+checkpoints/
+*.pkl
+*.h5
+*.pt
+*.pth
+
+# Build artifacts
+target/
+dist/
+build/
+*.egg-info/
+.aider*
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

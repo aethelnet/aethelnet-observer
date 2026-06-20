@@ -1,0 +1,10 @@
+# Git Attributes
+# Ensure consistent line endings and file handling
+
+* text=auto eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+

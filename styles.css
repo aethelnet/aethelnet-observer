@@ -1,0 +1,66 @@
+/* styles.css - lightweight project stylesheet (skeleton)
+   This file is intentionally minimal — pages include many inline styles.
+   You can extend or replace these rules as needed.
+*/
+
+:root{
+  --bg:#000;
+  --card:#0b0b0b;
+  --muted:#888;
+  --accent:#4ade80;
+  --danger:#f87171;
+  --glass: rgba(255,255,255,0.03);
+}
+
+html,body{
+  height:100%;
+  background:var(--bg);
+  color:#fff;
+  font-family: 'Liberation Sans', 'DejaVu Sans', 'Bitstream Vera Sans', 'Nimbus Sans L', sans-serif;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.card, .chart-container, .panel {
+  background: var(--card);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.status-badge, .status {
+  padding:4px 10px;
+  border-radius:8px;
+  font-weight:600;
+  font-size:12px;
+}
+
+.btn {
+  cursor:pointer;
+  border-radius:6px;
+  padding:10px 16px;
+  border:none;
+}
+
+.help-btn {
+  box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+}
+
+/* Modal styling used by help-system.js */
+#hs-modal .hs-content h3 { color: var(--accent); }
+#hs-modal .hs-content p, #hs-modal .hs-content li { color: #ddd; line-height:1.6; font-size:14px; }
+
+/* Basic responsive utility */
+.container { max-width:1200px; margin:0 auto; padding:12px; }
+
+/* Make canvas and charts responsive */
+canvas { max-width:100% !important; }
+
+/* Small visuals */
+.signal-badge { padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px; }
+
+/* Accessibility focus outlines */
+:focus { outline: 3px solid rgba(74,222,128,0.15); outline-offset:2px; }

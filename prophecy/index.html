@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>PROPHECY Alert Center - The Oracle's Eye</title>
+    
+    <link rel="stylesheet" href="shared.css">
+    <script src="navigation.js"></script>
+    <script src="../help-system.js" defer></script>
+    <script src="../ws-client.js" defer></script>
+    
+    <style>
+        /* View-specific styles - using shared.css for base styles */
+        .header {
+            border-bottom: 1px solid var(--color-warning-border);
+        }
+        
+        .header h1 {
+            color: var(--color-warning);
+        }
+        
+        .header h1::before {
+            content: '👁️';
+            font-size: 36px;
+        }
+        
+        .header .tagline {
+            color: var(--color-warning);
+            font-style: italic;
+            margin-top: 4px;
+        }
+        
+        .summary-card {
+            border: 1px solid var(--color-warning-border);
+        }
+        
+        .summary-card-value {
+            color: var(--color-warning);
+        }
+        
+        .control-group select,
+        .control-group input {
+            border: 1px solid var(--color-warning-border);
+        }
+        
+        .nav a {
+            color: var(--color-warning);
+        }
+        
+        .prophecy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+            gap: 24px;
+        }
+        
+        .prophecy-card {
+            background: rgba(20, 20, 30, 0.95);
+            border: 3px solid rgba(251, 191, 36, 0.4);
+            border-radius: 16px;
+            padding: 32px;
+            transition: all 0.3s;
+            position: relative;
+            box-shadow: 0 4px 16px rgba(251, 191, 36, 0.1);
+        }
+        
+        .prophecy-card:hover {
+            border-color: rgba(251, 191, 36, 0.8);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(251, 191, 36, 0.3);
+        }
+        
+        .prophecy-card.urgent {
+            border-color: rgba(248, 113, 113, 0.8);
+            animation: pulseUrgent 1.5s infinite;
+            box-shadow: 0 0 24px rgba(248, 113, 113, 0.4);
+        }
+        
+        .prophecy-card.high-resonance {
+            border-width: 4px;
+            border-color: rgba(251, 191, 36, 0.9);
+            box-shadow: 0 0 32px rgba(251, 191, 36, 0.5);
+            animation: glow 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        @keyframes pulseUrgent {
+            0%, 100% { 
+                opacity: 1;
+                box-shadow: 0 0 24px rgba(248, 113, 113, 0.4);
+            }
+            50% { 
+                opacity: 0.85;
+                box-shadow: 0 0 40px rgba(248, 113, 113, 0.7);
+            }
+        }
+        
+        @keyframes glow {
+            0%, 100% {
+                box-shadow: 0 0 32px rgba(251, 191, 36, 0.5);
+            }
+            50% {
+                box-shadow: 0 0 48px rgba(251, 191, 36, 0.8);
+            }
+        }
+        
+        .prophecy-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 16px;
+        }
+        
+        .prophecy-symbol {
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+        }
+        
+        .prophecy-direction {
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .prophecy-direction.BUY {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.4);
+        }
+        
+        .prophecy-direction.SELL {
+            background: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.4);
+        }
+        
+        .prophecy-move {
+            font-size: 72px;
+            font-weight: 900;
+            margin: 24px 0;
+            text-align: center;
+            text-shadow: 0 0 20px currentColor;
+            letter-spacing: -2px;
+        }
+        
+        .prophecy-move.positive {
+            color: #4ade80;
+        }
+        
+        .prophecy-move.negative {
+            color: #f87171;
+        }
+        
+        .prophecy-resonance {
+            margin: 16px 0;
+        }
+        
+        .resonance-label {
+            display: flex;
+            justify-content: space-between;
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+        
+        .resonance-bar {
+            width: 100%;
+            height: 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .resonance-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #f87171, #fbbf24, #4ade80);
+            transition: width 0.5s ease-out;
+            border-radius: 8px;
+            box-shadow: 0 0 12px rgba(251, 191, 36, 0.6);
+        }
+        
+        .prophecy-card.high-resonance .resonance-fill {
+            box-shadow: 0 0 20px rgba(251, 191, 36, 0.9);
+            animation: resonanceGlow 2s ease-in-out infinite;
+        }
+        
+        @keyframes resonanceGlow {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(251, 191, 36, 0.9);
+            }
+            50% {
+                box-shadow: 0 0 32px rgba(251, 191, 36, 1);
+            }
+        }
+        
+        .resonance-value {
+            color: #fbbf24;
+            font-weight: bold;
+        }
+        
+        .prophecy-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 16px 0;
+        }
+        
+        .prophecy-meta-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .prophecy-meta-label {
+            color: #888;
+            font-size: 11px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        
+        .prophecy-meta-value {
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .countdown-timer {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #fbbf24;
+            font-size: 36px;
+            font-weight: 900;
+            margin: 24px 0;
+            justify-content: center;
+            padding: 16px;
+            background: rgba(251, 191, 36, 0.1);
+            border-radius: 12px;
+            border: 2px solid rgba(251, 191, 36, 0.3);
+            text-shadow: 0 0 16px currentColor;
+            transition: all 0.3s;
+        }
+        
+        .countdown-timer.urgent {
+            color: #f87171;
+            background: rgba(248, 113, 113, 0.15);
+            border-color: rgba(248, 113, 113, 0.5);
+            animation: pulseUrgent 1s infinite;
+            font-size: 42px;
+            text-shadow: 0 0 24px currentColor;
+        }
+        
+        .countdown-timer.warning {
+            color: #fbbf24;
+            background: rgba(251, 191, 36, 0.15);
+            border-color: rgba(251, 191, 36, 0.5);
+        }
+        
+        .countdown-timer.safe {
+            color: #4ade80;
+            background: rgba(74, 222, 128, 0.1);
+            border-color: rgba(74, 222, 128, 0.3);
+        }
+        
+        .intensity-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            background: rgba(251, 191, 36, 0.3);
+            color: #fbbf24;
+            border: 2px solid rgba(251, 191, 36, 0.6);
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 900;
+            text-transform: uppercase;
+            margin-top: 12px;
+            letter-spacing: 1px;
+            box-shadow: 0 0 16px rgba(251, 191, 36, 0.5);
+            animation: intensityPulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes intensityPulse {
+            0%, 100% {
+                box-shadow: 0 0 16px rgba(251, 191, 36, 0.5);
+            }
+            50% {
+                box-shadow: 0 0 24px rgba(251, 191, 36, 0.8);
+            }
+        }
+        
+        .convergence-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.4);
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+        
+        .prophecy-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: rgba(251, 191, 36, 0.25);
+            color: #fbbf24;
+            border: 2px solid rgba(251, 191, 36, 0.5);
+            font-size: 16px;
+            font-weight: 700;
+            padding: 14px 20px;
+            box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
+        }
+        
+        .btn-primary:hover {
+            background: rgba(251, 191, 36, 0.4);
+            border-color: rgba(251, 191, 36, 0.7);
+            box-shadow: 0 6px 20px rgba(251, 191, 36, 0.5);
+            transform: translateY(-2px);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #888;
+            grid-column: 1 / -1;
+        }
+        
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+        
+        .help-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(251, 191, 36, 0.2);
+            border: 2px solid rgba(251, 191, 36, 0.4);
+            color: #fbbf24;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: all 0.2s;
+        }
+        
+        .help-btn:hover {
+            background: rgba(251, 191, 36, 0.3);
+            transform: scale(1.1);
+        }
+        
+        .nav {
+            margin-bottom: 20px;
+        }
+        
+        .nav a {
+            margin-right: 15px;
+            color: #fbbf24;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        
+        .nav a:hover {
+            text-decoration: underline;
+        }
+        
+        .status-badge.retrying {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.4);
+            animation: pulse 1.5s infinite;
+        }
+        
+        .status-badge.error {
+            background: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>The Oracle's Eye</h1>
+            <p>
+                PROPHECY Alert Center - Real-time Major Move Predictions
+                <span class="status-badge disconnected" id="status">Disconnected</span>
+            </p>
+            <p class="tagline">"The system that doesn't care about news - it generates news"</p>
+            <div class="nav" style="z-index: 10000; pointer-events: auto;">
+                <a href="http://localhost:1420/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">Dashboard</a>
+                <a href="http://localhost:1423/chartview/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">Chartview</a>
+                <a href="http://localhost:1429/scanner/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">Scanner</a>
+                <a href="http://localhost:1427/opportunities/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">Opportunities</a>
+                <a href="http://localhost:1424/analytics/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">Analytics</a>
+            </div>
+        </div>
+        
+        <div class="summary-cards">
+            <div class="summary-card">
+                <div class="summary-card-label">Active PROPHECY Events</div>
+                <div class="summary-card-value" id="total-prophecies">0</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-label">High Resonance (>0.9)</div>
+                <div class="summary-card-value" id="high-resonance">0</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-label">Avg Predicted Move</div>
+                <div class="summary-card-value" id="avg-move">0%</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-label">Expiring Soon (<10min)</div>
+                <div class="summary-card-value" id="expiring-soon">0</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label class="control-label">Sort by:</label>
+                <select id="sort-by">
+                    <option value="resonance">Resonance</option>
+                    <option value="move">Predicted Move</option>
+                    <option value="time">Time Remaining</option>
+                    <option value="intensity">Intensity</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Filter by:</label>
+                <select id="filter-type">
+                    <option value="all">All Types</option>
+                    <option value="BUY">BUY Only</option>
+                    <option value="SELL">SELL Only</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Min Resonance:</label>
+                <input type="number" id="min-resonance" min="0" max="1" value="0.7" step="0.05">
+            </div>
+            <div class="control-group">
+                <label class="control-label">Symbol:</label>
+                <select id="filter-symbol">
+                    <option value="all">All Symbols</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="prophecy-grid" id="prophecy-grid">
+            <div class="empty-state">
+                <div class="empty-state-icon">👁️</div>
+                <div>Loading PROPHECY events...</div>
+            </div>
+        </div>
+    </div>
+    
+    <button class="help-btn" id="help-btn" aria-label="Show help">?</button>
+    
+    <script>
+        const API_BASE = 'http://localhost:8000/api';
+        
+        let prophecies = [];
+        let filteredProphecies = [];
+        let updateInterval = null;
+        let prophecyRequestController = null;
+        let pendingProphecyRequest = null;
+        let isRetrying = false;
+        
+        // ========================================================================
+        // RETRY UTILITY
+        // ========================================================================
+        async function fetchWithRetry(url, options = {}, maxRetries = 3, baseDelay = 1000) {
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    // Create new AbortController for each attempt
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    
+                    const response = await fetch(url, {
+                        ...options,
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (response.ok) {
+                        isRetrying = false;
+                        return response;
+                    }
+                    // If not OK and not last attempt, retry
+                    if (attempt < maxRetries - 1) {
+                        clearTimeout(timeoutId);
+                        const delay = baseDelay * Math.pow(2, attempt);
+                        isRetrying = true;
+                        updateStatus(`Retrying... (${attempt + 1}/${maxRetries})`, 'retrying');
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+                    clearTimeout(timeoutId);
+                    throw new Error(`HTTP ${response.status}`);
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        if (attempt < maxRetries - 1) {
+                            const delay = baseDelay * Math.pow(2, attempt);
+                            isRetrying = true;
+                            updateStatus(`Retrying... (${attempt + 1}/${maxRetries})`, 'retrying');
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            continue;
+                        }
+                    }
+                    if (attempt === maxRetries - 1) {
+                        isRetrying = false;
+                        throw error;
+                    }
+                    const delay = baseDelay * Math.pow(2, attempt);
+                    isRetrying = true;
+                    updateStatus(`Retrying... (${attempt + 1}/${maxRetries})`, 'retrying');
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+        
+        // ========================================================================
+        // STATUS UPDATE HELPER
+        // ========================================================================
+        function updateStatus(message, type = 'connected') {
+            const statusEl = document.getElementById('status');
+            if (!statusEl) return;
+            
+            statusEl.textContent = message;
+            statusEl.className = `status-badge ${type}`;
+        }
+        
+        // ========================================================================
+        // FETCH PROPHECY EVENTS
+        // ========================================================================
+        async function fetchProphecies(filters = {}) {
+            try {
+                const url = `${API_BASE}/dashboard/signals${filters.symbol && filters.symbol !== 'all' ? `?symbol=${filters.symbol.toUpperCase()}` : ''}`;
+                
+                // Request deduplication
+                const filterKey = JSON.stringify(filters);
+                if (pendingProphecyRequest && pendingProphecyRequest.filterKey === filterKey) {
+                    return await pendingProphecyRequest.promise;
+                }
+                
+                // Cancel any in-flight request
+                if (prophecyRequestController) {
+                    prophecyRequestController.abort();
+                }
+                
+                // Fetch with retry logic
+                const fetchOptions = {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                };
+                
+                const response = await fetchWithRetry(url, fetchOptions, 3, 1000);
+                
+                // Clear pending request tracking
+                if (pendingProphecyRequest && pendingProphecyRequest.filterKey === filterKey) {
+                    pendingProphecyRequest = null;
+                }
+                prophecyRequestController = null;
+                
+                const data = await response.json();
+                
+                if (!Array.isArray(data)) {
+                    throw new Error('Invalid response format');
+                }
+                
+                // Filter for PROPHECY events only
+                const prophecyEvents = data.filter(signal => signal.is_prophecy === true);
+                
+                // Validate and process
+                const validProphecies = [];
+                prophecyEvents.forEach((prophecy, index) => {
+                    if (validateProphecyObject(prophecy)) {
+                        // Estimate time horizon from predicted move (rough estimate)
+                        // Higher moves typically take longer, but PROPHECY is usually 5-30 minutes
+                        const estimatedHorizon = Math.max(5, Math.min(30, Math.abs(prophecy.predicted_move_percent) * 5));
+                        prophecy.estimated_horizon_minutes = estimatedHorizon;
+                        prophecy.expires_at = new Date(new Date(prophecy.timestamp).getTime() + estimatedHorizon * 60000).toISOString();
+                        validProphecies.push(prophecy);
+                    }
+                });
+                
+                prophecies = validProphecies;
+                isRetrying = false;
+                
+                if (prophecies.length > 0) {
+                    updateStatus(`Connected (${prophecies.length} PROPHECY events)`, 'connected');
+                } else {
+                    updateStatus('Connected (No PROPHECY events)', 'connected');
+                }
+                
+                log(`✅ Fetched ${prophecies.length} PROPHECY events from API`);
+                return prophecies;
+                
+            } catch (error) {
+                isRetrying = false;
+                prophecies = [];
+                
+                let errorMessage = 'Disconnected';
+                let errorType = 'disconnected';
+                
+                if (error.name === 'AbortError') {
+                    errorMessage = 'Request timeout - backend may be slow';
+                    errorType = 'error';
+                    logError('Request timeout fetching PROPHECY events', error);
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Connection failed - check backend';
+                    errorType = 'disconnected';
+                    logError('Network error fetching PROPHECY events', error);
+                } else if (error.message.includes('HTTP')) {
+                    errorMessage = `Backend error (${error.message})`;
+                    errorType = 'error';
+                    logError('HTTP error fetching PROPHECY events', error);
+                } else if (error.message.includes('Invalid response')) {
+                    errorMessage = 'Invalid response format';
+                    errorType = 'error';
+                    logError('Parse error fetching PROPHECY events', error);
+                } else {
+                    errorMessage = 'Error fetching PROPHECY events';
+                    errorType = 'error';
+                    logError('Error fetching PROPHECY events', error);
+                }
+                
+                updateStatus(errorMessage, errorType);
+                throw error; // Re-throw to allow caller to handle
+            }
+        }
+        
+        // ========================================================================
+        // VALIDATION
+        // ========================================================================
+        function validateProphecyObject(prophecy) {
+            if (!prophecy || typeof prophecy !== 'object') return false;
+            if (!prophecy.is_prophecy) return false;
+            if (!prophecy.symbol || typeof prophecy.symbol !== 'string') return false;
+            if (typeof prophecy.predicted_move_percent !== 'number' || isNaN(prophecy.predicted_move_percent)) return false;
+            if (typeof prophecy.resonance !== 'number' || isNaN(prophecy.resonance) || prophecy.resonance < 0 || prophecy.resonance > 1) return false;
+            if (!['BUY', 'SELL', 'HOLD'].includes(prophecy.direction)) return false;
+            return true;
+        }
+        
+        // ========================================================================
+        // RENDER PROPHECIES
+        // ========================================================================
+        function renderProphecies() {
+            const grid = document.getElementById('prophecy-grid');
+            if (!grid) return;
+            
+            // Filter out expired
+            const now = new Date();
+            const activeProphecies = filteredProphecies.filter(p => {
+                try {
+                    const expiresAt = new Date(p.expires_at);
+                    return expiresAt > now;
+                } catch (e) {
+                    return false;
+                }
+            });
+            
+            if (activeProphecies.length === 0) {
+                const statusEl = document.getElementById('status');
+                const isError = statusEl && statusEl.className.includes('error');
+                const isDisconnected = statusEl && statusEl.className.includes('disconnected');
+                
+                let emptyMessage = 'No active PROPHECY events';
+                let helpText = 'Waiting for THOTH oracle predictions...';
+                
+                if (isDisconnected || isError) {
+                    emptyMessage = 'Unable to fetch PROPHECY events';
+                    helpText = 'Ensure backend is running on port 8000';
+                }
+                
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👁️</div>
+                        <div>${emptyMessage}</div>
+                        <div style="margin-top: 8px; color: #666; font-size: 12px;">${helpText}</div>
+                        ${(isDisconnected || isError) ? `
+                            <button class="btn btn-primary" onclick="retryFetch()" style="margin-top: 16px;">
+                                Retry
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+                return;
+            }
+            
+            grid.innerHTML = activeProphecies.map((prophecy, index) => {
+                const moveSign = prophecy.predicted_move_percent >= 0 ? '+' : '';
+                const moveClass = prophecy.predicted_move_percent >= 0 ? 'positive' : 'negative';
+                const resonancePercent = (prophecy.resonance * 100).toFixed(0);
+                
+                // Calculate time remaining
+                let timeRemaining;
+                try {
+                    timeRemaining = getTimeRemaining(prophecy.expires_at);
+                } catch (e) {
+                    timeRemaining = { minutes: 0, text: 'Invalid' };
+                }
+                
+                const isUrgent = timeRemaining.minutes < 10;
+                const isHighResonance = prophecy.resonance > 0.9;
+                const isMaxIntensity = prophecy.intensity >= 2.0;
+                
+                // Determine countdown timer class based on urgency
+                let countdownClass = 'safe';
+                if (timeRemaining.minutes < 5) {
+                    countdownClass = 'urgent';
+                } else if (timeRemaining.minutes < 15) {
+                    countdownClass = 'warning';
+                }
+                
+                // Calculate target price
+                const currentPrice = prophecy.price || 0;
+                const targetPrice = currentPrice * (1 + prophecy.predicted_move_percent / 100);
+                
+                return `
+                    <div class="prophecy-card ${isUrgent ? 'urgent' : ''} ${isHighResonance ? 'high-resonance' : ''}">
+                        <div class="prophecy-header">
+                            <div class="prophecy-symbol">${prophecy.symbol}</div>
+                            <div class="prophecy-direction ${prophecy.direction}">${prophecy.direction}</div>
+                        </div>
+                        
+                        <div class="prophecy-move ${moveClass}">
+                            ${moveSign}${prophecy.predicted_move_percent.toFixed(2)}%
+                        </div>
+                        
+                        <div class="prophecy-resonance">
+                            <div class="resonance-label">
+                                <span>Resonance (Confidence)</span>
+                                <span class="resonance-value">${resonancePercent}%</span>
+                            </div>
+                            <div class="resonance-bar">
+                                <div class="resonance-fill" style="width: ${resonancePercent}%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="countdown-timer ${countdownClass}">
+                            ⏱️ ${timeRemaining.text}
+                        </div>
+                        
+                        <div class="prophecy-meta">
+                            <div class="prophecy-meta-item">
+                                <div class="prophecy-meta-label">Current Price</div>
+                                <div class="prophecy-meta-value">$${currentPrice.toFixed(2)}</div>
+                            </div>
+                            <div class="prophecy-meta-item">
+                                <div class="prophecy-meta-label">Target Price</div>
+                                <div class="prophecy-meta-value">$${targetPrice.toFixed(2)}</div>
+                            </div>
+                            <div class="prophecy-meta-item">
+                                <div class="prophecy-meta-label">Intensity</div>
+                                <div class="prophecy-meta-value">${prophecy.intensity || 1.0}x</div>
+                            </div>
+                            <div class="prophecy-meta-item">
+                                <div class="prophecy-meta-label">Type</div>
+                                <div class="prophecy-meta-value">${prophecy.prophecy_type || 'MAJOR_MOVE'}</div>
+                            </div>
+                        </div>
+                        
+                        ${isMaxIntensity ? '<div class="intensity-badge">MAX INTENSITY</div>' : ''}
+                        
+                        <div class="prophecy-actions">
+                            <button class="btn btn-primary" onclick="viewChart('${prophecy.symbol}', ${JSON.stringify({timestamp: prophecy.timestamp, price: currentPrice})})">
+                                View Chart
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // ========================================================================
+        // FILTER & SORT
+        // ========================================================================
+        function applyFilters() {
+            const sortBy = document.getElementById('sort-by').value;
+            const filterType = document.getElementById('filter-type').value;
+            const minResonance = parseFloat(document.getElementById('min-resonance').value) || 0;
+            const filterSymbol = document.getElementById('filter-symbol').value;
+            
+            filteredProphecies = prophecies.filter(p => {
+                if (filterType !== 'all' && p.direction !== filterType) return false;
+                if (p.resonance < minResonance) return false;
+                if (filterSymbol !== 'all' && p.symbol !== filterSymbol) return false;
+                return true;
+            });
+            
+            // Sort
+            filteredProphecies.sort((a, b) => {
+                switch (sortBy) {
+                    case 'resonance':
+                        return b.resonance - a.resonance;
+                    case 'move':
+                        return Math.abs(b.predicted_move_percent) - Math.abs(a.predicted_move_percent);
+                    case 'time':
+                        const timeA = new Date(a.expires_at).getTime();
+                        const timeB = new Date(b.expires_at).getTime();
+                        return timeA - timeB;
+                    case 'intensity':
+                        return (b.intensity || 0) - (a.intensity || 0);
+                    default:
+                        return 0;
+                }
+            });
+            
+            renderProphecies();
+            updateSummary();
+        }
+        
+        // ========================================================================
+        // SUMMARY UPDATE
+        // ========================================================================
+        function updateSummary() {
+            const total = filteredProphecies.length;
+            const highResonance = filteredProphecies.filter(p => p.resonance > 0.9).length;
+            const avgMove = filteredProphecies.length > 0
+                ? (filteredProphecies.reduce((sum, p) => sum + Math.abs(p.predicted_move_percent), 0) / filteredProphecies.length).toFixed(2)
+                : '0.00';
+            
+            const now = new Date();
+            const expiringSoon = filteredProphecies.filter(p => {
+                try {
+                    const expiresAt = new Date(p.expires_at);
+                    const minutesRemaining = (expiresAt - now) / 60000;
+                    return minutesRemaining < 10 && minutesRemaining > 0;
+                } catch (e) {
+                    return false;
+                }
+            }).length;
+            
+            document.getElementById('total-prophecies').textContent = total;
+            document.getElementById('high-resonance').textContent = highResonance;
+            document.getElementById('avg-move').textContent = `${avgMove}%`;
+            document.getElementById('expiring-soon').textContent = expiringSoon;
+        }
+        
+        // ========================================================================
+        // UTILITIES
+        // ========================================================================
+        function getTimeRemaining(expiresAt) {
+            const now = new Date();
+            const expires = new Date(expiresAt);
+            const diff = expires - now;
+            
+            if (diff <= 0) {
+                return { minutes: 0, text: 'Expired' };
+            }
+            
+            const minutes = Math.floor(diff / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+            
+            if (minutes > 0) {
+                return { minutes, text: `In ${minutes}m ${seconds}s` };
+            } else {
+                return { minutes: 0, text: `In ${seconds}s` };
+            }
+        }
+        
+        function viewChart(symbol, prophecyData = null) {
+            let url = `http://localhost:1423/chartview/index.html?symbol=${encodeURIComponent(symbol)}&showPredictions=true&showProphecy=true`;
+            
+            // Pass additional context if available
+            if (prophecyData && prophecyData.timestamp) {
+                url += `&highlightTime=${encodeURIComponent(prophecyData.timestamp)}`;
+            }
+            if (prophecyData && prophecyData.price) {
+                url += `&highlightPrice=${encodeURIComponent(prophecyData.price)}`;
+            }
+            
+            if (typeof navigateToChart === 'function') {
+                // Use navigation helper if available
+                window.open(url, '_blank');
+            } else {
+                // Fallback: direct navigation
+                window.open(url, '_blank');
+            }
+        }
+        
+        function updateSymbolFilter() {
+            const symbols = [...new Set(prophecies.map(p => p.symbol))].sort();
+            const select = document.getElementById('filter-symbol');
+            const currentValue = select.value;
+            
+            select.innerHTML = '<option value="all">All Symbols</option>';
+            symbols.forEach(symbol => {
+                const option = document.createElement('option');
+                option.value = symbol;
+                option.textContent = symbol;
+                select.appendChild(option);
+            });
+            
+            if (symbols.includes(currentValue)) {
+                select.value = currentValue;
+            }
+        }
+        
+        // ========================================================================
+        // RETRY FUNCTION
+        // ========================================================================
+        async function retryFetch() {
+            try {
+                updateStatus('Retrying...', 'retrying');
+                await fetchProphecies();
+                applyFilters();
+                updateSymbolFilter();
+            } catch (error) {
+                logError('Retry failed', error);
+            }
+        }
+        
+        // ========================================================================
+        // LOGGING
+        // ========================================================================
+        function log(message, data = {}) {
+            console.log(`[PROPHECY] ${message}`, data);
+        }
+        
+        function logError(message, error = null) {
+            console.error(`[PROPHECY ERROR] ${message}`, error || '');
+        }
+        
+        // ========================================================================
+        // INITIALIZATION
+        // ========================================================================
+        async function init() {
+            log('Initializing PROPHECY Alert Center...');
+            
+            // Verify navigation.js is loaded
+            if (typeof navigateToChart === 'undefined') {
+                console.error('[PROPHECY] navigation.js not loaded! Navigation functions will not work.');
+            } else {
+                log('✅ Navigation helper loaded');
+            }
+            
+            // #region agent log - Debug navigation links
+            // Instrument navigation links to debug why they don't work
+            const navLinks = document.querySelectorAll('.nav a');
+            fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'prophecy/index.html:init',message:'Nav links found',data:{count:navLinks.length,links:Array.from(navLinks).map(a=>({href:a.href,target:a.target,display:window.getComputedStyle(a).display,visibility:window.getComputedStyle(a).visibility,pointerEvents:window.getComputedStyle(a).pointerEvents,zIndex:window.getComputedStyle(a).zIndex}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            
+            navLinks.forEach((link, index) => {
+                link.addEventListener('click', (e) => {
+                    fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'prophecy/index.html:nav-click',message:'Nav link clicked',data:{href:link.href,target:link.target,defaultPrevented:e.defaultPrevented,isTrusted:e.isTrusted},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                }, true);
+            });
+            // #endregion
+            
+            // Setup filter controls
+            document.getElementById('sort-by').addEventListener('change', applyFilters);
+            document.getElementById('filter-type').addEventListener('change', applyFilters);
+            document.getElementById('min-resonance').addEventListener('input', applyFilters);
+            document.getElementById('filter-symbol').addEventListener('change', applyFilters);
+            
+            // Initial fetch
+            try {
+                await fetchProphecies();
+                applyFilters();
+                updateSymbolFilter();
+            } catch (error) {
+                logError('Initial fetch failed', error);
+                applyFilters(); // Still render empty state
+            }
+            
+            // Auto-refresh every 5 seconds
+            updateInterval = setInterval(async () => {
+                await fetchProphecies();
+                applyFilters();
+                updateSymbolFilter();
+                
+                // Update countdown timers
+                const timers = document.querySelectorAll('.countdown-timer');
+                timers.forEach(timer => {
+                    // Timer updates handled by re-render
+                });
+            }, 5000);
+            
+            // Update countdown timers every second
+            setInterval(() => {
+                if (filteredProphecies.length > 0) {
+                    renderProphecies();
+                }
+            }, 1000);
+            
+            log('✅ PROPHECY Alert Center initialized');
+        }
+        
+        // Start on load
+        init();
+    </script>
+</body>
+</html>
+

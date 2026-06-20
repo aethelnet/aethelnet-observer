@@ -1,0 +1,1800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Trade Opportunities - Port 1427</title>
+    
+    <link rel="stylesheet" href="shared.css">
+    <script src="navigation.js"></script>
+    <script src="../help-system.js" defer></script>
+    <script src="../ws-client.js" defer></script>
+    
+    <style>
+        /* View-specific styles - using shared.css for base styles */
+        
+        select:focus, input:focus {
+            outline: none;
+            border-color: rgba(74, 222, 128, 0.5);
+        }
+        
+        .opportunities-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        
+        .opportunity-card {
+            background: rgba(20, 20, 30, 0.8);
+            border: 1px solid rgba(74, 222, 128, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.3s;
+            position: relative;
+        }
+        
+        .opportunity-card:hover {
+            border-color: rgba(74, 222, 128, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.2);
+        }
+        
+        .opportunity-card.buy {
+            border-left: 4px solid #4ade80;
+        }
+        
+        .opportunity-card.sell {
+            border-left: 4px solid #f87171;
+        }
+        
+        .opportunity-card.high-urgency {
+            border-top: 2px solid #fbbf24;
+        }
+        
+        .opportunity-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .opportunity-symbol {
+            font-size: 20px;
+            font-weight: bold;
+            color: #4ade80;
+        }
+        
+        .opportunity-type {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .opportunity-type.buy {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+        
+        .opportunity-type.sell {
+            background: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+        }
+        
+        .opportunity-move {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 16px 0;
+        }
+        
+        .opportunity-move.positive {
+            color: #4ade80;
+        }
+        
+        .opportunity-move.negative {
+            color: #f87171;
+        }
+        
+        .opportunity-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .opportunity-detail {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .opportunity-detail-label {
+            color: #888;
+            font-size: 11px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        
+        .opportunity-detail-value {
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .confidence-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #f87171, #fbbf24, #4ade80);
+            transition: width 0.3s;
+        }
+        
+        .countdown-timer {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #fbbf24;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .countdown-timer.urgent {
+            color: #f87171;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .opportunity-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.4);
+        }
+        
+        .btn-primary:hover {
+            background: rgba(74, 222, 128, 0.3);
+        }
+        
+        .btn-secondary {
+            background: rgba(156, 163, 175, 0.2);
+            color: #9ca3af;
+            border: 1px solid rgba(156, 163, 175, 0.4);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(156, 163, 175, 0.3);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #888;
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .help-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(74, 222, 128, 0.2);
+            border: 2px solid rgba(74, 222, 128, 0.4);
+            color: #4ade80;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: all 0.2s;
+        }
+        
+        .help-btn:hover {
+            background: rgba(74, 222, 128, 0.3);
+            transform: scale(1.1);
+        }
+        
+        .nav {
+            margin-bottom: 20px;
+        }
+        
+        .nav a {
+            margin-right: 15px;
+            color: #4ade80;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        
+        .nav a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Table View Styles */
+        .view-toggle {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            justify-content: flex-end;
+        }
+        
+        .view-toggle-btn {
+            padding: 8px 16px;
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            color: #4ade80;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        
+        .view-toggle-btn:hover {
+            background: rgba(74, 222, 128, 0.2);
+        }
+        
+        .view-toggle-btn.active {
+            background: rgba(74, 222, 128, 0.3);
+            border-color: rgba(74, 222, 128, 0.6);
+        }
+        
+        .opportunities-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(20, 20, 30, 0.8);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .opportunities-table thead {
+            background: rgba(74, 222, 128, 0.1);
+        }
+        
+        .opportunities-table th {
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #4ade80;
+            border-bottom: 2px solid rgba(74, 222, 128, 0.3);
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+        
+        .opportunities-table th:hover {
+            background: rgba(74, 222, 128, 0.15);
+        }
+        
+        .opportunities-table th.sortable::after {
+            content: ' ↕';
+            opacity: 0.5;
+            font-size: 10px;
+        }
+        
+        .opportunities-table th.sort-asc::after {
+            content: ' ↑';
+            opacity: 1;
+            color: #4ade80;
+        }
+        
+        .opportunities-table th.sort-desc::after {
+            content: ' ↓';
+            opacity: 1;
+            color: #4ade80;
+        }
+        
+        .opportunities-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(74, 222, 128, 0.1);
+            font-size: 14px;
+        }
+        
+        .opportunities-table tbody tr {
+            transition: background 0.2s;
+        }
+        
+        .opportunities-table tbody tr:hover {
+            background: rgba(74, 222, 128, 0.05);
+        }
+        
+        .opportunities-table tbody tr.selected {
+            background: rgba(74, 222, 128, 0.15);
+        }
+        
+        .table-cell-buy {
+            color: #4ade80;
+            font-weight: bold;
+        }
+        
+        .table-cell-sell {
+            color: #f87171;
+            font-weight: bold;
+        }
+        
+        .table-cell-high {
+            color: #4ade80;
+        }
+        
+        .table-cell-medium {
+            color: #fbbf24;
+        }
+        
+        .table-cell-low {
+            color: #9ca3af;
+        }
+        
+        /* Comparison Mode */
+        .comparison-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(20, 20, 30, 0.98);
+            border-top: 2px solid rgba(74, 222, 128, 0.5);
+            padding: 20px;
+            max-height: 50vh;
+            overflow-y: auto;
+            z-index: 1000;
+            transform: translateY(100%);
+            transition: transform 0.3s ease-out;
+        }
+        
+        .comparison-panel.active {
+            transform: translateY(0);
+        }
+        
+        .comparison-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .comparison-header h3 {
+            color: #4ade80;
+            font-size: 20px;
+        }
+        
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .comparison-card {
+            background: rgba(20, 20, 30, 0.9);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        
+        .comparison-card h4 {
+            color: #4ade80;
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+        
+        .comparison-metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(74, 222, 128, 0.1);
+        }
+        
+        .comparison-metric:last-child {
+            border-bottom: none;
+        }
+        
+        .comparison-metric-label {
+            color: #888;
+            font-size: 12px;
+        }
+        
+        .comparison-metric-value {
+            color: #fff;
+            font-weight: bold;
+        }
+        
+        /* Detailed Metrics Panel */
+        .opportunity-detail-panel {
+            margin-top: 16px;
+            padding: 16px;
+            background: rgba(20, 20, 30, 0.6);
+            border-radius: 8px;
+            border: 1px solid rgba(74, 222, 128, 0.2);
+            display: none;
+        }
+        
+        .opportunity-detail-panel.expanded {
+            display: block;
+        }
+        
+        .detail-section {
+            margin-bottom: 16px;
+        }
+        
+        .detail-section-title {
+            color: #4ade80;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        
+        .detail-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+        }
+        
+        .detail-metric {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .detail-metric-label {
+            color: #888;
+            font-size: 11px;
+            margin-bottom: 4px;
+        }
+        
+        .detail-metric-value {
+            color: #fff;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        /* Enhanced Summary Cards */
+        .summary-card.enhanced {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .summary-card.enhanced::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #4ade80, #fbbf24);
+        }
+        
+        .summary-card-stat {
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
+        }
+        
+        /* Checkbox for selection */
+        .opportunity-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #4ade80;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Trade Opportunities</h1>
+            <p>
+                ML prediction engine trade opportunities
+                <span class="status-badge disconnected" id="status">Disconnected</span>
+            </p>
+            <div class="nav" style="z-index: 10000; pointer-events: auto;">
+                <a href="http://localhost:1420/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">Dashboard</a>
+                <a href="http://localhost:1423/chartview/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">Chartview</a>
+                <a href="http://localhost:1429/scanner/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">Scanner</a>
+                <a href="http://localhost:1428/prophecy/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">PROPHECY</a>
+                <a href="http://localhost:1424/analytics/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">Analytics</a>
+            </div>
+        </div>
+        
+        <div class="summary-cards">
+            <div class="summary-card enhanced">
+                <div class="summary-card-label">Total Opportunities</div>
+                <div class="summary-card-value" id="total-opportunities">0</div>
+                <div class="summary-card-stat" id="total-stat">Active now</div>
+            </div>
+            <div class="summary-card enhanced">
+                <div class="summary-card-label">High Confidence</div>
+                <div class="summary-card-value" id="high-confidence">0</div>
+                <div class="summary-card-stat" id="confidence-stat">≥75% confidence</div>
+            </div>
+            <div class="summary-card enhanced">
+                <div class="summary-card-label">Avg Expected Move</div>
+                <div class="summary-card-value" id="avg-move">0%</div>
+                <div class="summary-card-stat" id="move-stat">Average move %</div>
+            </div>
+            <div class="summary-card enhanced">
+                <div class="summary-card-label">High Urgency</div>
+                <div class="summary-card-value" id="high-urgency">0</div>
+                <div class="summary-card-stat" id="urgency-stat">Time-sensitive</div>
+            </div>
+            <div class="summary-card enhanced">
+                <div class="summary-card-label">Avg Risk/Reward</div>
+                <div class="summary-card-value" id="avg-risk-reward">0.00</div>
+                <div class="summary-card-stat" id="risk-reward-stat">Average ratio</div>
+            </div>
+            <div class="summary-card enhanced">
+                <div class="summary-card-label">Best Opportunity</div>
+                <div class="summary-card-value" id="best-opportunity">--</div>
+                <div class="summary-card-stat" id="best-stat">Highest confidence</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label class="control-label">Sort by:</label>
+                <select id="sort-by">
+                    <option value="confidence">Confidence</option>
+                    <option value="urgency">Urgency</option>
+                    <option value="move">Expected Move</option>
+                    <option value="time">Time Horizon</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Filter by:</label>
+                <select id="filter-type">
+                    <option value="all">All Types</option>
+                    <option value="BUY">BUY Only</option>
+                    <option value="SELL">SELL Only</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Min Confidence:</label>
+                <input type="number" id="min-confidence" min="0" max="100" value="50" step="5">
+                <span style="color: #888; font-size: 12px;">%</span>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Symbol:</label>
+                <select id="filter-symbol">
+                    <option value="all">All Symbols</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="view-toggle">
+            <button class="view-toggle-btn active" id="view-card-btn" onclick="switchView('card')">Card View</button>
+            <button class="view-toggle-btn" id="view-table-btn" onclick="switchView('table')">Table View</button>
+            <button class="view-toggle-btn" id="compare-btn" onclick="toggleComparison()" style="display: none;">
+                Compare Selected (<span id="selected-count">0</span>)
+            </button>
+        </div>
+        
+        <div class="opportunities-grid" id="opportunities-grid">
+            <div class="empty-state">
+                <div class="empty-state-icon">🔍</div>
+                <div>Loading opportunities...</div>
+            </div>
+        </div>
+        
+        <table class="opportunities-table" id="opportunities-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th class="sortable" data-sort="select">Select</th>
+                    <th class="sortable" data-sort="symbol">Symbol</th>
+                    <th class="sortable" data-sort="type">Type</th>
+                    <th class="sortable" data-sort="move">Move %</th>
+                    <th class="sortable" data-sort="confidence">Confidence</th>
+                    <th class="sortable" data-sort="risk_reward">Risk/Reward</th>
+                    <th class="sortable" data-sort="time">Time Horizon</th>
+                    <th class="sortable" data-sort="urgency">Urgency</th>
+                    <th class="sortable" data-sort="current_price">Current Price</th>
+                    <th class="sortable" data-sort="target_price">Target Price</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="opportunities-table-body">
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="comparison-panel" id="comparison-panel">
+        <div class="comparison-header">
+            <h3>Compare Opportunities</h3>
+            <button class="btn btn-secondary" onclick="closeComparison()">Close</button>
+        </div>
+        <div class="comparison-grid" id="comparison-grid">
+        </div>
+    </div>
+    
+    <button class="help-btn" id="help-btn" aria-label="Show help">?</button>
+    
+    <script>
+        const API_BASE = 'http://localhost:8000/api';
+        
+        let opportunities = [];
+        let filteredOpportunities = [];
+        let updateInterval = null;
+        let opportunitiesRequestController = null;
+        let pendingOpportunitiesRequest = null;
+        let isRetrying = false;
+        let currentView = 'card'; // 'card' or 'table'
+        let selectedOpportunities = new Set();
+        let tableSortColumn = null;
+        let tableSortDirection = 'asc';
+        
+        // ========================================================================
+        // STATUS UPDATE HELPER
+        // ========================================================================
+        function updateStatus(message, type = 'connected') {
+            const statusEl = document.getElementById('status');
+            if (statusEl) {
+                statusEl.textContent = message;
+                statusEl.className = `status-badge ${type}`;
+            }
+        }
+        
+        // ========================================================================
+        // FETCH OPPORTUNITIES
+        // ========================================================================
+        async function fetchOpportunities(filters = {}) {
+            try {
+                // Build query string from filters
+                const queryParams = new URLSearchParams();
+                
+                if (filters.symbol && filters.symbol !== 'all') {
+                    queryParams.append('symbol', filters.symbol.toUpperCase());
+                }
+                
+                if (filters.min_confidence !== undefined && filters.min_confidence !== null) {
+                    const minConf = parseFloat(filters.min_confidence);
+                    if (!isNaN(minConf) && minConf >= 0 && minConf <= 1) {
+                        queryParams.append('min_confidence', minConf.toString());
+                    }
+                }
+                
+                if (filters.urgency && filters.urgency !== 'all') {
+                    const validUrgencies = ['HIGH', 'MEDIUM', 'LOW'];
+                    if (validUrgencies.includes(filters.urgency.toUpperCase())) {
+                        queryParams.append('urgency', filters.urgency.toUpperCase());
+                    }
+                }
+                
+                const queryString = queryParams.toString();
+                const url = `${API_BASE}/opportunities${queryString ? '?' + queryString : ''}`;
+                
+                // Build filter key for deduplication
+                const filterKey = JSON.stringify(filters);
+                
+                // Request deduplication: if same request is pending, return the pending promise
+                if (pendingOpportunitiesRequest && pendingOpportunitiesRequest.filterKey === filterKey) {
+                    log(`Reusing pending opportunities request`);
+                    return await pendingOpportunitiesRequest.promise;
+                }
+                
+                // Cancel any in-flight request
+                if (opportunitiesRequestController) {
+                    opportunitiesRequestController.abort();
+                }
+                
+                // Fetch with retry logic
+                const fetchOptions = {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                };
+                
+                const response = await fetchWithRetry(url, fetchOptions, 3, 1000);
+                
+                // Clear request tracking
+                if (pendingOpportunitiesRequest && pendingOpportunitiesRequest.filterKey === filterKey) {
+                    pendingOpportunitiesRequest = null;
+                }
+                opportunitiesRequestController = null;
+                
+                // Handle HTTP errors
+                if (!response.ok) {
+                    if (response.status === 422 || response.status === 400) {
+                        const errorData = await response.json().catch(() => ({}));
+                        logError('Invalid query parameters', errorData);
+                        throw new Error(errorData.detail || 'Invalid parameters');
+                    } else if (response.status === 500) {
+                        const errorData = await response.json().catch(() => ({}));
+                        logError('Backend error generating opportunities', errorData);
+                        throw new Error(errorData.detail || 'Backend error');
+                    } else {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                }
+                
+                // Parse JSON
+                const data = await response.json();
+                
+                // Validate response is array
+                if (!Array.isArray(data)) {
+                    logError('Invalid response: not an array', data);
+                    throw new Error('Invalid response format');
+                }
+                
+                // Validate each opportunity
+                const validOpportunities = [];
+                data.forEach((opp, index) => {
+                    if (validateOpportunityObject(opp)) {
+                        validOpportunities.push(opp);
+                    } else {
+                        logError(`Invalid opportunity at index ${index}`, opp);
+                    }
+                });
+                
+                opportunities = validOpportunities;
+                isRetrying = false;
+                
+                if (opportunities.length > 0) {
+                    updateStatus('Connected (Real Data)', 'connected');
+                } else {
+                    updateStatus('Connected (No Opportunities)', 'connected');
+                }
+                
+                log(`✅ Fetched ${opportunities.length} opportunities from API`);
+                
+                return opportunities;
+                
+            } catch (error) {
+                isRetrying = false;
+                opportunities = [];
+                
+                let errorMessage = 'Disconnected';
+                let errorType = 'disconnected';
+                
+                if (error.name === 'AbortError') {
+                    errorMessage = 'Request timeout - backend may be slow';
+                    errorType = 'error';
+                    logError('Request timeout fetching opportunities', error);
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Connection failed - check backend';
+                    errorType = 'disconnected';
+                    logError('Network error fetching opportunities', error);
+                } else if (error.message.includes('HTTP')) {
+                    errorMessage = `Backend error (${error.message})`;
+                    errorType = 'error';
+                    logError('HTTP error fetching opportunities', error);
+                } else if (error.message.includes('Invalid response')) {
+                    errorMessage = 'Invalid response format';
+                    errorType = 'error';
+                    logError('Parse error fetching opportunities', error);
+                } else {
+                    errorMessage = 'Error fetching opportunities';
+                    errorType = 'error';
+                    logError('Error fetching opportunities', error);
+                }
+                
+                updateStatus(errorMessage, errorType);
+                throw error; // Re-throw to allow caller to handle
+            }
+        }
+        
+        // ========================================================================
+        // OPPORTUNITIES - Validation
+        // ========================================================================
+        function validateOpportunityObject(opp) {
+            // Check required fields
+            if (!opp || typeof opp !== 'object') {
+                return false;
+            }
+            
+            // Validate symbol
+            if (!opp.symbol || typeof opp.symbol !== 'string') {
+                return false;
+            }
+            
+            // Validate opportunity_type
+            if (!['BUY', 'SELL'].includes(opp.opportunity_type)) {
+                return false;
+            }
+            
+            // Validate numeric fields
+            const numericFields = [
+                'predicted_move_percent',
+                'time_horizon_minutes',
+                'confidence',
+                'current_price',
+                'target_price',
+                'stop_loss',
+                'risk_reward_ratio'
+            ];
+            
+            for (const field of numericFields) {
+                if (typeof opp[field] !== 'number' || isNaN(opp[field]) || !isFinite(opp[field])) {
+                    return false;
+                }
+            }
+            
+            // Validate ranges
+            if (opp.confidence < 0 || opp.confidence > 1) {
+                return false;
+            }
+            
+            if (opp.time_horizon_minutes <= 0) {
+                return false;
+            }
+            
+            if (opp.current_price <= 0 || opp.target_price <= 0 || opp.stop_loss <= 0) {
+                return false;
+            }
+            
+            if (opp.risk_reward_ratio < 1.5) {
+                logError('Opportunity has risk/reward < 1.5', opp);
+                return false;
+            }
+            
+            // Validate urgency
+            if (!['HIGH', 'MEDIUM', 'LOW'].includes(opp.urgency)) {
+                return false;
+            }
+            
+            // Validate timestamps
+            try {
+                const expiresAt = new Date(opp.expires_at);
+                const createdAt = new Date(opp.created_at);
+                
+                if (isNaN(expiresAt.getTime()) || isNaN(createdAt.getTime())) {
+                    return false;
+                }
+                
+                // Expires_at should be in future
+                if (expiresAt <= new Date()) {
+                    logError('Opportunity already expired', opp.expires_at);
+                    return false;
+                }
+                
+                // Created_at should be in past
+                if (createdAt > new Date()) {
+                    logError('Created_at is in future', opp.created_at);
+                    return false;
+                }
+            } catch (e) {
+                return false;
+            }
+            
+            // Validate price relationships
+            if (opp.opportunity_type === 'BUY') {
+                // Target should be higher than current
+                if (opp.target_price <= opp.current_price) {
+                    logError('BUY opportunity: target not higher than current', opp);
+                    return false;
+                }
+                // Stop loss should be lower than current
+                if (opp.stop_loss >= opp.current_price) {
+                    logError('BUY opportunity: stop loss not lower than current', opp);
+                    return false;
+                }
+            } else { // SELL
+                // Target should be lower than current
+                if (opp.target_price >= opp.current_price) {
+                    logError('SELL opportunity: target not lower than current', opp);
+                    return false;
+                }
+                // Stop loss should be higher than current
+                if (opp.stop_loss <= opp.current_price) {
+                    logError('SELL opportunity: stop loss not higher than current', opp);
+                    return false;
+                }
+            }
+            
+            // Validate predicted_move_percent matches price change
+            const actualMovePercent = ((opp.target_price - opp.current_price) / opp.current_price) * 100;
+            const moveDiff = Math.abs(actualMovePercent - opp.predicted_move_percent);
+            if (moveDiff > 0.5) { // More than 0.5% difference
+                logError('Predicted move percent does not match target price', {
+                    predicted: opp.predicted_move_percent,
+                    actual: actualMovePercent
+                });
+                // Still accept, but log warning
+            }
+            
+            return true;
+        }
+        
+        // ========================================================================
+        // VIEW TOGGLE
+        // ========================================================================
+        function switchView(view) {
+            currentView = view;
+            const grid = document.getElementById('opportunities-grid');
+            const table = document.getElementById('opportunities-table');
+            const cardBtn = document.getElementById('view-card-btn');
+            const tableBtn = document.getElementById('view-table-btn');
+            
+            if (view === 'card') {
+                grid.style.display = 'grid';
+                table.style.display = 'none';
+                cardBtn.classList.add('active');
+                tableBtn.classList.remove('active');
+            } else {
+                grid.style.display = 'none';
+                table.style.display = 'table';
+                cardBtn.classList.remove('active');
+                tableBtn.classList.add('active');
+                renderTable();
+            }
+        }
+        
+        // ========================================================================
+        // RENDER TABLE
+        // ========================================================================
+        function renderTable() {
+            const tbody = document.getElementById('opportunities-table-body');
+            if (!tbody) return;
+            
+            const now = new Date();
+            const activeOpportunities = filteredOpportunities.filter(opp => {
+                try {
+                    const expiresAt = new Date(opp.expires_at);
+                    return expiresAt > now;
+                } catch (e) {
+                    return false;
+                }
+            });
+            
+            if (activeOpportunities.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 40px; color: #888;">No opportunities match your filters</td></tr>';
+                return;
+            }
+            
+            // Apply table sorting
+            const sorted = [...activeOpportunities].sort((a, b) => {
+                let aVal, bVal;
+                switch(tableSortColumn) {
+                    case 'symbol':
+                        aVal = a.symbol || '';
+                        bVal = b.symbol || '';
+                        return tableSortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                    case 'type':
+                        aVal = a.opportunity_type || '';
+                        bVal = b.opportunity_type || '';
+                        return tableSortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                    case 'move':
+                        aVal = Math.abs(a.predicted_move_percent || 0);
+                        bVal = Math.abs(b.predicted_move_percent || 0);
+                        return tableSortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+                    case 'confidence':
+                        aVal = a.confidence || 0;
+                        bVal = b.confidence || 0;
+                        return tableSortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+                    case 'risk_reward':
+                        aVal = a.risk_reward_ratio || 0;
+                        bVal = b.risk_reward_ratio || 0;
+                        return tableSortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+                    case 'time':
+                        aVal = a.time_horizon_minutes || 0;
+                        bVal = b.time_horizon_minutes || 0;
+                        return tableSortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+                    case 'urgency':
+                        const urgencyOrder = { 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
+                        aVal = urgencyOrder[a.urgency] || 0;
+                        bVal = urgencyOrder[b.urgency] || 0;
+                        return tableSortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+                    case 'current_price':
+                        aVal = a.current_price || 0;
+                        bVal = b.current_price || 0;
+                        return tableSortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+                    case 'target_price':
+                        aVal = a.target_price || 0;
+                        bVal = b.target_price || 0;
+                        return tableSortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+                    default:
+                        return 0;
+                }
+            });
+            
+            tbody.innerHTML = sorted.map((opp, index) => {
+                const isSelected = selectedOpportunities.has(opp.symbol);
+                const moveSign = opp.predicted_move_percent >= 0 ? '+' : '';
+                const isBuy = opp.opportunity_type === 'BUY';
+                const timeRemaining = getTimeRemaining(opp.expires_at);
+                
+                return `
+                    <tr class="${isSelected ? 'selected' : ''}" data-symbol="${opp.symbol}">
+                        <td>
+                            <input type="checkbox" class="opportunity-checkbox" 
+                                   ${isSelected ? 'checked' : ''} 
+                                   onchange="toggleSelection('${opp.symbol}', this.checked)">
+                        </td>
+                        <td><strong>${opp.symbol || 'N/A'}</strong></td>
+                        <td class="${isBuy ? 'table-cell-buy' : 'table-cell-sell'}">${opp.opportunity_type || 'N/A'}</td>
+                        <td class="${isBuy ? 'table-cell-buy' : 'table-cell-sell'}">${moveSign}${formatNumber(opp.predicted_move_percent)}%</td>
+                        <td>${formatNumber((opp.confidence || 0) * 100, 0)}%</td>
+                        <td>${formatNumber(opp.risk_reward_ratio)}</td>
+                        <td>${opp.time_horizon_minutes || 0} min</td>
+                        <td class="table-cell-${opp.urgency?.toLowerCase() || 'low'}">${opp.urgency || 'N/A'}</td>
+                        <td>$${formatNumber(opp.current_price)}</td>
+                        <td>$${formatNumber(opp.target_price)}</td>
+                        <td>
+                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="viewChart('${opp.symbol}', ${JSON.stringify({created_at: opp.created_at, current_price: opp.current_price})})">Chart</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        // ========================================================================
+        // TABLE SORTING
+        // ========================================================================
+        function setupTableSorting() {
+            const headers = document.querySelectorAll('.opportunities-table th.sortable');
+            headers.forEach(header => {
+                header.addEventListener('click', () => {
+                    const column = header.getAttribute('data-sort');
+                    if (column === 'select') return;
+                    
+                    // Update sort direction
+                    if (tableSortColumn === column) {
+                        tableSortDirection = tableSortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        tableSortColumn = column;
+                        tableSortDirection = 'asc';
+                    }
+                    
+                    // Update header classes
+                    headers.forEach(h => {
+                        h.classList.remove('sort-asc', 'sort-desc');
+                    });
+                    header.classList.add(`sort-${tableSortDirection}`);
+                    
+                    // Re-render table
+                    renderTable();
+                });
+            });
+        }
+        
+        // ========================================================================
+        // SELECTION & COMPARISON
+        // ========================================================================
+        function toggleSelection(symbol, selected) {
+            if (selected) {
+                selectedOpportunities.add(symbol);
+            } else {
+                selectedOpportunities.delete(symbol);
+            }
+            updateSelectionUI();
+        }
+        
+        function updateSelectionUI() {
+            const count = selectedOpportunities.size;
+            const compareBtn = document.getElementById('compare-btn');
+            const countSpan = document.getElementById('selected-count');
+            
+            if (countSpan) countSpan.textContent = count;
+            
+            if (count > 0) {
+                if (compareBtn) compareBtn.style.display = 'block';
+            } else {
+                if (compareBtn) compareBtn.style.display = 'none';
+            }
+            
+            // Update table row selection
+            if (currentView === 'table') {
+                const rows = document.querySelectorAll('#opportunities-table-body tr');
+                rows.forEach(row => {
+                    const symbol = row.getAttribute('data-symbol');
+                    if (selectedOpportunities.has(symbol)) {
+                        row.classList.add('selected');
+                    } else {
+                        row.classList.remove('selected');
+                    }
+                });
+            }
+        }
+        
+        function toggleComparison() {
+            const panel = document.getElementById('comparison-panel');
+            if (selectedOpportunities.size === 0) return;
+            
+            const selected = filteredOpportunities.filter(opp => 
+                selectedOpportunities.has(opp.symbol)
+            );
+            
+            if (selected.length === 0) return;
+            
+            const grid = document.getElementById('comparison-grid');
+            grid.innerHTML = selected.map(opp => {
+                const isBuy = opp.opportunity_type === 'BUY';
+                const moveSign = opp.predicted_move_percent >= 0 ? '+' : '';
+                const timeRemaining = getTimeRemaining(opp.expires_at);
+                
+                return `
+                    <div class="comparison-card">
+                        <h4>${opp.symbol} - ${opp.opportunity_type}</h4>
+                        <div class="comparison-metric">
+                            <span class="comparison-metric-label">Predicted Move</span>
+                            <span class="comparison-metric-value ${isBuy ? 'table-cell-buy' : 'table-cell-sell'}">${moveSign}${formatNumber(opp.predicted_move_percent)}%</span>
+                        </div>
+                        <div class="comparison-metric">
+                            <span class="comparison-metric-label">Confidence</span>
+                            <span class="comparison-metric-value">${formatNumber((opp.confidence || 0) * 100, 0)}%</span>
+                        </div>
+                        <div class="comparison-metric">
+                            <span class="comparison-metric-label">Risk/Reward</span>
+                            <span class="comparison-metric-value">${formatNumber(opp.risk_reward_ratio)}</span>
+                        </div>
+                        <div class="comparison-metric">
+                            <span class="comparison-metric-label">Time Horizon</span>
+                            <span class="comparison-metric-value">${opp.time_horizon_minutes} min</span>
+                        </div>
+                        <div class="comparison-metric">
+                            <span class="comparison-metric-label">Urgency</span>
+                            <span class="comparison-metric-value table-cell-${opp.urgency?.toLowerCase() || 'low'}">${opp.urgency || 'N/A'}</span>
+                        </div>
+                        <div class="comparison-metric">
+                            <span class="comparison-metric-label">Current Price</span>
+                            <span class="comparison-metric-value">$${formatNumber(opp.current_price)}</span>
+                        </div>
+                        <div class="comparison-metric">
+                            <span class="comparison-metric-label">Target Price</span>
+                            <span class="comparison-metric-value">$${formatNumber(opp.target_price)}</span>
+                        </div>
+                        <div class="comparison-metric">
+                            <span class="comparison-metric-label">Stop Loss</span>
+                            <span class="comparison-metric-value">$${formatNumber(opp.stop_loss)}</span>
+                        </div>
+                        <div class="comparison-metric">
+                            <span class="comparison-metric-label">Time Remaining</span>
+                            <span class="comparison-metric-value">${timeRemaining.text}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            panel.classList.add('active');
+        }
+        
+        function closeComparison() {
+            const panel = document.getElementById('comparison-panel');
+            panel.classList.remove('active');
+        }
+        
+        // ========================================================================
+        // RENDER OPPORTUNITIES
+        // ========================================================================
+        function renderOpportunities() {
+            if (currentView === 'table') {
+                renderTable();
+                return;
+            }
+            
+            const grid = document.getElementById('opportunities-grid');
+            if (!grid) {
+                logError('Opportunities grid element not found');
+                return;
+            }
+            
+            // Filter out expired opportunities
+            const now = new Date();
+            const activeOpportunities = filteredOpportunities.filter(opp => {
+                try {
+                    const expiresAt = new Date(opp.expires_at);
+                    return expiresAt > now;
+                } catch (e) {
+                    logError('Invalid expires_at', opp.expires_at);
+                    return false; // Remove invalid opportunities
+                }
+            });
+            
+            if (activeOpportunities.length === 0) {
+                const statusEl = document.getElementById('status');
+                const isError = statusEl && statusEl.className.includes('error');
+                const isDisconnected = statusEl && statusEl.className.includes('disconnected');
+                
+                let emptyMessage = 'No opportunities match your filters';
+                let helpText = 'Try adjusting your filters or wait for new opportunities';
+                
+                if (isDisconnected || isError) {
+                    emptyMessage = 'Unable to fetch opportunities';
+                    helpText = 'Ensure backend is running on port 8000';
+                }
+                
+                grid.innerHTML = `
+                    <div class="empty-state" style="grid-column: 1 / -1;">
+                        <div class="empty-state-icon">📭</div>
+                        <div>${emptyMessage}</div>
+                        <div style="margin-top: 8px; color: #666; font-size: 12px;">${helpText}</div>
+                        ${(isDisconnected || isError) ? `
+                            <button class="btn btn-primary" onclick="retryFetch()" style="margin-top: 16px;">
+                                Retry
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+                return;
+            }
+            
+            // Safely format numbers
+            const formatNumber = (num, decimals = 2) => {
+                if (typeof num !== 'number' || isNaN(num) || !isFinite(num)) return '0.00';
+                return num.toFixed(decimals);
+            };
+            
+            grid.innerHTML = activeOpportunities.map((opp, index) => {
+                try {
+                    // Validate required fields before rendering
+                    if (!opp.symbol || !opp.opportunity_type || typeof opp.predicted_move_percent !== 'number') {
+                        logError(`Skipping invalid opportunity at index ${index}`, opp);
+                        return '';
+                    }
+                    
+                    const isBuy = opp.opportunity_type === 'BUY';
+                    const moveClass = opp.predicted_move_percent >= 0 ? 'positive' : 'negative';
+                    const moveSign = opp.predicted_move_percent >= 0 ? '+' : '';
+                    
+                    // Calculate time remaining with error handling
+                    let timeRemaining;
+                    try {
+                        timeRemaining = getTimeRemaining(opp.expires_at);
+                    } catch (e) {
+                        logError('Error calculating time remaining', e);
+                        timeRemaining = { minutes: 0, text: 'Invalid' };
+                    }
+                    
+                    const isUrgent = timeRemaining.minutes < 5;
+                    
+                    return `
+                        <div class="opportunity-card ${isBuy ? 'buy' : 'sell'} ${opp.urgency === 'HIGH' ? 'high-urgency' : ''}">
+                            <div class="opportunity-header">
+                                <div class="opportunity-symbol">${opp.symbol || 'N/A'}</div>
+                                <div class="opportunity-type ${isBuy ? 'buy' : 'sell'}">${opp.opportunity_type || 'N/A'}</div>
+                            </div>
+                            
+                            <div class="opportunity-move ${moveClass}">
+                                ${moveSign}${formatNumber(opp.predicted_move_percent)}%
+                            </div>
+                            
+                            <div class="opportunity-details">
+                                <div class="opportunity-detail">
+                                    <div class="opportunity-detail-label">Time Horizon</div>
+                                    <div class="opportunity-detail-value">${opp.time_horizon_minutes || 0} min</div>
+                                </div>
+                                <div class="opportunity-detail">
+                                    <div class="opportunity-detail-label">Risk/Reward</div>
+                                    <div class="opportunity-detail-value">${formatNumber(opp.risk_reward_ratio)}</div>
+                                </div>
+                                <div class="opportunity-detail">
+                                    <div class="opportunity-detail-label">Current Price</div>
+                                    <div class="opportunity-detail-value">$${formatNumber(opp.current_price)}</div>
+                                </div>
+                                <div class="opportunity-detail">
+                                    <div class="opportunity-detail-label">Target Price</div>
+                                    <div class="opportunity-detail-value">$${formatNumber(opp.target_price)}</div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                    <span class="opportunity-detail-label">Confidence</span>
+                                    <span class="opportunity-detail-value">${formatNumber((opp.confidence || 0) * 100, 0)}%</span>
+                                </div>
+                                <div class="confidence-bar">
+                                    <div class="confidence-fill" style="width: ${Math.min(100, (opp.confidence || 0) * 100)}%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="countdown-timer ${isUrgent ? 'urgent' : ''}">
+                                ⏱️ ${timeRemaining.text || 'N/A'}
+                            </div>
+                            
+                            <div class="opportunity-actions">
+                                <button class="btn btn-primary" onclick="viewChart('${opp.symbol}', ${JSON.stringify({created_at: opp.created_at, current_price: opp.current_price})})">View Chart</button>
+                                <button class="btn btn-secondary" onclick="dismissOpportunity('${opp.symbol}')">Dismiss</button>
+                            </div>
+                            
+                            <div class="opportunity-detail-panel" id="detail-${opp.symbol}">
+                                <div class="detail-section">
+                                    <div class="detail-section-title">Price Analysis</div>
+                                    <div class="detail-metrics">
+                                        <div class="detail-metric">
+                                            <div class="detail-metric-label">Entry Price</div>
+                                            <div class="detail-metric-value">$${formatNumber(opp.current_price)}</div>
+                                        </div>
+                                        <div class="detail-metric">
+                                            <div class="detail-metric-label">Target Price</div>
+                                            <div class="detail-metric-value">$${formatNumber(opp.target_price)}</div>
+                                        </div>
+                                        <div class="detail-metric">
+                                            <div class="detail-metric-label">Stop Loss</div>
+                                            <div class="detail-metric-value">$${formatNumber(opp.stop_loss)}</div>
+                                        </div>
+                                        <div class="detail-metric">
+                                            <div class="detail-metric-label">Potential Profit</div>
+                                            <div class="detail-metric-value">$${formatNumber(Math.abs(opp.target_price - opp.current_price))}</div>
+                                        </div>
+                                        <div class="detail-metric">
+                                            <div class="detail-metric-label">Potential Loss</div>
+                                            <div class="detail-metric-value">$${formatNumber(Math.abs(opp.current_price - opp.stop_loss))}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="detail-section">
+                                    <div class="detail-section-title">Risk Metrics</div>
+                                    <div class="detail-metrics">
+                                        <div class="detail-metric">
+                                            <div class="detail-metric-label">Risk/Reward Ratio</div>
+                                            <div class="detail-metric-value">${formatNumber(opp.risk_reward_ratio)}</div>
+                                        </div>
+                                        <div class="detail-metric">
+                                            <div class="detail-metric-label">Confidence Level</div>
+                                            <div class="detail-metric-value">${formatNumber((opp.confidence || 0) * 100, 0)}%</div>
+                                        </div>
+                                        <div class="detail-metric">
+                                            <div class="detail-metric-label">Time Horizon</div>
+                                            <div class="detail-metric-value">${opp.time_horizon_minutes} minutes</div>
+                                        </div>
+                                        <div class="detail-metric">
+                                            <div class="detail-metric-label">Urgency</div>
+                                            <div class="detail-metric-value table-cell-${opp.urgency?.toLowerCase() || 'low'}">${opp.urgency || 'N/A'}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div style="margin-top: 12px; text-align: center;">
+                                <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;" 
+                                        onclick="toggleDetailPanel('${opp.symbol}')">
+                                    <span id="detail-toggle-${opp.symbol}">Show Details</span>
+                                </button>
+                                <input type="checkbox" class="opportunity-checkbox" style="margin-left: 12px;"
+                                       onchange="toggleSelection('${opp.symbol}', this.checked)">
+                                <span style="color: #888; font-size: 12px; margin-left: 4px;">Compare</span>
+                            </div>
+                        </div>
+                    `;
+                } catch (error) {
+                    logError(`Error rendering opportunity ${index}`, error);
+                    return ''; // Skip this opportunity
+                }
+            }).filter(html => html !== '').join(''); // Remove empty strings
+        }
+        
+        function getTimeRemaining(expiresAt) {
+            try {
+                const now = new Date();
+                const expires = new Date(expiresAt);
+                
+                if (isNaN(expires.getTime())) {
+                    logError('Invalid expires_at timestamp', expiresAt);
+                    return { minutes: 0, text: 'Invalid' };
+                }
+                
+                const diff = expires - now;
+                
+                if (diff <= 0) {
+                    return { minutes: 0, text: 'Expired' };
+                }
+                
+                const minutes = Math.floor(diff / 60000);
+                const seconds = Math.floor((diff % 60000) / 1000);
+                
+                if (minutes > 0) {
+                    return { minutes, text: `${minutes}m ${seconds}s` };
+                } else {
+                    return { minutes: 0, text: `${seconds}s` };
+                }
+            } catch (error) {
+                logError('Error calculating time remaining', error);
+                return { minutes: 0, text: 'Error' };
+            }
+        }
+        
+        // ========================================================================
+        // FILTERS AND SORTING
+        // ========================================================================
+        let filterDebounceTimer = null;
+        let currentApiFilters = {}; // Track current API filters for auto-refresh
+        
+        function getCurrentFilters() {
+            const filterSymbol = document.getElementById('filter-symbol')?.value || 'all';
+            const minConfidence = parseInt(document.getElementById('min-confidence')?.value || '0') / 100;
+            
+            const apiFilters = {};
+            if (filterSymbol !== 'all') {
+                apiFilters.symbol = filterSymbol;
+            }
+            if (minConfidence > 0) {
+                apiFilters.min_confidence = minConfidence;
+            }
+            return apiFilters;
+        }
+        
+        function applyFilters() {
+            // Debounce filter changes (wait 300ms before fetching)
+            if (filterDebounceTimer) {
+                clearTimeout(filterDebounceTimer);
+            }
+            
+            filterDebounceTimer = setTimeout(() => {
+                const sortBy = document.getElementById('sort-by')?.value || 'confidence';
+                const filterType = document.getElementById('filter-type')?.value || 'all';
+                
+                // Build filter object for API call
+                const apiFilters = getCurrentFilters();
+                currentApiFilters = apiFilters; // Store for auto-refresh
+                
+                // Fetch with filters
+                fetchOpportunities(apiFilters).then(() => {
+                    // Apply client-side filters (type filter)
+                    filteredOpportunities = opportunities.filter(opp => {
+                        if (filterType !== 'all' && opp.opportunity_type !== filterType) {
+                            return false;
+                        }
+                        return true;
+                    });
+                    
+                    // Sort (client-side, as backend doesn't support custom sorting)
+                    filteredOpportunities.sort((a, b) => {
+                        switch(sortBy) {
+                            case 'confidence':
+                                return b.confidence - a.confidence;
+                            case 'urgency':
+                                const urgencyOrder = { 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
+                                return urgencyOrder[b.urgency] - urgencyOrder[a.urgency];
+                            case 'move':
+                                return Math.abs(b.predicted_move_percent) - Math.abs(a.predicted_move_percent);
+                            case 'time':
+                                return a.time_horizon_minutes - b.time_horizon_minutes;
+                            default:
+                                return 0;
+                        }
+                    });
+                    
+                    renderOpportunities();
+                    updateSummary();
+                }).catch(error => {
+                    logError('Error applying filters', error);
+                    // Still render with current opportunities (may be empty)
+                    renderOpportunities();
+                    updateSummary();
+                });
+            }, 300);
+        }
+        
+        // Initialize table sorting after DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupTableSorting);
+        } else {
+            setupTableSorting();
+        }
+        
+        function updateSummary() {
+            // Handle empty arrays gracefully
+            const totalEl = document.getElementById('total-opportunities');
+            const highConfEl = document.getElementById('high-confidence');
+            const avgMoveEl = document.getElementById('avg-move');
+            const highUrgEl = document.getElementById('high-urgency');
+            const avgRiskRewardEl = document.getElementById('avg-risk-reward');
+            const bestOppEl = document.getElementById('best-opportunity');
+            
+            if (!totalEl || !highConfEl || !avgMoveEl || !highUrgEl) {
+                logError('Summary elements not found');
+                return;
+            }
+            
+            const total = opportunities.length || 0;
+            totalEl.textContent = total;
+            
+            const highConfidence = opportunities.filter(o => o && typeof o.confidence === 'number' && o.confidence >= 0.75).length;
+            highConfEl.textContent = highConfidence;
+            
+            let avgMove = '0.00';
+            if (opportunities.length > 0) {
+                const validMoves = opportunities
+                    .filter(o => o && typeof o.predicted_move_percent === 'number' && isFinite(o.predicted_move_percent))
+                    .map(o => Math.abs(o.predicted_move_percent));
+                if (validMoves.length > 0) {
+                    avgMove = (validMoves.reduce((sum, m) => sum + m, 0) / validMoves.length).toFixed(2);
+                }
+            }
+            avgMoveEl.textContent = `${avgMove}%`;
+            
+            const highUrgency = opportunities.filter(o => o && o.urgency === 'HIGH').length;
+            highUrgEl.textContent = highUrgency;
+            
+            // Enhanced metrics
+            if (avgRiskRewardEl) {
+                let avgRiskReward = '0.00';
+                if (opportunities.length > 0) {
+                    const validRatios = opportunities
+                        .filter(o => o && typeof o.risk_reward_ratio === 'number' && isFinite(o.risk_reward_ratio))
+                        .map(o => o.risk_reward_ratio);
+                    if (validRatios.length > 0) {
+                        avgRiskReward = (validRatios.reduce((sum, r) => sum + r, 0) / validRatios.length).toFixed(2);
+                    }
+                }
+                avgRiskRewardEl.textContent = avgRiskReward;
+            }
+            
+            if (bestOppEl) {
+                let bestSymbol = '--';
+                if (opportunities.length > 0) {
+                    const best = opportunities.reduce((best, opp) => {
+                        if (!best) return opp;
+                        return (opp.confidence || 0) > (best.confidence || 0) ? opp : best;
+                    }, null);
+                    if (best) {
+                        bestSymbol = best.symbol || '--';
+                    }
+                }
+                bestOppEl.textContent = bestSymbol;
+            }
+        }
+        
+        // ========================================================================
+        // ACTIONS
+        // ========================================================================
+        function viewChart(symbol, opportunityData = null) {
+            // Normalize symbol to uppercase for consistency
+            const normalizedSymbol = symbol.toUpperCase();
+            let url = `../chartview/index.html?symbol=${encodeURIComponent(normalizedSymbol)}&showPredictions=true`;
+            
+            // Pass additional context if available
+            if (opportunityData && opportunityData.created_at) {
+                url += `&highlightTime=${encodeURIComponent(opportunityData.created_at)}`;
+            }
+            if (opportunityData && opportunityData.current_price) {
+                url += `&highlightPrice=${encodeURIComponent(opportunityData.current_price)}`;
+            }
+            
+            window.location.href = url;
+        }
+        
+        function dismissOpportunity(symbol) {
+            opportunities = opportunities.filter(o => o.symbol !== symbol);
+            selectedOpportunities.delete(symbol);
+            updateSelectionUI();
+            applyFilters();
+        }
+        
+        function toggleDetailPanel(symbol) {
+            const panel = document.getElementById(`detail-${symbol}`);
+            const toggle = document.getElementById(`detail-toggle-${symbol}`);
+            if (panel && toggle) {
+                if (panel.classList.contains('expanded')) {
+                    panel.classList.remove('expanded');
+                    toggle.textContent = 'Show Details';
+                } else {
+                    panel.classList.add('expanded');
+                    toggle.textContent = 'Hide Details';
+                }
+            }
+        }
+        
+        // ========================================================================
+        // BACKEND CONNECTION
+        // ========================================================================
+        async function checkBackend() {
+            try {
+                const response = await fetch(`${API_BASE}/dashboard/metrics`);
+                const statusEl = document.getElementById('status');
+                if (response.ok) {
+                    statusEl.textContent = 'Connected';
+                    statusEl.className = 'status-badge connected';
+                    return true;
+                } else {
+                    statusEl.textContent = 'Disconnected';
+                    statusEl.className = 'status-badge disconnected';
+                    return false;
+                }
+            } catch (error) {
+                document.getElementById('status').textContent = 'Disconnected';
+                document.getElementById('status').className = 'status-badge disconnected';
+                return false;
+            }
+        }
+        
+        // ========================================================================
+        // INITIALIZATION
+        // ========================================================================
+        function init() {
+            // #region agent log - Debug navigation links
+            // Instrument navigation links to debug why they don't work
+            const navLinks = document.querySelectorAll('.nav a');
+            fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'opportunities/index.html:init',message:'Nav links found',data:{count:navLinks.length,links:Array.from(navLinks).map(a=>({href:a.href,target:a.target,display:window.getComputedStyle(a).display,visibility:window.getComputedStyle(a).visibility,pointerEvents:window.getComputedStyle(a).pointerEvents,zIndex:window.getComputedStyle(a).zIndex}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            
+            navLinks.forEach((link, index) => {
+                link.addEventListener('click', (e) => {
+                    fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'opportunities/index.html:nav-click',message:'Nav link clicked',data:{href:link.href,target:link.target,defaultPrevented:e.defaultPrevented,isTrusted:e.isTrusted},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                }, true);
+            });
+            // #endregion
+            console.log('🚀 Trade Opportunities View - Initializing...');
+            
+            // Setup event listeners
+            document.getElementById('sort-by').addEventListener('change', applyFilters);
+            document.getElementById('filter-type').addEventListener('change', applyFilters);
+            document.getElementById('min-confidence').addEventListener('input', applyFilters);
+            document.getElementById('filter-symbol').addEventListener('change', applyFilters);
+            
+            // Populate symbol filter with common symbols (will be updated when opportunities load)
+            const commonSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT'];
+            const symbolSelect = document.getElementById('filter-symbol');
+            commonSymbols.forEach(symbol => {
+                const option = document.createElement('option');
+                option.value = symbol;
+                option.textContent = symbol;
+                symbolSelect.appendChild(option);
+            });
+            
+            // Function to update symbol filter from opportunities
+            function updateSymbolFilter() {
+                const existingSymbols = new Set(commonSymbols);
+                opportunities.forEach(opp => {
+                    if (opp.symbol && !existingSymbols.has(opp.symbol)) {
+                        existingSymbols.add(opp.symbol);
+                        const option = document.createElement('option');
+                        option.value = opp.symbol;
+                        option.textContent = opp.symbol;
+                        symbolSelect.appendChild(option);
+                    }
+                });
+            }
+            
+            // Check backend
+            checkBackend();
+            setInterval(checkBackend, 5000);
+            
+            // Fetch opportunities
+            // Initial fetch with no filters
+            fetchOpportunities({}).then(() => {
+                currentApiFilters = {};
+                updateSymbolFilter();
+                applyFilters();
+            }).catch(error => {
+                logError('Failed to initialize opportunities', error);
+                // Still apply filters with empty array
+                applyFilters();
+            });
+            
+            // Retry function for manual retry
+            window.retryFetch = async function() {
+                try {
+                    updateStatus('Retrying...', 'retrying');
+                    await fetchOpportunities(currentApiFilters);
+                    updateSymbolFilter();
+                    applyFilters();
+                } catch (error) {
+                    logError('Retry failed', error);
+                }
+            };
+            
+            // Auto-refresh every 15 seconds (preserve current filters)
+            updateInterval = setInterval(async () => {
+                await fetchOpportunities(currentApiFilters);
+                updateSymbolFilter();
+                // Re-apply client-side filters and sorting
+                const sortBy = document.getElementById('sort-by')?.value || 'confidence';
+                const filterType = document.getElementById('filter-type')?.value || 'all';
+                
+                filteredOpportunities = opportunities.filter(opp => {
+                    if (filterType !== 'all' && opp.opportunity_type !== filterType) {
+                        return false;
+                    }
+                    return true;
+                });
+                
+                filteredOpportunities.sort((a, b) => {
+                    switch(sortBy) {
+                        case 'confidence':
+                            return b.confidence - a.confidence;
+                        case 'urgency':
+                            const urgencyOrder = { 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
+                            return urgencyOrder[b.urgency] - urgencyOrder[a.urgency];
+                        case 'move':
+                            return Math.abs(b.predicted_move_percent) - Math.abs(a.predicted_move_percent);
+                        case 'time':
+                            return a.time_horizon_minutes - b.time_horizon_minutes;
+                        default:
+                            return 0;
+                    }
+                });
+                
+                renderOpportunities();
+                updateSummary();
+            }, 15000);
+            
+            // Update countdown timers every second
+            setInterval(() => {
+                if (filteredOpportunities.length > 0) {
+                    renderOpportunities();
+                }
+            }, 1000);
+            
+            // Setup table sorting
+            setTimeout(setupTableSorting, 100);
+            
+            // Setup help
+            if (window.helpSystem) {
+                const helpBtn = document.getElementById('help-btn');
+                if (helpBtn) {
+                    helpBtn.addEventListener('click', () => {
+                        window.helpSystem.showHelpModal(`
+                            <h3 style="color: #4ade80; margin-bottom: 15px;">Trade Opportunities Help</h3>
+                            <div style="line-height: 1.8;">
+                                <h4 style="color: #4ade80; margin-top: 20px; margin-bottom: 10px;">Overview</h4>
+                                <p>This view shows upcoming trade opportunities identified by the ML prediction engine. Each opportunity includes:</p>
+                                <ul style="margin-left: 20px; margin-top: 10px;">
+                                    <li><strong>Predicted Move:</strong> Expected price movement percentage</li>
+                                    <li><strong>Confidence:</strong> ML engine confidence level (0-100%)</li>
+                                    <li><strong>Time Horizon:</strong> When the predicted move should occur</li>
+                                    <li><strong>Risk/Reward:</strong> Ratio of potential profit to potential loss</li>
+                                    <li><strong>Urgency:</strong> Time sensitivity (HIGH/MEDIUM/LOW)</li>
+                                </ul>
+                                
+                                <h4 style="color: #4ade80; margin-top: 20px; margin-bottom: 10px;">Filters</h4>
+                                <ul style="margin-left: 20px; margin-top: 10px;">
+                                    <li><strong>Sort by:</strong> Order opportunities by confidence, urgency, expected move, or time</li>
+                                    <li><strong>Filter by:</strong> Show only BUY or SELL opportunities</li>
+                                    <li><strong>Min Confidence:</strong> Only show opportunities above this confidence threshold</li>
+                                    <li><strong>Symbol:</strong> Filter by specific trading pair</li>
+                                </ul>
+                                
+                                <h4 style="color: #4ade80; margin-top: 20px; margin-bottom: 10px;">Actions</h4>
+                                <ul style="margin-left: 20px; margin-top: 10px;">
+                                    <li><strong>View Chart:</strong> Opens chartview with this symbol and predictions enabled</li>
+                                    <li><strong>Dismiss:</strong> Remove opportunity from view</li>
+                                </ul>
+                                
+                                <h4 style="color: #4ade80; margin-top: 20px; margin-bottom: 10px;">Auto-Refresh</h4>
+                                <p>Opportunities update automatically every 15 seconds. Countdown timers update every second.</p>
+                            </div>
+                        `);
+                    });
+                }
+            }
+            
+            console.log('✅ Trade Opportunities View initialized');
+        }
+        
+        function log(message, data = {}) {
+            const timestamp = new Date().toISOString();
+            console.log(`[Opportunities] [${timestamp}] ${message}`, data);
+        }
+        
+        function logError(message, error = null) {
+            const timestamp = new Date().toISOString();
+            console.error(`[ERROR] [Opportunities] [${timestamp}] ${message}`, error || '');
+        }
+        
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
+

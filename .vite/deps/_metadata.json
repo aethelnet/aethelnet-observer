@@ -1,0 +1,23 @@
+{
+  "hash": "5f8623fd",
+  "browserHash": "f7277fdf",
+  "optimized": {
+    "vue": {
+      "src": "../../node_modules/vue/dist/vue.runtime.esm-bundler.js",
+      "file": "vue.js",
+      "fileHash": "1a073376",
+      "needsInterop": false
+    },
+    "pinia": {
+      "src": "../../node_modules/pinia/dist/pinia.mjs",
+      "file": "pinia.js",
+      "fileHash": "2719bcf7",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-I6UDLNKD": {
+      "file": "chunk-I6UDLNKD.js"
+    }
+  }
+}
