@@ -1,0 +1,104 @@
+class BlankCanvasApp {
+    constructor() {
+        this.canvas = document.getElementById('manifold-canvas');
+        this.ctx = this.canvas.getContext('2d');
+        
+        // Viewport
+        this.panX = 0;
+        this.panY = 0;
+        this.zoom = 1.0;
+        this.isPanning = false;
+        this.startX = 0;
+        this.startY = 0;
+
+        // One single node in the middle
+        this.node = { x: 0, y: 0, id: "Central_Node" };
+
+        this.init();
+    }
+
+    init() {
+        window.addEventListener('resize', () => this.resize());
+        this.resize();
+
+        // Mouse Events
+        this.canvas.addEventListener('mousedown', (e) => {
+            this.isPanning = true;
+            this.startX = e.clientX - this.panX;
+            this.startY = e.clientY - this.panY;
+        });
+
+        this.canvas.addEventListener('mousemove', (e) => {
+            if (!this.isPanning) return;
+            this.panX = e.clientX - this.startX;
+            this.panY = e.clientY - this.startY;
+        });
+
+        window.addEventListener('mouseup', () => {
+            this.isPanning = false;
+        });
+
+        this.canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomFactor = 1.1;
+            const direction = e.deltaY > 0 ? -1 : 1;
+            const zoomChange = direction > 0 ? zoomFactor : 1 / zoomFactor;
+            
+            // Zoom towards mouse
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            this.panX = mouseX - (mouseX - this.panX) * zoomChange;
+            this.panY = mouseY - (mouseY - this.panY) * zoomChange;
+            this.zoom *= zoomChange;
+            
+            this.zoom = Math.max(0.1, Math.min(this.zoom, 10.0));
+        }, { passive: false });
+
+        // Start render loop
+        requestAnimationFrame(() => this.draw());
+    }
+
+    resize() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        
+        // Center the view on start
+        if (this.panX === 0 && this.panY === 0) {
+            this.panX = this.canvas.width / 2;
+            this.panY = this.canvas.height / 2;
+        }
+    }
+
+    draw() {
+        const ctx = this.ctx;
+        
+        // Light grey background (already set in CSS, but clearing canvas)
+        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        ctx.save();
+        
+        // Apply camera transforms
+        ctx.translate(this.panX, this.panY);
+        ctx.scale(this.zoom, this.zoom);
+        
+        // Draw the single central node
+        ctx.beginPath();
+        ctx.arc(this.node.x, this.node.y, 20, 0, Math.PI * 2);
+        ctx.fillStyle = '#333333'; // Dark grey node
+        ctx.fill();
+        ctx.strokeStyle = '#111111';
+        ctx.lineWidth = 2 / this.zoom;
+        ctx.stroke();
+
+        ctx.restore();
+        
+        requestAnimationFrame(() => this.draw());
+    }
+}
+
+// Initialize on load
+window.addEventListener('DOMContentLoaded', () => {
+    window.app = new BlankCanvasApp();
+});

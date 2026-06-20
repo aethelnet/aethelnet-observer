@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sovereign Swarm - Sphere UI</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#000000">
+    
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Fullscreen Canvas -->
+    <div id="manifold-canvas" class="canvas-container"></div>
+    
+    <!-- Hologram Layer (Canvas Overlay for Interactive Widgets) -->
+    <div id="hologram-layer" style="position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 5; overflow: hidden;"></div>
+
+
+    <!-- UI Overlay container -->
+    <div id="ui-layer">
+        
+        <!-- Top Left: Aethel Balance (Glowing Core) -->
+        <div id="wallet-hud" class="floating-hud">
+            <div class="glow-ring"></div>
+            <div class="wallet-text">
+                <span class="wallet-amount" id="val-aethel">0.0000</span>
+                <span class="wallet-symbol">$AETHEL</span>
+            </div>
+        </div>
+
+        <!-- Top Right: Gear & Toggles -->
+        <div id="settings-hud" class="floating-hud settings-panel">
+            <div id="settings-toggle" class="sys-btn">[ SYS_CFG ]</div>
+            <div id="settings-menu" class="hidden">
+                <div class="status-indicator">
+                    <div id="ws-light" class="indicator-light disconnected"></div>
+                    <span id="ws-status">Disconnected</span>
+                </div>
+                <hr>
+                <label class="bauhaus-toggle" style="background: var(--text-color); color: var(--bg-color); padding: 5px; display: block;">
+                    <input type="checkbox" id="chk-workbench"> 
+                    <span class="toggle-text" style="color: var(--accent-yellow); font-weight: bold;">[ WORKBENCH MODE ]</span>
+                </label>
+                <hr>
+                <label class="bauhaus-toggle"><input type="checkbox" id="chk-gossip"> <span class="toggle-text">Show Gossip</span></label>
+                <label class="bauhaus-toggle"><input type="checkbox" id="chk-network" checked> <span class="toggle-text">Network Nodes</span></label>
+                <label class="bauhaus-toggle"><input type="checkbox" id="chk-stream" checked> <span class="toggle-text">Live Streams</span></label>
+                <hr>
+                <div class="perf-metric" style="font-size: 0.8rem; font-family: var(--font-mono); margin-bottom: 0.5rem; display: flex; justify-content: space-between;">
+                    <span>SYS_LOAD:</span>
+                    <strong id="fps-counter" style="color: var(--accent-blue);">60 FPS</strong>
+                </div>
+                <label class="bauhaus-toggle"><input type="checkbox" id="chk-keystrokes" checked> <span class="toggle-text">Biometrics (Keystrokes)</span></label>
+                <hr>
+                <button id="btn-reconnect" class="icon-btn" style="width: 100%; border: var(--panel-border);">FORCE_SYNC</button>
+            </div>
+        </div>
+
+        <!-- Bottom: Tuner Input (Floating) -->
+        <div class="tuner-container floating-tuner">
+            <div class="tuner-wrapper">
+                <button class="icon-btn" id="btn-upload" title="Inject File" onclick="document.getElementById('file-upload').click()">[ + ]</button>
+                <input type="file" id="file-upload" style="display: none;">
+                <input type="text" id="resonance-tuner" placeholder="Type directly into the void...">
+            </div>
+        </div>
+
+        <!-- Inspector Panel (Floating Right) -->
+        <div id="inspector-hud" class="floating-hud panel floating-inspector" style="top: 80px; right: 20px; display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--text-color); margin-bottom: 10px; padding-bottom: 5px;">
+                <h3 id="inspector-title" style="margin: 0; border: none; padding: 0; width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Node Details</h3>
+                <button id="btn-close-inspector" class="icon-btn" style="padding: 2px 8px; border: 2px solid var(--text-color); margin-left: 10px;">X</button>
+            </div>
+            <div class="meta-row">
+                <span>Confidence:</span> <strong id="inspector-confidence">--</strong>
+            </div>
+            <div class="meta-row">
+                <span>Tag:</span> <strong id="inspector-tag">--</strong>
+            </div>
+            <div class="terminal-log" id="inspector-content" style="max-height: 300px; white-space: pre-wrap;">
+                [Awaiting Data...]
+            </div>
+            <hr>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button id="btn-pin-node" class="icon-btn" style="flex: 1; border: 2px solid var(--text-color); border-left: none;">[ PIN ]</button>
+                <button id="btn-delete-node" class="icon-btn" style="flex: 1; border: 2px solid var(--text-color); color: var(--accent-red);">[ DEL ]</button>
+            </div>
+        </div>
+
+        <!-- Event Log (Floating Bottom Left) -->
+        <section class="panel log-panel floating-log">
+            <div id="event-log" class="terminal-log"></div>
+        </section>
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js?v=2"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(err => console.error(err));
+            });
+        }
+        
+        // Gear Menu Toggle
+        document.getElementById('settings-toggle').addEventListener('click', () => {
+            document.getElementById('settings-menu').classList.toggle('hidden');
+        });
+    </script>
+</body>
+</html>

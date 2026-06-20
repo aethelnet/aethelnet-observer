@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Info Hub - Data Visualization & Insights - Port 1430</title>
+    
+    <!-- Chart Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+    
+    <link rel="stylesheet" href="../shared.css">
+    <script src="navigation.js"></script>
+    <script src="../help-system.js" defer></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: var(--font-family);
+            background: var(--color-bg);
+            color: var(--color-text);
+            padding: var(--spacing-xl);
+            overflow-x: hidden;
+        }
+        
+        .container {
+            max-width: 2000px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            margin-bottom: var(--spacing-xxl);
+            padding-bottom: var(--spacing-xl);
+            border-bottom: 1px solid var(--color-accent-border);
+        }
+        
+        .header h1 {
+            font-size: var(--font-size-xxxl);
+            color: var(--color-accent);
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .header p {
+            color: var(--color-text-muted);
+            font-size: var(--font-size-base);
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 12px;
+        }
+        
+        .status-badge.connected {
+            background: var(--color-accent-dark);
+            color: var(--color-accent);
+            border: 1px solid var(--color-accent-border);
+        }
+        
+        .status-badge.disconnected {
+            background: var(--color-danger-dark);
+            color: var(--color-danger);
+            border: 1px solid var(--color-danger-border);
+        }
+        
+        .controls {
+            display: flex;
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-xl);
+            flex-wrap: wrap;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+        
+        .control-label {
+            color: var(--color-text-muted);
+            font-size: var(--font-size-sm);
+        }
+        
+        select, input {
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-accent-border);
+            color: var(--color-text);
+            padding: 6px 12px;
+            border-radius: var(--border-radius-sm);
+            font-size: var(--font-size-sm);
+        }
+        
+        .sections-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: var(--spacing-xl);
+            margin-bottom: var(--spacing-xxl);
+        }
+        
+        .section-card {
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-accent-border);
+            border-radius: var(--border-radius-lg);
+            padding: var(--spacing-xl);
+            position: relative;
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-lg);
+            padding-bottom: var(--spacing-md);
+            border-bottom: 1px solid var(--color-accent-border);
+        }
+        
+        .section-title {
+            font-size: var(--font-size-xl);
+            color: var(--color-accent);
+            font-weight: 600;
+        }
+        
+        .section-toggle {
+            background: none;
+            border: none;
+            color: var(--color-text-muted);
+            cursor: pointer;
+            font-size: 20px;
+            padding: 4px;
+        }
+        
+        .section-toggle:hover {
+            color: var(--color-accent);
+        }
+        
+        .contextual-note {
+            background: rgba(74, 222, 128, 0.1);
+            border-left: 3px solid var(--color-accent);
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+            border-radius: var(--border-radius-sm);
+        }
+        
+        .contextual-note.warning {
+            background: rgba(251, 191, 36, 0.1);
+            border-left-color: var(--color-warning);
+        }
+        
+        .contextual-note.danger {
+            background: rgba(248, 113, 113, 0.1);
+            border-left-color: var(--color-danger);
+        }
+        
+        .contextual-note-title {
+            font-weight: 600;
+            color: var(--color-accent);
+            margin-bottom: var(--spacing-xs);
+            font-size: var(--font-size-sm);
+            text-transform: uppercase;
+        }
+        
+        .contextual-note.warning .contextual-note-title {
+            color: var(--color-warning);
+        }
+        
+        .contextual-note.danger .contextual-note-title {
+            color: var(--color-danger);
+        }
+        
+        .contextual-note-text {
+            color: var(--color-text);
+            font-size: var(--font-size-sm);
+            line-height: 1.6;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .chart-container.full-width {
+            height: 400px;
+        }
+        
+        .chart-container.tall {
+            height: 500px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--color-text-muted);
+        }
+        
+        .heatmap-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .heatmap-cell {
+            aspect-ratio: 1;
+            border-radius: var(--border-radius-sm);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: var(--spacing-xs);
+            font-size: var(--font-size-xs);
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .heatmap-cell:hover {
+            transform: scale(1.1);
+            z-index: 10;
+        }
+        
+        .heatmap-cell.positive {
+            background: rgba(74, 222, 128, 0.3);
+            color: var(--color-accent);
+        }
+        
+        .heatmap-cell.negative {
+            background: rgba(248, 113, 113, 0.3);
+            color: var(--color-danger);
+        }
+        
+        .heatmap-cell.neutral {
+            background: rgba(156, 163, 175, 0.2);
+            color: var(--color-text-muted);
+        }
+        
+        .timeline-container {
+            position: relative;
+            height: 200px;
+            margin: var(--spacing-lg) 0;
+            border: 1px solid var(--color-accent-border);
+            border-radius: var(--border-radius-sm);
+            padding: var(--spacing-md);
+            background: rgba(0, 0, 0, 0.3);
+        }
+        
+        .timeline-now {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--color-accent);
+            z-index: 100;
+        }
+        
+        .timeline-event {
+            position: absolute;
+            height: 40px;
+            border-radius: var(--border-radius-sm);
+            padding: var(--spacing-xs);
+            font-size: var(--font-size-xs);
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .timeline-event:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .countdown-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: var(--border-radius-sm);
+            font-size: var(--font-size-xs);
+            font-weight: 600;
+            margin: 2px;
+        }
+        
+        .countdown-indicator.green {
+            background: rgba(74, 222, 128, 0.2);
+            color: var(--color-accent);
+        }
+        
+        .countdown-indicator.yellow {
+            background: rgba(251, 191, 36, 0.2);
+            color: var(--color-warning);
+        }
+        
+        .countdown-indicator.red {
+            background: rgba(248, 113, 113, 0.2);
+            color: var(--color-danger);
+        }
+        
+        .help-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--color-accent-dark);
+            border: 2px solid var(--color-accent-border);
+            color: var(--color-accent);
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: all 0.2s;
+        }
+        
+        .help-btn:hover {
+            background: var(--color-accent-hover);
+            transform: scale(1.1);
+        }
+        
+        .section-collapsed {
+            display: none;
+        }
+        
+        @media (max-width: 1400px) {
+            .sections-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                📊 Info Hub - Data Visualization & Insights
+                <span class="status-badge disconnected" id="backend-status">Disconnected</span>
+            </h1>
+            <p>Comprehensive data visualizations with contextual insights. Real-time updates every 5 seconds.</p>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label class="control-label">Symbol Filter:</label>
+                <select id="symbol-filter">
+                    <option value="">All Symbols</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Time Range:</label>
+                <select id="time-range">
+                    <option value="1h">Last Hour</option>
+                    <option value="24h" selected>Last 24 Hours</option>
+                    <option value="7d">Last 7 Days</option>
+                    <option value="30d">Last 30 Days</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="sections-grid" id="sections-grid">
+            <!-- Sections will be dynamically created -->
+        </div>
+    </div>
+    
+    <button class="help-btn" onclick="window.helpSystem?.showHelp()" title="Help (F1)">?</button>
+    
+    <script>
+        // API Configuration
+        const API_BASE = 'http://127.0.0.1:8000/api';
+        
+        // State
+        let metricsData = null;
+        let marketData = [];
+        let positions = [];
+        let trades = [];
+        let opportunities = [];
+        let predictions = {};
+        let autoDiscovery = null;
+        
+        let updateInterval = null;
+        let charts = {};
+        
+        // Initialize
+        async function init() {
+            await fetchAllData();
+            renderAllSections();
+            setupAutoRefresh();
+            setupFilters();
+        }
+        
+        // Fetch all data
+        async function fetchAllData() {
+            try {
+                const [metrics, market, pos, recentTrades, opps, autoDisc] = await Promise.all([
+                    fetch(`${API_BASE}/dashboard/metrics`).then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch(`${API_BASE}/dashboard/market-data`).then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch(`${API_BASE}/dashboard/positions`).then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch(`${API_BASE}/dashboard/recent-trades?limit=100`).then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch(`${API_BASE}/opportunities/symbols`).then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch(`${API_BASE}/auto-discovery/status`).then(r => r.ok ? r.json() : null).catch(() => null)
+                ]);
+                
+                metricsData = metrics;
+                marketData = market || [];
+                positions = pos || [];
+                trades = recentTrades || [];
+                opportunities = opps || [];
+                autoDiscovery = autoDisc;
+                
+                // Update status
+                const statusEl = document.getElementById('backend-status');
+                if (statusEl) {
+                    statusEl.textContent = 'Connected';
+                    statusEl.className = 'status-badge connected';
+                }
+                
+                // Update symbol filter
+                updateSymbolFilter();
+                
+            } catch (error) {
+                console.error('[InfoHub] Error fetching data:', error);
+                const statusEl = document.getElementById('backend-status');
+                if (statusEl) {
+                    statusEl.textContent = 'Disconnected';
+                    statusEl.className = 'status-badge disconnected';
+                }
+            }
+        }
+        
+        function updateSymbolFilter() {
+            const filter = document.getElementById('symbol-filter');
+            if (!filter) return;
+            
+            const symbols = new Set();
+            marketData.forEach(m => symbols.add(m.symbol));
+            opportunities.forEach(o => {
+                if (o.symbol) symbols.add(o.symbol);
+                if (o.opportunities) {
+                    o.opportunities.forEach(opp => {
+                        if (opp.symbol) symbols.add(opp.symbol);
+                    });
+                }
+            });
+            
+            const currentValue = filter.value;
+            filter.innerHTML = '<option value="">All Symbols</option>';
+            Array.from(symbols).sort().forEach(symbol => {
+                const option = document.createElement('option');
+                option.value = symbol;
+                option.textContent = symbol;
+                filter.appendChild(option);
+            });
+            filter.value = currentValue;
+        }
+        
+        function setupFilters() {
+            const symbolFilter = document.getElementById('symbol-filter');
+            const timeRange = document.getElementById('time-range');
+            
+            if (symbolFilter) {
+                symbolFilter.addEventListener('change', () => renderAllSections());
+            }
+            if (timeRange) {
+                timeRange.addEventListener('change', () => renderAllSections());
+            }
+        }
+        
+        function setupAutoRefresh() {
+            if (updateInterval) clearInterval(updateInterval);
+            updateInterval = setInterval(async () => {
+                await fetchAllData();
+                renderAllSections();
+            }, 5000);
+        }
+        
+        function renderAllSections() {
+            const grid = document.getElementById('sections-grid');
+            if (!grid) return;
+            
+            grid.innerHTML = '';
+            
+            // 1. Performance Dashboard
+            grid.appendChild(createPerformanceSection());
+            
+            // 2. Market Overview
+            grid.appendChild(createMarketOverviewSection());
+            
+            // 3. Opportunities Analysis
+            grid.appendChild(createOpportunitiesSection());
+            
+            // 4. Timer & Window Visualization
+            grid.appendChild(createTimerVisualizationSection());
+            
+            // 5. Position Analysis
+            grid.appendChild(createPositionAnalysisSection());
+            
+            // 6. Trade Execution Analysis
+            grid.appendChild(createTradeExecutionSection());
+            
+            // 7. Auto-Discovery Insights
+            if (autoDiscovery) {
+                grid.appendChild(createAutoDiscoverySection());
+            }
+        }
+        
+        // Section creators (will be implemented next)
+        function createPerformanceSection() {
+            const section = createSectionCard('Performance Dashboard', 'performance');
+            
+            // Contextual note
+            section.appendChild(createContextualNote(
+                'What to Watch',
+                'Watch for consistent upward trend in equity curve. Drawdowns should be shallow and recover quickly. Win rate should be stable or improving over time.',
+                'info'
+            ));
+            
+            // Equity Curve Chart
+            const equityCard = document.createElement('div');
+            equityCard.className = 'chart-container';
+            equityCard.innerHTML = '<canvas id="equity-chart"></canvas>';
+            section.appendChild(equityCard);
+            
+            // P&L Distribution
+            const pnlCard = document.createElement('div');
+            pnlCard.className = 'chart-container';
+            pnlCard.innerHTML = '<canvas id="pnl-distribution-chart"></canvas>';
+            section.appendChild(pnlCard);
+            
+            // Win Rate Trend
+            const winRateCard = document.createElement('div');
+            winRateCard.className = 'chart-container';
+            winRateCard.innerHTML = '<canvas id="winrate-chart"></canvas>';
+            section.appendChild(winRateCard);
+            
+            // Render charts after DOM is ready
+            setTimeout(() => {
+                renderEquityChart();
+                renderPnLDistribution();
+                renderWinRateTrend();
+            }, 100);
+            
+            return section;
+        }
+        
+        function createMarketOverviewSection() {
+            const section = createSectionCard('Market Overview', 'market');
+            
+            section.appendChild(createContextualNote(
+                'Key Insight',
+                'Strong signals (>2.0) with high volume are most reliable. Watch for divergences between price and volume - this can indicate trend reversals.',
+                'info'
+            ));
+            
+            // Price Heatmap
+            const heatmapDiv = document.createElement('div');
+            heatmapDiv.id = 'price-heatmap';
+            heatmapDiv.className = 'heatmap-grid';
+            section.appendChild(heatmapDiv);
+            
+            // Signal Distribution
+            const signalCard = document.createElement('div');
+            signalCard.className = 'chart-container';
+            signalCard.innerHTML = '<canvas id="signal-distribution-chart"></canvas>';
+            section.appendChild(signalCard);
+            
+            // Volume Comparison
+            const volumeCard = document.createElement('div');
+            volumeCard.className = 'chart-container';
+            volumeCard.innerHTML = '<canvas id="volume-chart"></canvas>';
+            section.appendChild(volumeCard);
+            
+            setTimeout(() => {
+                renderPriceHeatmap();
+                renderSignalDistribution();
+                renderVolumeComparison();
+            }, 100);
+            
+            return section;
+        }
+        
+        function createOpportunitiesSection() {
+            const section = createSectionCard('Opportunities Analysis', 'opportunities');
+            
+            section.appendChild(createContextualNote(
+                'What to Watch',
+                'Higher confidence (>80%) with good risk/reward (>2.0) are best. Shorter time horizons are more reliable. Monitor opportunity expiration times.',
+                'info'
+            ));
+            
+            // Confidence Distribution
+            const confCard = document.createElement('div');
+            confCard.className = 'chart-container';
+            confCard.innerHTML = '<canvas id="confidence-distribution-chart"></canvas>';
+            section.appendChild(confCard);
+            
+            // Risk/Reward Matrix
+            const rrCard = document.createElement('div');
+            rrCard.className = 'chart-container';
+            rrCard.innerHTML = '<canvas id="risk-reward-chart"></canvas>';
+            section.appendChild(rrCard);
+            
+            // Opportunity Timeline
+            const timelineDiv = document.createElement('div');
+            timelineDiv.id = 'opportunity-timeline';
+            timelineDiv.className = 'timeline-container';
+            section.appendChild(timelineDiv);
+            
+            setTimeout(() => {
+                renderConfidenceDistribution();
+                renderRiskRewardMatrix();
+                renderOpportunityTimeline();
+            }, 100);
+            
+            return section;
+        }
+        
+        function createTimerVisualizationSection() {
+            const section = createSectionCard('Timer & Window Visualization', 'timers');
+            
+            section.appendChild(createContextualNote(
+                'Important',
+                'Entry Window = when to enter the trade. Valid For = how long you have to decide/place order. Time Horizon = when the predicted move completes. These are three different concepts!',
+                'warning'
+            ));
+            
+            // Timeline visualization
+            const timelineDiv = document.createElement('div');
+            timelineDiv.id = 'timer-timeline';
+            timelineDiv.className = 'timeline-container tall';
+            section.appendChild(timelineDiv);
+            
+            // Countdown indicators
+            const countdownDiv = document.createElement('div');
+            countdownDiv.id = 'countdown-indicators';
+            countdownDiv.style.marginTop = '20px';
+            section.appendChild(countdownDiv);
+            
+            setTimeout(() => {
+                renderTimerTimeline();
+                renderCountdownIndicators();
+            }, 100);
+            
+            return section;
+        }
+        
+        function createPositionAnalysisSection() {
+            const section = createSectionCard('Position Analysis', 'positions');
+            
+            section.appendChild(createContextualNote(
+                'What to Watch',
+                'Monitor unrealized P&L closely. Long hold times may indicate stuck positions. Position size should match your risk tolerance.',
+                'info'
+            ));
+            
+            // Position P&L Chart
+            const pnlCard = document.createElement('div');
+            pnlCard.className = 'chart-container';
+            pnlCard.innerHTML = '<canvas id="position-pnl-chart"></canvas>';
+            section.appendChild(pnlCard);
+            
+            // Hold Time Distribution
+            const holdTimeCard = document.createElement('div');
+            holdTimeCard.className = 'chart-container';
+            holdTimeCard.innerHTML = '<canvas id="hold-time-chart"></canvas>';
+            section.appendChild(holdTimeCard);
+            
+            setTimeout(() => {
+                renderPositionPnL();
+                renderHoldTimeDistribution();
+            }, 100);
+            
+            return section;
+        }
+        
+        function createTradeExecutionSection() {
+            const section = createSectionCard('Trade Execution Analysis', 'execution');
+            
+            section.appendChild(createContextualNote(
+                'Key Insight',
+                'Low slippage and fast fills indicate good execution. High trade frequency may indicate overtrading. Monitor success rate by symbol.',
+                'info'
+            ));
+            
+            // Trade Frequency
+            const freqCard = document.createElement('div');
+            freqCard.className = 'chart-container';
+            freqCard.innerHTML = '<canvas id="trade-frequency-chart"></canvas>';
+            section.appendChild(freqCard);
+            
+            // Success Rate by Symbol
+            const successCard = document.createElement('div');
+            successCard.className = 'chart-container';
+            successCard.innerHTML = '<canvas id="success-rate-chart"></canvas>';
+            section.appendChild(successCard);
+            
+            setTimeout(() => {
+                renderTradeFrequency();
+                renderSuccessRateBySymbol();
+            }, 100);
+            
+            return section;
+        }
+        
+        function createAutoDiscoverySection() {
+            const section = createSectionCard('Auto-Discovery Insights', 'discovery');
+            
+            section.appendChild(createContextualNote(
+                'What to Watch',
+                'Symbols that perform well should be promoted to whitelist. Monitor discovery-to-whitelist conversion rate. Track performance differences.',
+                'info'
+            ));
+            
+            // Discovery stats
+            const statsDiv = document.createElement('div');
+            statsDiv.style.display = 'grid';
+            statsDiv.style.gridTemplateColumns = 'repeat(auto-fit, minmax(200px, 1fr))';
+            statsDiv.style.gap = '16px';
+            statsDiv.style.marginBottom = '20px';
+            
+            if (autoDiscovery?.stats) {
+                const total = Object.keys(autoDiscovery.stats.symbols || {}).length;
+                const whitelisted = Object.values(autoDiscovery.stats.symbols || {}).filter(s => 
+                    s.status?.toLowerCase() === 'whitelisted' || s.status?.toLowerCase() === 'whitelist'
+                ).length;
+                
+                statsDiv.innerHTML = `
+                    <div style="background: rgba(20,20,30,0.8); padding: 16px; border-radius: 8px; border: 1px solid rgba(74,222,128,0.2);">
+                        <div style="color: #888; font-size: 12px; margin-bottom: 8px;">Total Discovered</div>
+                        <div style="font-size: 24px; font-weight: 600; color: #4ade80;">${total}</div>
+                    </div>
+                    <div style="background: rgba(20,20,30,0.8); padding: 16px; border-radius: 8px; border: 1px solid rgba(74,222,128,0.2);">
+                        <div style="color: #888; font-size: 12px; margin-bottom: 8px;">Whitelisted</div>
+                        <div style="font-size: 24px; font-weight: 600; color: #4ade80;">${whitelisted}</div>
+                    </div>
+                    <div style="background: rgba(20,20,30,0.8); padding: 16px; border-radius: 8px; border: 1px solid rgba(74,222,128,0.2);">
+                        <div style="color: #888; font-size: 12px; margin-bottom: 8px;">Promotion Rate</div>
+                        <div style="font-size: 24px; font-weight: 600; color: #4ade80;">${total > 0 ? ((whitelisted / total) * 100).toFixed(1) : 0}%</div>
+                    </div>
+                `;
+            }
+            
+            section.appendChild(statsDiv);
+            
+            return section;
+        }
+        
+        // Helper functions
+        function createSectionCard(title, id) {
+            const card = document.createElement('div');
+            card.className = 'section-card';
+            card.id = `section-${id}`;
+            
+            const header = document.createElement('div');
+            header.className = 'section-header';
+            header.innerHTML = `
+                <div class="section-title">${title}</div>
+                <button class="section-toggle" onclick="toggleSection('${id}')">−</button>
+            `;
+            
+            card.appendChild(header);
+            return card;
+        }
+        
+        function createContextualNote(title, text, type = 'info') {
+            const note = document.createElement('div');
+            note.className = `contextual-note ${type === 'warning' ? 'warning' : type === 'danger' ? 'danger' : ''}`;
+            note.innerHTML = `
+                <div class="contextual-note-title">${title}</div>
+                <div class="contextual-note-text">${text}</div>
+            `;
+            return note;
+        }
+        
+        function toggleSection(id) {
+            const section = document.getElementById(`section-${id}`);
+            if (!section) return;
+            
+            const content = section.querySelectorAll(':not(.section-header)');
+            const toggle = section.querySelector('.section-toggle');
+            
+            const isCollapsed = Array.from(content).some(el => el.style.display === 'none');
+            
+            content.forEach(el => {
+                el.style.display = isCollapsed ? '' : 'none';
+            });
+            
+            if (toggle) {
+                toggle.textContent = isCollapsed ? '−' : '+';
+            }
+        }
+        
+        // Chart rendering functions (to be implemented)
+        function renderEquityChart() {
+            // Implementation will follow
+        }
+        
+        function renderPnLDistribution() {
+            // Implementation will follow
+        }
+        
+        function renderWinRateTrend() {
+            // Implementation will follow
+        }
+        
+        function renderPriceHeatmap() {
+            const container = document.getElementById('price-heatmap');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            const symbolFilter = document.getElementById('symbol-filter')?.value || '';
+            const filtered = marketData.filter(m => !symbolFilter || m.symbol === symbolFilter);
+            
+            filtered.forEach(market => {
+                const cell = document.createElement('div');
+                cell.className = `heatmap-cell ${market.change_24h >= 0 ? 'positive' : market.change_24h < 0 ? 'negative' : 'neutral'}`;
+                cell.innerHTML = `
+                    <div style="font-weight: 600;">${market.symbol}</div>
+                    <div style="font-size: 10px; margin-top: 4px;">${market.change_24h >= 0 ? '+' : ''}${market.change_24h?.toFixed(2) || 0}%</div>
+                `;
+                cell.title = `${market.symbol}: ${market.change_24h?.toFixed(2) || 0}% (24h)`;
+                container.appendChild(cell);
+            });
+        }
+        
+        function renderSignalDistribution() {
+            const canvas = document.getElementById('signal-distribution-chart');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            if (charts['signal-dist']) charts['signal-dist'].destroy();
+            
+            const symbolFilter = document.getElementById('symbol-filter')?.value || '';
+            const filtered = marketData.filter(m => !symbolFilter || m.symbol === symbolFilter);
+            
+            const signals = filtered.map(m => m.signal || 0);
+            const bins = [-3, -2, -1, 0, 1, 2, 3];
+            const counts = bins.map(bin => signals.filter(s => s >= bin && s < bin + 1).length);
+            
+            charts['signal-dist'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: bins.map(b => `${b} to ${b + 1}`),
+                    datasets: [{
+                        label: 'Signal Strength Distribution',
+                        data: counts,
+                        backgroundColor: bins.map(b => b >= 2 ? 'rgba(74, 222, 128, 0.6)' : b <= -2 ? 'rgba(248, 113, 113, 0.6)' : 'rgba(156, 163, 175, 0.6)'),
+                        borderColor: bins.map(b => b >= 2 ? '#4ade80' : b <= -2 ? '#f87171' : '#9ca3af'),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        x: { ticks: { color: '#888' }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+        
+        function renderVolumeComparison() {
+            const canvas = document.getElementById('volume-chart');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            if (charts['volume']) charts['volume'].destroy();
+            
+            const symbolFilter = document.getElementById('symbol-filter')?.value || '';
+            const filtered = marketData.filter(m => !symbolFilter || m.symbol === symbolFilter)
+                .sort((a, b) => (b.volume || 0) - (a.volume || 0))
+                .slice(0, 10);
+            
+            charts['volume'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: filtered.map(m => m.symbol),
+                    datasets: [{
+                        label: 'Volume',
+                        data: filtered.map(m => m.volume || 0),
+                        backgroundColor: 'rgba(74, 222, 128, 0.6)',
+                        borderColor: '#4ade80',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const vol = context.parsed.y;
+                                    if (vol >= 1e9) return `Volume: ${(vol / 1e9).toFixed(2)}B`;
+                                    if (vol >= 1e6) return `Volume: ${(vol / 1e6).toFixed(2)}M`;
+                                    if (vol >= 1e3) return `Volume: ${(vol / 1e3).toFixed(2)}K`;
+                                    return `Volume: ${vol.toFixed(0)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        x: { ticks: { color: '#888' }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+        
+        function renderConfidenceDistribution() {
+            const canvas = document.getElementById('confidence-distribution-chart');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            if (charts['confidence-dist']) charts['confidence-dist'].destroy();
+            
+            const allOpps = [];
+            opportunities.forEach(symbol => {
+                if (symbol.opportunities) {
+                    allOpps.push(...symbol.opportunities);
+                }
+            });
+            
+            const confidences = allOpps.map(o => (o.confidence || 0) * 100);
+            const bins = [0, 20, 40, 60, 80, 100];
+            const counts = bins.slice(0, -1).map((bin, i) => 
+                confidences.filter(c => c >= bin && c < bins[i + 1]).length
+            );
+            
+            charts['confidence-dist'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: bins.slice(0, -1).map((b, i) => `${b}-${bins[i + 1]}%`),
+                    datasets: [{
+                        label: 'Confidence Distribution',
+                        data: counts,
+                        backgroundColor: bins.slice(0, -1).map(b => 
+                            b >= 80 ? 'rgba(74, 222, 128, 0.6)' : 
+                            b >= 60 ? 'rgba(251, 191, 36, 0.6)' : 
+                            'rgba(248, 113, 113, 0.6)'
+                        ),
+                        borderColor: bins.slice(0, -1).map(b => 
+                            b >= 80 ? '#4ade80' : b >= 60 ? '#fbbf24' : '#f87171'
+                        ),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        x: { ticks: { color: '#888' }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+        
+        function renderRiskRewardMatrix() {
+            const canvas = document.getElementById('risk-reward-chart');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            if (charts['risk-reward']) charts['risk-reward'].destroy();
+            
+            const allOpps = [];
+            opportunities.forEach(symbol => {
+                if (symbol.opportunities) {
+                    allOpps.push(...symbol.opportunities.map(o => ({
+                        ...o,
+                        symbol: symbol.symbol
+                    })));
+                }
+            });
+            
+            const symbolFilter = document.getElementById('symbol-filter')?.value || '';
+            const filtered = allOpps.filter(o => !symbolFilter || o.symbol === symbolFilter);
+            
+            charts['risk-reward'] = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Risk/Reward vs Confidence',
+                        data: filtered.map(o => ({
+                            x: o.risk_reward_ratio || 0,
+                            y: (o.confidence || 0) * 100
+                        })),
+                        backgroundColor: filtered.map(o => {
+                            const conf = (o.confidence || 0) * 100;
+                            const rr = o.risk_reward_ratio || 0;
+                            if (conf >= 80 && rr >= 2.0) return 'rgba(74, 222, 128, 0.6)';
+                            if (conf >= 60 && rr >= 1.5) return 'rgba(251, 191, 36, 0.6)';
+                            return 'rgba(248, 113, 113, 0.6)';
+                        }),
+                        borderColor: filtered.map(o => {
+                            const conf = (o.confidence || 0) * 100;
+                            const rr = o.risk_reward_ratio || 0;
+                            if (conf >= 80 && rr >= 2.0) return '#4ade80';
+                            if (conf >= 60 && rr >= 1.5) return '#fbbf24';
+                            return '#f87171';
+                        }),
+                        borderWidth: 1,
+                        pointRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const point = filtered[context.dataIndex];
+                                    return [
+                                        `Symbol: ${point.symbol}`,
+                                        `Confidence: ${((point.confidence || 0) * 100).toFixed(1)}%`,
+                                        `Risk/Reward: ${(point.risk_reward_ratio || 0).toFixed(2)}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Risk/Reward Ratio', color: '#888' },
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Confidence (%)', color: '#888' },
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function renderOpportunityTimeline() {
+            const container = document.getElementById('opportunity-timeline');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            const allOpps = [];
+            opportunities.forEach(symbol => {
+                if (symbol.opportunities) {
+                    allOpps.push(...symbol.opportunities.map(o => ({
+                        ...o,
+                        symbol: symbol.symbol
+                    })));
+                }
+            });
+            
+            const now = Date.now();
+            const maxTime = Math.max(...allOpps.map(o => {
+                if (o.expires_at) return new Date(o.expires_at).getTime();
+                return now + 3600000; // 1 hour default
+            }), now + 3600000);
+            
+            const timelineWidth = container.offsetWidth - 40;
+            const timeRange = maxTime - now;
+            
+            // Now line
+            const nowLine = document.createElement('div');
+            nowLine.className = 'timeline-now';
+            nowLine.style.left = '20px';
+            container.appendChild(nowLine);
+            
+            // Events
+            allOpps.slice(0, 20).forEach(opp => {
+                if (!opp.expires_at) return;
+                
+                const expires = new Date(opp.expires_at).getTime();
+                const left = 20 + ((expires - now) / timeRange) * timelineWidth;
+                
+                if (left < 20 || left > timelineWidth + 20) return;
+                
+                const event = document.createElement('div');
+                event.className = 'timeline-event';
+                event.style.left = `${left}px`;
+                event.style.top = `${Math.random() * 150}px`;
+                event.style.width = '120px';
+                event.style.background = (opp.confidence || 0) >= 0.8 ? 'rgba(74, 222, 128, 0.3)' : 
+                                        (opp.confidence || 0) >= 0.6 ? 'rgba(251, 191, 36, 0.3)' : 
+                                        'rgba(248, 113, 113, 0.3)';
+                event.style.border = `1px solid ${(opp.confidence || 0) >= 0.8 ? '#4ade80' : 
+                                                      (opp.confidence || 0) >= 0.6 ? '#fbbf24' : '#f87171'}`;
+                event.innerHTML = `
+                    <div style="font-size: 10px; font-weight: 600;">${opp.symbol}</div>
+                    <div style="font-size: 9px; margin-top: 2px;">${((opp.confidence || 0) * 100).toFixed(0)}%</div>
+                `;
+                event.title = `${opp.symbol}: Expires ${new Date(opp.expires_at).toLocaleTimeString()}`;
+                container.appendChild(event);
+            });
+        }
+        
+        function renderTimerTimeline() {
+            const container = document.getElementById('timer-timeline');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            const allOpps = [];
+            opportunities.forEach(symbol => {
+                if (symbol.opportunities) {
+                    allOpps.push(...symbol.opportunities.map(o => ({
+                        ...o,
+                        symbol: symbol.symbol
+                    })));
+                }
+            });
+            
+            const now = Date.now();
+            const maxTime = Math.max(...allOpps.map(o => {
+                const expires = o.expires_at ? new Date(o.expires_at).getTime() : now + 3600000;
+                const horizon = o.time_horizon_minutes ? now + (o.time_horizon_minutes * 60000) : expires;
+                return Math.max(expires, horizon);
+            }), now + 3600000);
+            
+            const timelineWidth = container.offsetWidth - 40;
+            const timeRange = maxTime - now;
+            
+            // Now line
+            const nowLine = document.createElement('div');
+            nowLine.className = 'timeline-now';
+            nowLine.style.left = '20px';
+            container.appendChild(nowLine);
+            
+            // Legend
+            const legend = document.createElement('div');
+            legend.style.position = 'absolute';
+            legend.style.top = '10px';
+            legend.style.right = '10px';
+            legend.style.background = 'rgba(0,0,0,0.7)';
+            legend.style.padding = '8px';
+            legend.style.borderRadius = '4px';
+            legend.style.fontSize = '10px';
+            legend.innerHTML = `
+                <div style="margin-bottom: 4px;"><span style="display: inline-block; width: 12px; height: 12px; background: rgba(74,222,128,0.5); border: 1px solid #4ade80; margin-right: 4px;"></span>Entry Window</div>
+                <div style="margin-bottom: 4px;"><span style="display: inline-block; width: 12px; height: 12px; background: rgba(251,191,36,0.5); border: 1px solid #fbbf24; margin-right: 4px;"></span>Valid For</div>
+                <div><span style="display: inline-block; width: 12px; height: 12px; background: rgba(156,163,175,0.5); border: 1px solid #9ca3af; margin-right: 4px;"></span>Time Horizon</div>
+            `;
+            container.appendChild(legend);
+            
+            // Render opportunities
+            allOpps.slice(0, 10).forEach(opp => {
+                const entryStart = opp.entry_time_window?.start ? new Date(opp.entry_time_window.start).getTime() : now;
+                const entryEnd = opp.entry_time_window?.end ? new Date(opp.entry_time_window.end).getTime() : now + 60000;
+                const expires = opp.expires_at ? new Date(opp.expires_at).getTime() : now + 900000;
+                const horizon = opp.time_horizon_minutes ? now + (opp.time_horizon_minutes * 60000) : expires;
+                
+                const entryLeft = 20 + ((entryStart - now) / timeRange) * timelineWidth;
+                const entryWidth = ((entryEnd - entryStart) / timeRange) * timelineWidth;
+                const expiresLeft = 20 + ((expires - now) / timeRange) * timelineWidth;
+                const horizonLeft = 20 + ((horizon - now) / timeRange) * timelineWidth;
+                
+                // Entry Window
+                if (entryLeft >= 20 && entryLeft + entryWidth <= timelineWidth + 20) {
+                    const entryBar = document.createElement('div');
+                    entryBar.style.position = 'absolute';
+                    entryBar.style.left = `${entryLeft}px`;
+                    entryBar.style.top = '60px';
+                    entryBar.style.width = `${Math.max(entryWidth, 2)}px`;
+                    entryBar.style.height = '30px';
+                    entryBar.style.background = 'rgba(74, 222, 128, 0.5)';
+                    entryBar.style.border = '1px solid #4ade80';
+                    entryBar.style.borderRadius = '2px';
+                    entryBar.title = `Entry Window: ${new Date(entryStart).toLocaleTimeString()} - ${new Date(entryEnd).toLocaleTimeString()}`;
+                    container.appendChild(entryBar);
+                }
+                
+                // Valid For
+                if (expiresLeft >= 20 && expiresLeft <= timelineWidth + 20) {
+                    const expiresBar = document.createElement('div');
+                    expiresBar.style.position = 'absolute';
+                    expiresBar.style.left = `${expiresLeft}px`;
+                    expiresBar.style.top = '100px';
+                    expiresBar.style.width = '2px';
+                    expiresBar.style.height = '30px';
+                    expiresBar.style.background = 'rgba(251, 191, 36, 0.8)';
+                    expiresBar.style.border = '1px solid #fbbf24';
+                    expiresBar.title = `Valid For: Expires ${new Date(expires).toLocaleTimeString()}`;
+                    container.appendChild(expiresBar);
+                }
+                
+                // Time Horizon
+                if (horizonLeft >= 20 && horizonLeft <= timelineWidth + 20) {
+                    const horizonBar = document.createElement('div');
+                    horizonBar.style.position = 'absolute';
+                    horizonBar.style.left = `${horizonLeft}px`;
+                    horizonBar.style.top = '140px';
+                    horizonBar.style.width = '2px';
+                    horizonBar.style.height = '30px';
+                    horizonBar.style.background = 'rgba(156, 163, 175, 0.8)';
+                    horizonBar.style.border = '1px solid #9ca3af';
+                    horizonBar.title = `Time Horizon: Move expected by ${new Date(horizon).toLocaleTimeString()}`;
+                    container.appendChild(horizonBar);
+                }
+            });
+        }
+        
+        function renderCountdownIndicators() {
+            const container = document.getElementById('countdown-indicators');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            const allOpps = [];
+            opportunities.forEach(symbol => {
+                if (symbol.opportunities) {
+                    allOpps.push(...symbol.opportunities.map(o => ({
+                        ...o,
+                        symbol: symbol.symbol
+                    })));
+                }
+            });
+            
+            allOpps.slice(0, 15).forEach(opp => {
+                if (!opp.expires_at) return;
+                
+                const expires = new Date(opp.expires_at).getTime();
+                const now = Date.now();
+                const seconds = Math.max(0, Math.floor((expires - now) / 1000));
+                
+                const minutes = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                const display = minutes > 0 ? `${minutes}m ${secs}s` : `${secs}s`;
+                
+                const indicator = document.createElement('span');
+                indicator.className = `countdown-indicator ${seconds > 300 ? 'green' : seconds > 60 ? 'yellow' : 'red'}`;
+                indicator.textContent = `${opp.symbol}: ${display}`;
+                indicator.title = `Expires: ${new Date(opp.expires_at).toLocaleString()}`;
+                container.appendChild(indicator);
+            });
+        }
+        
+        function renderPositionPnL() {
+            const canvas = document.getElementById('position-pnl-chart');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            if (charts['position-pnl']) charts['position-pnl'].destroy();
+            
+            charts['position-pnl'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: positions.map(p => p.symbol),
+                    datasets: [{
+                        label: 'Unrealized P&L',
+                        data: positions.map(p => p.unrealized_pnl || 0),
+                        backgroundColor: positions.map(p => (p.unrealized_pnl || 0) >= 0 ? 'rgba(74, 222, 128, 0.6)' : 'rgba(248, 113, 113, 0.6)'),
+                        borderColor: positions.map(p => (p.unrealized_pnl || 0) >= 0 ? '#4ade80' : '#f87171'),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    scales: {
+                        y: { ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        x: { ticks: { color: '#888' }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+        
+        function renderHoldTimeDistribution() {
+            const canvas = document.getElementById('hold-time-chart');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            if (charts['hold-time']) charts['hold-time'].destroy();
+            
+            const holdTimes = trades.map(t => t.hold_time_seconds || 0).filter(t => t > 0);
+            const bins = [0, 60, 300, 900, 3600, 14400];
+            const labels = ['<1m', '1-5m', '5-15m', '15-60m', '>1h'];
+            const counts = bins.slice(0, -1).map((bin, i) => 
+                holdTimes.filter(t => t >= bin && t < bins[i + 1]).length
+            );
+            
+            charts['hold-time'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Hold Time Distribution',
+                        data: counts,
+                        backgroundColor: 'rgba(74, 222, 128, 0.6)',
+                        borderColor: '#4ade80',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        x: { ticks: { color: '#888' }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+        
+        function renderTradeFrequency() {
+            const canvas = document.getElementById('trade-frequency-chart');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            if (charts['trade-freq']) charts['trade-freq'].destroy();
+            
+            // Group trades by hour
+            const now = Date.now();
+            const hours = 24;
+            const hourData = Array(hours).fill(0);
+            
+            trades.forEach(trade => {
+                if (trade.exit_time) {
+                    const time = new Date(trade.exit_time).getTime();
+                    const hoursAgo = Math.floor((now - time) / (1000 * 60 * 60));
+                    if (hoursAgo >= 0 && hoursAgo < hours) {
+                        hourData[hours - 1 - hoursAgo]++;
+                    }
+                }
+            });
+            
+            charts['trade-freq'] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array(hours).fill(0).map((_, i) => `${hours - i - 1}h ago`),
+                    datasets: [{
+                        label: 'Trades per Hour',
+                        data: hourData,
+                        borderColor: '#4ade80',
+                        backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        x: { ticks: { color: '#888', maxRotation: 45 }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+        
+        function renderSuccessRateBySymbol() {
+            const canvas = document.getElementById('success-rate-chart');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            if (charts['success-rate']) charts['success-rate'].destroy();
+            
+            const symbolFilter = document.getElementById('symbol-filter')?.value || '';
+            
+            // Calculate win rate per symbol
+            const symbolStats = {};
+            trades.forEach(trade => {
+                if (symbolFilter && trade.symbol !== symbolFilter) return;
+                if (!symbolStats[trade.symbol]) {
+                    symbolStats[trade.symbol] = { wins: 0, total: 0 };
+                }
+                symbolStats[trade.symbol].total++;
+                if ((trade.realized_pnl || 0) > 0) {
+                    symbolStats[trade.symbol].wins++;
+                }
+            });
+            
+            const symbols = Object.keys(symbolStats).sort((a, b) => 
+                (symbolStats[b].wins / symbolStats[b].total) - (symbolStats[a].wins / symbolStats[a].total)
+            ).slice(0, 10);
+            
+            charts['success-rate'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: symbols,
+                    datasets: [{
+                        label: 'Win Rate (%)',
+                        data: symbols.map(s => (symbolStats[s].wins / symbolStats[s].total) * 100),
+                        backgroundColor: symbols.map(s => {
+                            const rate = (symbolStats[s].wins / symbolStats[s].total) * 100;
+                            return rate >= 60 ? 'rgba(74, 222, 128, 0.6)' : 
+                                   rate >= 40 ? 'rgba(251, 191, 36, 0.6)' : 
+                                   'rgba(248, 113, 113, 0.6)';
+                        }),
+                        borderColor: symbols.map(s => {
+                            const rate = (symbolStats[s].wins / symbolStats[s].total) * 100;
+                            return rate >= 60 ? '#4ade80' : rate >= 40 ? '#fbbf24' : '#f87171';
+                        }),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const symbol = symbols[context.dataIndex];
+                                    const stats = symbolStats[symbol];
+                                    return [
+                                        `Win Rate: ${context.parsed.y.toFixed(1)}%`,
+                                        `Wins: ${stats.wins} / ${stats.total}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { 
+                            beginAtZero: true, 
+                            max: 100,
+                            ticks: { color: '#888', callback: (v) => v + '%' }, 
+                            grid: { color: 'rgba(255,255,255,0.1)' } 
+                        },
+                        x: { ticks: { color: '#888' }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+        
+        // Simplified equity chart (would need historical data for full implementation)
+        function renderEquityChart() {
+            const canvas = document.getElementById('equity-chart');
+            if (!canvas || !metricsData) return;
+            
+            const ctx = canvas.getContext('2d');
+            if (charts['equity']) charts['equity'].destroy();
+            
+            // Use current equity and P&L for simple visualization
+            const currentEquity = metricsData.current_equity || 1000;
+            const totalPnL = metricsData.total_pnl || 0;
+            const peakEquity = metricsData.peak_equity || currentEquity;
+            
+            charts['equity'] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Peak', 'Current'],
+                    datasets: [{
+                        label: 'Equity',
+                        data: [peakEquity, currentEquity],
+                        borderColor: currentEquity >= peakEquity ? '#4ade80' : '#f87171',
+                        backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    scales: {
+                        y: { ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        x: { ticks: { color: '#888' }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+        
+        function renderPnLDistribution() {
+            const canvas = document.getElementById('pnl-distribution-chart');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            if (charts['pnl-dist']) charts['pnl-dist'].destroy();
+            
+            const pnls = trades.map(t => t.realized_pnl || 0).filter(p => p !== 0);
+            const bins = [-100, -50, -20, -10, 0, 10, 20, 50, 100];
+            const labels = ['<-50', '-50 to -20', '-20 to -10', '-10 to 0', '0 to 10', '10 to 20', '20 to 50', '>50'];
+            const counts = bins.slice(0, -1).map((bin, i) => 
+                pnls.filter(p => p >= bin && (i === bins.length - 2 ? p <= bins[i + 1] : p < bins[i + 1])).length
+            );
+            
+            charts['pnl-dist'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'P&L Distribution',
+                        data: counts,
+                        backgroundColor: labels.map((_, i) => 
+                            i < 4 ? 'rgba(248, 113, 113, 0.6)' : 'rgba(74, 222, 128, 0.6)'
+                        ),
+                        borderColor: labels.map((_, i) => 
+                            i < 4 ? '#f87171' : '#4ade80'
+                        ),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        x: { ticks: { color: '#888', maxRotation: 45 }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+        
+        function renderWinRateTrend() {
+            const canvas = document.getElementById('winrate-chart');
+            if (!canvas || !metricsData) return;
+            
+            const ctx = canvas.getContext('2d');
+            if (charts['winrate']) charts['winrate'].destroy();
+            
+            const winRate = (metricsData.win_rate || 0) * 100;
+            
+            charts['winrate'] = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Wins', 'Losses'],
+                    datasets: [{
+                        data: [winRate, 100 - winRate],
+                        backgroundColor: ['rgba(74, 222, 128, 0.6)', 'rgba(248, 113, 113, 0.6)'],
+                        borderColor: ['#4ade80', '#f87171'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, position: 'bottom', labels: { color: '#888' } },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    return `${label}: ${value.toFixed(1)}%`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', init);
+        
+        // Cleanup on unload
+        window.addEventListener('beforeunload', () => {
+            if (updateInterval) clearInterval(updateInterval);
+            Object.values(charts).forEach(chart => chart.destroy());
+        });
+    </script>
+</body>
+</html>
+
+
+

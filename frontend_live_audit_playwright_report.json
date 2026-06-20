@@ -1,0 +1,947 @@
+{
+  "started_at": "2026-01-01 09:12:04",
+  "api_base_default": "http://localhost:8000/api",
+  "ws_default": "ws://localhost:8000/ws",
+  "backend_check": {
+    "reachable": true,
+    "message": "Backend reachable at localhost:8000 (HTTP 200)"
+  },
+  "probes": [
+    {
+      "port": 1420,
+      "url": "http://localhost:1420/",
+      "loaded": true,
+      "status": 200,
+      "error": null,
+      "api_bases": [
+        "http://localhost:8000/api"
+      ],
+      "ws_urls": [
+        "ws://localhost:8000/ws"
+      ],
+      "endpoints_found": [],
+      "network_requests": [
+        {
+          "url": "http://localhost:1420/",
+          "method": "GET",
+          "resourceType": "document"
+        },
+        {
+          "url": "http://localhost:1420/styles.css",
+          "method": "GET",
+          "resourceType": "stylesheet"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:1420/help-system.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:1420/ws-client.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/metrics",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/failsafe/status",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ],
+      "libraries_detected": {
+        "chartjs": true,
+        "lightweight_charts": false,
+        "three": false,
+        "gsap": false
+      },
+      "backend_status_text": "Checking...",
+      "console_messages": [
+        "log: \ud83d\ude80 Auratic Dashboard MVP - Initializing...",
+        "log: \u2705 Dashboard initialized",
+        "error: WebSocket connection to 'ws://localhost:8000/ws' failed: Error during WebSocket handshake: Unexpected response code: 403",
+        "error: WebSocket connection to 'ws://localhost:8000/ws' failed: Error during WebSocket handshake: Unexpected response code: 403"
+      ],
+      "html_snippet": "<html lang=\"en\"><head></head><body>index.html\n\n\n\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Auratic Dashboard - MVP</title>\n    \n    <link rel=\"stylesheet\" href=\"styles.css\">\n    \n    <script src=\"https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js\" defer=\"\"></script>\n    <script src=\"help-system.js\" defer=\"\"></script>\n    <script src=\"ws-client.js\" defer=\"\"></script>\n    \n    <style>\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n        \n        body {\n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;\n            background: #000;\n            color: #fff;\n            padding: 20px;\n        }\n        \n        .container {\n            max-width: 1400px;\n            margin: 0 auto;\n        }\n        \n        header {\n            margin-bottom: 30px;\n        }\n        \n        h1 {\n            font-size: 24px;\n            margin-bottom: 5px;",
+      "api_requests_observed": [
+        {
+          "url": "http://localhost:8000/api/dashboard/metrics",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/failsafe/status",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ]
+    },
+    {
+      "port": 1421,
+      "url": "http://localhost:1421/",
+      "loaded": true,
+      "status": 200,
+      "error": null,
+      "api_bases": [
+        "http://localhost:8000/api"
+      ],
+      "ws_urls": [],
+      "endpoints_found": [],
+      "network_requests": [
+        {
+          "url": "http://localhost:1421/",
+          "method": "GET",
+          "resourceType": "document"
+        },
+        {
+          "url": "http://localhost:1421/help-system.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.module.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.core.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/market-data",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ],
+      "libraries_detected": {
+        "chartjs": false,
+        "lightweight_charts": false,
+        "three": false,
+        "gsap": false
+      },
+      "backend_status_text": "Connected",
+      "console_messages": [
+        "error: Failed to load resource: the server responded with a status of 404 (File not found)",
+        "log: [Creative] [2026-01-01T08:12:05.067Z] \ud83c\udf0c Market Galaxy - Initializing... {}",
+        "log: [Creative] [2026-01-01T08:12:05.068Z] Initializing Three.js... {}",
+        "log: [Creative] [2026-01-01T08:12:05.264Z] Three.js imported successfully {version: 181}",
+        "log: [Creative] [2026-01-01T08:12:05.276Z] \u2705 Lighting setup complete {ambient: 1.5, directional1: 3, directional2: 2.5, point: 2}",
+        "log: [Creative] [2026-01-01T08:12:05.276Z] \u2705 Voronoi canvas initialized with click detection {}",
+        "log: [Creative] [2026-01-01T08:12:05.276Z] Three.js initialized successfully {}",
+        "log: [Creative] [2026-01-01T08:12:05.278Z] Three.js initialized, fetching market data... {}",
+        "log: [Creative] [2026-01-01T08:12:05.278Z] Fetching market data from http://localhost:8000/api/dashboard/market-data",
+        "warning: [GroupMarkerNotSet(crbug.com/242999)!:A05027008C1F0000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "warning: [.WebGL-0x37cc00135e00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "log: [Creative] [2026-01-01T08:12:05.290Z] Response received {status: 200, ok: true}",
+        "warning: [.WebGL-0x37cc00135e00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "log: [Creative] [2026-01-01T08:12:05.295Z] Market data received {count: 14, symbols: Array(14)}",
+        "log: [Creative] [2026-01-01T08:12:05.295Z] Deselected node {}",
+        "log: [Creative] [2026-01-01T08:12:05.296Z] Creating 14 nodes after clearing old ones {}",
+        "log: [Creative] [2026-01-01T08:12:05.298Z] \u2705 Node BTCUSDC created {position: (0.0, 0.0, -20.0), size: 5.91, color: 16281969, inScene: true, sceneChildren: 5}",
+        "log: [Creative] [2026-01-01T08:12:05.298Z] Node BTCUSDC added to scene {position: Object, size: 5.9130248696484085, inScene: true, sceneChildrenCount: 5}",
+        "log: [Creative] [2026-01-01T08:12:05.298Z] Created node for BTCUSDC {position: Object, size: 5.9130248696484085, color: f87171, volume: 6698.61335, signal: STRONG SELL}",
+        "log: [Creative] [2026-01-01T08:12:05.299Z] \u2705 Node BTCEUR created {position: (11.1, 5.4, -20.6), size: 5.29, color: 16281969, inScene: true, sceneChildren: 6}",
+        "log: [Creative] [2026-01-01T08:12:05.299Z] Node BTCEUR added to scene {position: Object, size: 5.291377045954561, inScene: true, sceneChildrenCount: 6}",
+        "log: [Creative] [2026-01-01T08:12:05.299Z] Created node for BTCEUR {position: Object, size: 5.291377045954561, color: f87171, volume: 381.60804, signal: STRONG SELL}",
+        "log: [Creative] [2026-01-01T08:12:05.300Z] \u2705 Node ETHUSDC created {position: (12.2, 15.3, -20.0), size: 6.43, color: 16281969, inScene: true, sceneChildren: 7}",
+        "log: [Creative] [2026-01-01T08:12:05.300Z] Node ETHUSDC added to scene {position: Object, size: 6.4289604124703965, inScene: true, sceneChildrenCount: 7}",
+        "log: [Creative] [2026-01-01T08:12:05.300Z] Created node for ETHUSDC {position: Object, size: 6.4289604124703965, color: f87171, volume: 72096.6028, signal: STRONG SELL}",
+        "log: [Creative] [2026-01-01T08:12:05.301Z] \u2705 Node ETHEUR created {position: (5.8, 25.6, -18.3), size: 5.85, color: 16281969, inScene: true, sceneChildren: 8}",
+        "log: [Creative] [2026-01-01T08:12:05.301Z] Node ETHEUR added to scene {position: Object, size: 5.852819393483316, inScene: true, sceneChildrenCount: 8}",
+        "log: [Creative] [2026-01-01T08:12:05.301Z] Created node for ETHEUR {position: Object, size: 5.852819393483316, color: f87171, volume: 5076.3697, signal: STRONG SELL}",
+        "log: [Creative] [2026-01-01T08:12:05.301Z] \u2705 Node SOLUSDC created {position: (-7.2, 31.7, -15.4), size: 6.82, color: 16281969, inScene: true, sceneChildren: 9}",
+        "log: [Creative] [2026-01-01T08:12:05.301Z] Node SOLUSDC added to scene {position: Object, size: 6.824911555457139, inScene: true, sceneChildrenCount: 9}",
+        "log: [Creative] [2026-01-01T08:12:05.301Z] Created node for SOLUSDC {position: Object, size: 6.824911555457139, color: f87171, volume: 446500.694, signal: STRONG SELL}",
+        "log: [Creative] [2026-01-01T08:12:05.302Z] \u2705 Node SOLEUR created {position: (-23.9, 30.0, -11.4), size: 6.42, color: 16281969, inScene: true, sceneChildren: 10}",
+        "log: [Creative] [2026-01-01T08:12:05.302Z] Node SOLEUR added to scene {position: Object, size: 6.421571450186106, inScene: true, sceneChildrenCount: 10}",
+        "log: [Creative] [2026-01-01T08:12:05.302Z] Created node for SOLEUR {position: Object, size: 6.421571450186106, color: f87171, volume: 69684.577, signal: STRONG SELL}",
+        "log: [Creative] [2026-01-01T08:12:05.302Z] \u2705 Node ADAUSDC created {position: (-39.2, 18.9, -6.3), size: 7.76, color: 16281969, inScene: true, sceneChildren: 11}",
+        "log: [Creative] [2026-01-01T08:12:05.302Z] Node ADAUSDC added to scene {position: Object, size: 7.759656200359477, inScene: true, sceneChildrenCount: 11}",
+        "log: [Creative] [2026-01-01T08:12:05.302Z] Created node for ADAUSDC {position: Object, size: 7.759656200359477, color: f87171, volume: 33060726.1, signal: STRONG SELL}",
+        "log: [Creative] [2026-01-01T08:12:05.303Z] \u2705 Node ADAEUR created {position: (-48.0, 0.0, 0.0), size: 7.24, color: 16281969, inScene: true, sceneChildren: 12}",
+        "log: [Creative] [2026-01-01T08:12:05.303Z] Node ADAEUR added to scene {position: Object, size: 7.238524925418639, inScene: true, sceneChildrenCount: 12}",
+        "log: [Creative] [2026-01-01T08:12:05.303Z] Created node for ADAEUR {position: Object, size: 7.238524925418639, color: f87171, volume: 2999505.8, signal: STRONG SELL}",
+        "log: [Creative] [2026-01-01T08:12:05.303Z] \u2705 Node DOTUSDC created {position: (-46.4, -22.3, 7.4), size: 6.86, color: 16281969, inScene: true, sceneChildren: 13}",
+        "log: [Creative] [2026-01-01T08:12:05.303Z] Node DOTUSDC added to scene {position: Object, size: 6.860760075311205, inScene: true, sceneChildrenCount: 13}",
+        "log: [Creative] [2026-01-01T08:12:05.303Z] Created node for DOTUSDC {position: Object, size: 6.860760075311205, color: f87171, volume: 526646.65, signal: STRONG SELL}",
+        "log: [Creative] [2026-01-01T08:12:05.303Z] \u2705 Node DOTEUR created {position: (-33.5, -42.0, 16.0), size: 6.45, color: 16281969, inScene: true, sceneChildren: 14}",
+        "log: [Creative] [2026-01-01T08:12:05.304Z] Node DOTEUR added to scene {position: Object, size: 6.454076717245195, inScene: true, sceneChildrenCount: 14}",
+        "log: [Creative] [2026-01-01T08:12:05.304Z] Created node for DOTEUR {position: Object, size: 6.454076717245195, color: f87171, volume: 80937.18, signal: STRONG SELL}",
+        "log: [Creative] [2026-01-01T08:12:05.304Z] \u2705 Node LINKUSDC created {position: (-12.1, -52.9, 25.7), size: 6.89, color: 16281969, inScene: true, sceneChildren: 15}",
+        "log: [Creative] [2026-01-01T08:12:05.304Z] Node LINKUSDC added to scene {position: Object, size: 6.889169618744006, inScene: true, sceneChildrenCount: 15}",
+        "log: [Creative] [2026-01-01T08:12:05.304Z] Created node for LINKUSDC {position: Object, size: 6.889169618744006, color: f87171, volume: 600258.77, signal: STRONG SELL}",
+        "log: [Creative] [2026-01-01T08:12:05.304Z] \u2705 Node LINKEUR created {position: (11.7, -51.2, 36.6), size: 6.25, color: 16281969, inScene: true, sceneChildren: 16}",
+        "log: [Creative] [2026-01-01T08:12:05.304Z] Node LINKEUR added to scene {position: Object, size: 6.247499140939227, inScene: true, sceneChildrenCount: 16}",
+        "log: [Creative] [2026-01-01T08:12:05.304Z] Created node for LINKEUR {position: Object, size: 6.247499140939227, color: f87171, volume: 31259.67, signal: STRONG SELL}",
+        "log: [Creative] [2026-01-01T08:12:05.304Z] \u2705 Node AVAXUSDC created {position: (29.7, -37.2, 48.6), size: 6.83, color: 16281969, inScene: true, sceneChildren: 17}",
+        "log: [Creative] [2026-01-01T08:12:05.305Z] Node AVAXUSDC added to scene {position: Object, size: 6.834083042843731, inScene: true, sceneChildrenCount: 17}",
+        "log: [Creative] [2026-01-01T08:12:05.305Z] Created node for AVAXUSDC {position: Object, size: 6.834083042843731, color: f87171, volume: 465763.18, signal: STRONG SELL}",
+        "log: [Creative] [2026-01-01T08:12:05.305Z] \u2705 Node AVAXEUR created {position: (33.4, -16.1, 61.7), size: 5.99, color: 16281969, inScene: true, sceneChildren: 18}",
+        "log: [Creative] [2026-01-01T08:12:05.305Z] Node AVAXEUR added to scene {position: Object, size: 5.986729957848454, inScene: true, sceneChildrenCount: 18}",
+        "log: [Creative] [2026-01-01T08:12:05.305Z] Created node for AVAXEUR {position: Object, size: 5.986729957848454, color: f87171, volume: 9406.19, signal: STRONG SELL}",
+        "log: [Creative] [2026-01-01T08:12:05.305Z] Created 14/14 nodes {nodesInMap: 14, sceneChildren: 18}",
+        "log: [Creative] [2026-01-01T08:12:05.306Z] Connection: BTCUSDC \u2194 BTCEUR (95.3%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.307Z] Connection: BTCUSDC \u2194 ETHUSDC (83.1%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.307Z] Connection: BTCUSDC \u2194 ETHEUR (97.5%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.307Z] Connection: BTCUSDC \u2194 SOLUSDC (92.6%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.307Z] Connection: BTCUSDC \u2194 SOLEUR (95.0%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.307Z] Connection: BTCUSDC \u2194 ADAUSDC (76.2%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.307Z] Connection: BTCUSDC \u2194 ADAEUR (79.7%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.307Z] Connection: BTCUSDC \u2194 DOTUSDC (91.6%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.307Z] Connection: BTCUSDC \u2194 DOTEUR (94.1%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.307Z] Connection: BTCUSDC \u2194 LINKUSDC (90.5%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.308Z] Connection: BTCUSDC \u2194 LINKEUR (94.9%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.308Z] Connection: BTCUSDC \u2194 AVAXUSDC (89.7%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.308Z] Connection: BTCUSDC \u2194 AVAXEUR (95.8%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.308Z] Connection: BTCEUR \u2194 ETHUSDC (77.4%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.308Z] Connection: BTCEUR \u2194 ETHEUR (92.7%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.308Z] Connection: BTCEUR \u2194 SOLUSDC (88.4%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.308Z] Connection: BTCEUR \u2194 SOLEUR (90.7%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.308Z] Connection: BTCEUR \u2194 ADAUSDC (72.0%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.308Z] Connection: BTCEUR \u2194 ADAEUR (75.5%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.308Z] Connection: BTCEUR \u2194 DOTUSDC (87.4%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.308Z] Connection: BTCEUR \u2194 DOTEUR (89.9%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.308Z] Connection: BTCEUR \u2194 LINKUSDC (86.3%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.308Z] Connection: BTCEUR \u2194 LINKEUR (90.7%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.308Z] Connection: BTCEUR \u2194 AVAXUSDC (85.5%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.308Z] Connection: BTCEUR \u2194 AVAXEUR (91.6%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHUSDC \u2194 ETHEUR (85.7%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHUSDC \u2194 SOLUSDC (83.0%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHUSDC \u2194 SOLEUR (85.2%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHUSDC \u2194 ADAUSDC (66.6%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHUSDC \u2194 ADAEUR (70.1%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHUSDC \u2194 DOTUSDC (81.9%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHUSDC \u2194 DOTEUR (84.5%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHUSDC \u2194 LINKUSDC (80.9%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHUSDC \u2194 LINKEUR (82.3%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHUSDC \u2194 AVAXUSDC (80.0%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHUSDC \u2194 AVAXEUR (79.1%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHEUR \u2194 SOLUSDC (89.1%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHEUR \u2194 SOLEUR (91.4%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHEUR \u2194 ADAUSDC (72.7%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHEUR \u2194 ADAEUR (76.2%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHEUR \u2194 DOTUSDC (88.0%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHEUR \u2194 DOTEUR (90.6%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHEUR \u2194 LINKUSDC (87.0%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHEUR \u2194 LINKEUR (91.4%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.309Z] Connection: ETHEUR \u2194 AVAXUSDC (86.2%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: ETHEUR \u2194 AVAXEUR (92.3%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLUSDC \u2194 SOLEUR (96.9%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLUSDC \u2194 ADAUSDC (84.6%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLUSDC \u2194 ADAEUR (88.1%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLUSDC \u2194 DOTUSDC (100.0%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLUSDC \u2194 DOTEUR (96.6%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLUSDC \u2194 LINKUSDC (98.9%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLUSDC \u2194 LINKEUR (94.1%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLUSDC \u2194 AVAXUSDC (98.1%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLUSDC \u2194 AVAXEUR (90.8%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLEUR \u2194 ADAUSDC (82.3%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLEUR \u2194 ADAEUR (85.8%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLEUR \u2194 DOTUSDC (97.3%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLEUR \u2194 DOTEUR (100.0%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLEUR \u2194 LINKUSDC (96.6%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLEUR \u2194 LINKEUR (98.1%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.310Z] Connection: SOLEUR \u2194 AVAXUSDC (95.7%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: SOLEUR \u2194 AVAXEUR (94.9%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: ADAUSDC \u2194 ADAEUR (96.2%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: ADAUSDC \u2194 DOTUSDC (85.6%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: ADAUSDC \u2194 DOTEUR (83.1%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: ADAUSDC \u2194 LINKUSDC (86.7%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: ADAUSDC \u2194 LINKEUR (82.3%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: ADAUSDC \u2194 AVAXUSDC (87.5%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: ADAUSDC \u2194 AVAXEUR (81.4%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: ADAEUR \u2194 DOTUSDC (89.1%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: ADAEUR \u2194 DOTEUR (86.6%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: ADAEUR \u2194 LINKUSDC (90.2%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: ADAEUR \u2194 LINKEUR (85.8%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: ADAEUR \u2194 AVAXUSDC (91.0%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: ADAEUR \u2194 AVAXEUR (84.9%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: DOTUSDC \u2194 DOTEUR (97.0%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: DOTUSDC \u2194 LINKUSDC (99.9%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: DOTUSDC \u2194 LINKEUR (94.5%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: DOTUSDC \u2194 AVAXUSDC (98.7%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: DOTUSDC \u2194 AVAXEUR (91.2%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: DOTEUR \u2194 LINKUSDC (97.4%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.311Z] Connection: DOTEUR \u2194 LINKEUR (98.5%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.312Z] Connection: DOTEUR \u2194 AVAXUSDC (96.6%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.312Z] Connection: DOTEUR \u2194 AVAXEUR (95.2%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.312Z] Connection: LINKUSDC \u2194 LINKEUR (95.1%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.312Z] Connection: LINKUSDC \u2194 AVAXUSDC (99.3%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.312Z] Connection: LINKUSDC \u2194 AVAXEUR (91.8%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.312Z] Connection: LINKEUR \u2194 AVAXUSDC (95.8%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.312Z] Connection: LINKEUR \u2194 AVAXEUR (97.7%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.312Z] Connection: AVAXUSDC \u2194 AVAXEUR (93.5%) {}",
+        "log: [Creative] [2026-01-01T08:12:05.312Z] Created 91 connections {}",
+        "log: [Creative] [2026-01-01T08:12:05.319Z] \u2705 Market Connections Network initialized {}",
+        "warning: [.WebGL-0x37cc00135e00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+      ],
+      "html_snippet": "<!DOCTYPE html><html lang=\"en\"><head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <meta http-equiv=\"Cache-Control\" content=\"no-cache, no-store, must-revalidate\">\n    <meta http-equiv=\"Pragma\" content=\"no-cache\">\n    <meta http-equiv=\"Expires\" content=\"0\">\n    <title>Market Connections Network - Port 1421</title>\n    <link rel=\"icon\" href=\"data:,\">\n    \n    <!-- Three.js for 3D visualization -->\n    <script type=\"importmap\">\n    {\n        \"imports\": {\n            \"three\": \"https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.module.js\"\n        }\n    }\n    </script>\n    \n    <style>\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n        \n        body {\n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;\n            background: #000;\n            color: #fff;\n            overflow: hidden;\n        }\n        \n        #canvas-container {\n            width: 100vw;\n            height: 100vh;\n            position: relative;\n            overflow: hidden;\n        }\n        \n        #voronoi-canvas {",
+      "api_requests_observed": [
+        {
+          "url": "http://localhost:8000/api/dashboard/market-data",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ]
+    },
+    {
+      "port": 1422,
+      "url": "http://localhost:1422/",
+      "loaded": true,
+      "status": 200,
+      "error": null,
+      "api_bases": [
+        "http://localhost:8000/api"
+      ],
+      "ws_urls": [],
+      "endpoints_found": [],
+      "network_requests": [
+        {
+          "url": "http://localhost:1422/",
+          "method": "GET",
+          "resourceType": "document"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.module.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.core.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/metrics",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/market-data",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ],
+      "libraries_detected": {
+        "chartjs": true,
+        "lightweight_charts": false,
+        "three": false,
+        "gsap": true
+      },
+      "backend_status_text": "Connected",
+      "console_messages": [
+        "log: [Creative2] [2026-01-01T08:12:05.345Z] \ud83d\ude80 Market Connections v2 - Initializing... {}",
+        "log: [Creative2] [2026-01-01T08:12:05.369Z] \u2705 Three.js initialized {}",
+        "warning: [GroupMarkerNotSet(crbug.com/242999)!:A0F0E2018C1F0000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.",
+        "warning: [.WebGL-0x37cc00131e00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+        "log: [Creative2] [2026-01-01T08:12:05.405Z] Market data received {count: 14}",
+        "log: [Creative2] [2026-01-01T08:12:05.407Z] \u2705 Node BTCUSDC created {position: (0.0, 0.0, -20.0), size: 5.91, color: #f87171, signal: STRONG SELL, volume: 6698.61}",
+        "log: [Creative2] [2026-01-01T08:12:05.408Z] \u2705 Node BTCEUR created {position: (11.1, 5.4, -20.6), size: 5.29, color: #f87171, signal: STRONG SELL, volume: 381.61}",
+        "log: [Creative2] [2026-01-01T08:12:05.408Z] \u2705 Node ETHUSDC created {position: (12.2, 15.3, -20.0), size: 6.43, color: #f87171, signal: STRONG SELL, volume: 72096.60}",
+        "log: [Creative2] [2026-01-01T08:12:05.409Z] \u2705 Node ETHEUR created {position: (5.8, 25.6, -18.3), size: 5.85, color: #f87171, signal: STRONG SELL, volume: 5076.37}",
+        "log: [Creative2] [2026-01-01T08:12:05.409Z] \u2705 Node SOLUSDC created {position: (-7.2, 31.7, -15.4), size: 6.82, color: #f87171, signal: STRONG SELL, volume: 446500.69}",
+        "log: [Creative2] [2026-01-01T08:12:05.409Z] \u2705 Node SOLEUR created {position: (-23.9, 30.0, -11.4), size: 6.42, color: #f87171, signal: STRONG SELL, volume: 69684.58}",
+        "log: [Creative2] [2026-01-01T08:12:05.410Z] \u2705 Node ADAUSDC created {position: (-39.2, 18.9, -6.3), size: 7.76, color: #f87171, signal: STRONG SELL, volume: 33060726.10}",
+        "log: [Creative2] [2026-01-01T08:12:05.410Z] \u2705 Node ADAEUR created {position: (-48.0, 0.0, 0.0), size: 7.24, color: #f87171, signal: STRONG SELL, volume: 2999505.80}",
+        "log: [Creative2] [2026-01-01T08:12:05.410Z] \u2705 Node DOTUSDC created {position: (-46.4, -22.3, 7.4), size: 6.86, color: #f87171, signal: STRONG SELL, volume: 526646.65}",
+        "log: [Creative2] [2026-01-01T08:12:05.410Z] \u2705 Node DOTEUR created {position: (-33.5, -42.0, 16.0), size: 6.45, color: #f87171, signal: STRONG SELL, volume: 80937.18}",
+        "log: [Creative2] [2026-01-01T08:12:05.410Z] \u2705 Node LINKUSDC created {position: (-12.1, -52.9, 25.7), size: 6.89, color: #f87171, signal: STRONG SELL, volume: 600258.77}",
+        "log: [Creative2] [2026-01-01T08:12:05.410Z] \u2705 Node LINKEUR created {position: (11.7, -51.2, 36.6), size: 6.25, color: #f87171, signal: STRONG SELL, volume: 31259.67}",
+        "log: [Creative2] [2026-01-01T08:12:05.411Z] \u2705 Node AVAXUSDC created {position: (29.7, -37.2, 48.6), size: 6.83, color: #f87171, signal: STRONG SELL, volume: 465763.18}",
+        "log: [Creative2] [2026-01-01T08:12:05.411Z] \u2705 Node AVAXEUR created {position: (33.4, -16.1, 61.7), size: 5.99, color: #f87171, signal: STRONG SELL, volume: 9406.19}",
+        "log: [Creative2] [2026-01-01T08:12:05.411Z] Sample correlation: BTCUSDC \u2194 BTCEUR = 64.8% {price1: -1.052, price2: -1.272, signal1: -42866.33335578548, signal2: -4434853.002323279, vol1: 6698.61335}",
+        "log: [Creative2] [2026-01-01T08:12:05.412Z] \u2705 Created 91 connections {}",
+        "log: [Creative2] [2026-01-01T08:12:05.497Z] \u2705 Market Connections v2 initialized {}"
+      ],
+      "html_snippet": "<!DOCTYPE html><html lang=\"en\"><head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <meta http-equiv=\"Cache-Control\" content=\"no-cache, no-store, must-revalidate\">\n    <meta http-equiv=\"Pragma\" content=\"no-cache\">\n    <meta http-equiv=\"Expires\" content=\"0\">\n    <title>Market Connections Network v2 - Port 1422</title>\n    <link rel=\"icon\" href=\"data:,\">\n    \n    <!-- Three.js for 3D visualization -->\n    <script type=\"importmap\">\n    {\n        \"imports\": {\n            \"three\": \"https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.module.js\"\n        }\n    }\n    </script>\n    \n    <!-- Chart.js for time series -->\n    <script src=\"https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js\"></script>\n    \n    <!-- GSAP for smooth animations -->\n    <script src=\"https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js\"></script>\n    \n    <style>\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n        \n        body {\n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;\n            background: #000;\n            color: #fff;\n            overflow: hidden;\n        }\n        \n        #app {\n            width: 100vw;",
+      "api_requests_observed": [
+        {
+          "url": "http://localhost:8000/api/dashboard/metrics",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/market-data",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ]
+    },
+    {
+      "port": 1423,
+      "url": "http://localhost:1423/",
+      "loaded": true,
+      "status": 200,
+      "error": null,
+      "api_bases": [
+        "http://localhost:8000/api"
+      ],
+      "ws_urls": [],
+      "endpoints_found": [],
+      "network_requests": [
+        {
+          "url": "http://localhost:1423/",
+          "method": "GET",
+          "resourceType": "document"
+        },
+        {
+          "url": "https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:1423/ControlSlider.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:1423/help-system.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:1423/ws-client.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/metrics",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=500",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/positions",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/market-data",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/physics",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/metrics",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ],
+      "libraries_detected": {
+        "chartjs": false,
+        "lightweight_charts": true,
+        "three": false,
+        "gsap": false
+      },
+      "backend_status_text": "Connected",
+      "console_messages": [
+        "error: Failed to load resource: the server responded with a status of 404 (File not found)",
+        "error: Failed to load resource: the server responded with a status of 404 (File not found)",
+        "log: [ChartView] [2026-01-01T08:12:08.859Z] \ud83d\ude80 Trading Chart View - Initializing... {}",
+        "log: [ChartView] [2026-01-01T08:12:08.861Z] \u2705 Control Deck initialized {}",
+        "log: [ChartView] [2026-01-01T08:12:08.876Z] \u2705 Chart initialized {}",
+        "log: [ChartView] [2026-01-01T08:12:09.376Z] Loading candlestick data for BTCUSDT... {}",
+        "log: [ChartView] [2026-01-01T08:12:09.908Z] Fetched 500 candles for BTCUSDT {}",
+        "log: [ChartView] [2026-01-01T08:12:09.931Z] \u2705 Chart updated with 500 candles {}",
+        "log: [ChartView] [2026-01-01T08:12:09.934Z] Market data received {count: 14}",
+        "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "error: [ERROR] [ChartView] [2026-01-01T08:12:09.935Z] Failed to fetch physics state Error: HTTP 404\n    at fetchPhysicsState (http://localhost:1423/:1185:41)\n    at async init (http://localhost:1423/:2741:13)",
+        "log: [ChartView] [2026-01-01T08:12:09.937Z] \u2705 Trading Chart View initialized {}"
+      ],
+      "html_snippet": "<!DOCTYPE html><html lang=\"en\"><head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <meta http-equiv=\"Cache-Control\" content=\"no-cache, no-store, must-revalidate\">\n    <title>Trading Chart View - Port 1423</title>\n    \n    <!-- Lightweight Charts - Professional Trading Chart Library -->\n    <script src=\"https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js\"></script>\n    <!-- Control Slider Component -->\n    <script src=\"ControlSlider.js\"></script>\n    <!-- Help System -->\n    <script src=\"../help-system.js\"></script>\n    <script src=\"../ws-client.js\" defer=\"\"></script>\n    \n    <style>\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n        \n        body {\n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Monaco', monospace;\n            background: #000;\n            color: #fff;\n            overflow: hidden;\n        }\n        \n        #app {\n            width: 100vw;\n            height: 100vh;\n            display: flex;\n            flex-direction: column;\n        }\n        \n        /* Top Toolbar */\n        #toolbar {\n            background: rgba(20, 20, 30, 0.95);\n            border-bottom: 1px solid rgba(74, 222, 128, 0.2);\n            padding: 12px 20px;",
+      "api_requests_observed": [
+        {
+          "url": "http://localhost:8000/api/dashboard/metrics",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=500",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/positions",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/market-data",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/physics",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/metrics",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ]
+    },
+    {
+      "port": 1424,
+      "url": "http://localhost:1424/",
+      "loaded": true,
+      "status": 200,
+      "error": null,
+      "api_bases": [
+        "http://localhost:8000/api"
+      ],
+      "ws_urls": [],
+      "endpoints_found": [],
+      "network_requests": [
+        {
+          "url": "http://localhost:1424/",
+          "method": "GET",
+          "resourceType": "document"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/metrics",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/recent-trades",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ],
+      "libraries_detected": {
+        "chartjs": true,
+        "lightweight_charts": false,
+        "three": false,
+        "gsap": false
+      },
+      "backend_status_text": "Connected",
+      "console_messages": [
+        "log: \ud83d\ude80 Performance Analytics Hub - Initializing...",
+        "log: \u2705 Performance Analytics Hub initialized"
+      ],
+      "html_snippet": "<!DOCTYPE html><html lang=\"en\"><head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <meta http-equiv=\"Cache-Control\" content=\"no-cache, no-store, must-revalidate\">\n    <title>Performance Analytics Hub - Port 1424</title>\n    \n    <script src=\"https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js\"></script>\n    \n    <link rel=\"icon\" href=\"data:,\">\n    \n    <style>\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n        \n        body {\n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Monaco', monospace;\n            background: #000;\n            color: #fff;\n            padding: 20px;\n            overflow-x: hidden;\n        }\n        \n        .container {\n            max-width: 1800px;\n            margin: 0 auto;\n        }\n        \n        .header {\n            margin-bottom: 30px;\n            padding-bottom: 20px;\n            border-bottom: 1px solid rgba(74, 222, 128, 0.3);\n        }\n        \n        .header h1 {\n            font-size: 28px;\n            color: #4ade80;\n            margin-bottom: 8px;",
+      "api_requests_observed": [
+        {
+          "url": "http://localhost:8000/api/dashboard/metrics",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/recent-trades",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ]
+    },
+    {
+      "port": 1425,
+      "url": "http://localhost:1425/",
+      "loaded": true,
+      "status": 200,
+      "error": null,
+      "api_bases": [
+        "http://localhost:8000/api"
+      ],
+      "ws_urls": [],
+      "endpoints_found": [],
+      "network_requests": [
+        {
+          "url": "http://localhost:1425/",
+          "method": "GET",
+          "resourceType": "document"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:1425/help-system.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/positions",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/market-data",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/metrics",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ],
+      "libraries_detected": {
+        "chartjs": true,
+        "lightweight_charts": false,
+        "three": false,
+        "gsap": false
+      },
+      "backend_status_text": "Connected",
+      "console_messages": [
+        "error: Failed to load resource: the server responded with a status of 404 (File not found)",
+        "log: [Risk] \ud83d\ude80 Risk Management Dashboard - Initializing... {}",
+        "log: [Risk] Positions received {count: 1}",
+        "log: [Risk] Market data received {count: 14}",
+        "log: [Risk] Metrics received {total_pnl: -87.00767675919785, total_trades: 476, winning_trades: 209, win_rate: 0.43907563025210083, open_positions: 1}",
+        "log: [Risk] \u2705 Risk Management Dashboard initialized {}"
+      ],
+      "html_snippet": "<!DOCTYPE html><html lang=\"en\"><head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <meta http-equiv=\"Cache-Control\" content=\"no-cache, no-store, must-revalidate\">\n    <title>Risk Management Dashboard - Port 1425</title>\n    \n    <!-- Chart.js for risk visualizations -->\n    <script src=\"https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js\"></script>\n    <script src=\"../help-system.js\"></script>\n    \n    <!-- Favicon to silence 404 -->\n    <link rel=\"icon\" href=\"data:,\">\n    \n    <style>\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n        \n        body {\n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Monaco', monospace;\n            background: #000;\n            color: #fff;\n            padding: 20px;\n            overflow-x: hidden;\n        }\n        \n        .container {\n            max-width: 1800px;\n            margin: 0 auto;\n        }\n        \n        /* Header */\n        .header {\n            margin-bottom: 30px;\n            padding-bottom: 20px;\n            border-bottom: 1px solid rgba(248, 113, 113, 0.3);\n        }\n        ",
+      "api_requests_observed": [
+        {
+          "url": "http://localhost:8000/api/dashboard/positions",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/market-data",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/metrics",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ]
+    },
+    {
+      "port": 1426,
+      "url": "http://localhost:1426/",
+      "loaded": true,
+      "status": 200,
+      "error": null,
+      "api_bases": [
+        "http://localhost:8000/api"
+      ],
+      "ws_urls": [],
+      "endpoints_found": [],
+      "network_requests": [
+        {
+          "url": "http://localhost:1426/",
+          "method": "GET",
+          "resourceType": "document"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:1426/help-system.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/recent-trades",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ],
+      "libraries_detected": {
+        "chartjs": true,
+        "lightweight_charts": false,
+        "three": false,
+        "gsap": false
+      },
+      "backend_status_text": "Connected",
+      "console_messages": [
+        "error: Failed to load resource: the server responded with a status of 404 (File not found)",
+        "log: [Execution] \ud83d\ude80 Trade Execution Monitor - Initializing... {}",
+        "log: [Execution] Trades received {count: 20}",
+        "log: [Execution] \u2705 Trade Execution Monitor initialized {}"
+      ],
+      "html_snippet": "<!DOCTYPE html><html lang=\"en\"><head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <meta http-equiv=\"Cache-Control\" content=\"no-cache, no-store, must-revalidate\">\n    <title>Trade Execution Monitor - Port 1426</title>\n    \n    <!-- Chart.js for trade timeline -->\n    <script src=\"https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js\"></script>\n    <script src=\"../help-system.js\"></script>\n    \n    <!-- Favicon to silence 404 -->\n    <link rel=\"icon\" href=\"data:,\">\n    \n    <style>\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n        \n        body {\n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Monaco', monospace;\n            background: #000;\n            color: #fff;\n            padding: 20px;\n            overflow-x: hidden;\n        }\n        \n        .container {\n            max-width: 1800px;\n            margin: 0 auto;\n        }\n        \n        /* Header */\n        .header {\n            margin-bottom: 30px;\n            padding-bottom: 20px;\n            border-bottom: 1px solid rgba(96, 165, 250, 0.3);\n        }\n        ",
+      "api_requests_observed": [
+        {
+          "url": "http://localhost:8000/api/dashboard/recent-trades",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ]
+    },
+    {
+      "port": 1427,
+      "url": "http://localhost:1427/",
+      "loaded": true,
+      "status": 200,
+      "error": null,
+      "api_bases": [
+        "http://localhost:8000/api"
+      ],
+      "ws_urls": [],
+      "endpoints_found": [],
+      "network_requests": [
+        {
+          "url": "http://localhost:1427/",
+          "method": "GET",
+          "resourceType": "document"
+        },
+        {
+          "url": "http://localhost:1427/help-system.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:1427/ws-client.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/metrics",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/market-data",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/market-data",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ],
+      "libraries_detected": {
+        "chartjs": false,
+        "lightweight_charts": false,
+        "three": false,
+        "gsap": false
+      },
+      "backend_status_text": "Connected (Mock Data)",
+      "console_messages": [
+        "error: Failed to load resource: the server responded with a status of 404 (File not found)",
+        "error: Failed to load resource: the server responded with a status of 404 (File not found)",
+        "log: \ud83d\ude80 Trade Opportunities View - Initializing...",
+        "error: [ERROR] [Opportunities] [2026-01-01T08:12:12.622Z] Error fetching opportunities ReferenceError: pendingOpportunitiesRequest is not defined\n    at fetchOpportunities (http://localhost:1427/:473:17)\n    at init (http://localhost:1427/:1121:13)",
+        "log: [Opportunities] [2026-01-01T08:12:12.623Z] \u26a0\ufe0f Falling back to mock opportunities {}",
+        "log: [Opportunities] [2026-01-01T08:12:12.623Z] \u26a0\ufe0f Using MOCK opportunities - API unavailable {}",
+        "log: \u2705 Trade Opportunities View initialized",
+        "error: [ERROR] [Opportunities] [2026-01-01T08:12:12.925Z] Error fetching opportunities ReferenceError: pendingOpportunitiesRequest is not defined\n    at fetchOpportunities (http://localhost:1427/:473:17)\n    at http://localhost:1427/:972:17",
+        "log: [Opportunities] [2026-01-01T08:12:12.926Z] \u26a0\ufe0f Falling back to mock opportunities {}",
+        "log: [Opportunities] [2026-01-01T08:12:12.926Z] \u26a0\ufe0f Using MOCK opportunities - API unavailable {}"
+      ],
+      "html_snippet": "<!DOCTYPE html><html lang=\"en\"><head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <meta http-equiv=\"Cache-Control\" content=\"no-cache, no-store, must-revalidate\">\n    <title>Trade Opportunities - Port 1427</title>\n    \n    <script src=\"../help-system.js\" defer=\"\"></script>\n    <script src=\"../ws-client.js\" defer=\"\"></script>\n    \n    <style>\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n        \n        body {\n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Monaco', monospace;\n            background: #000;\n            color: #fff;\n            padding: 20px;\n            overflow-x: hidden;\n        }\n        \n        .container {\n            max-width: 1800px;\n            margin: 0 auto;\n        }\n        \n        .header {\n            margin-bottom: 30px;\n            padding-bottom: 20px;\n            border-bottom: 1px solid rgba(74, 222, 128, 0.3);\n        }\n        \n        .header h1 {\n            font-size: 28px;\n            color: #4ade80;\n            margin-bottom: 8px;\n        }",
+      "api_requests_observed": [
+        {
+          "url": "http://localhost:8000/api/dashboard/metrics",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/market-data",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/market-data",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ]
+    },
+    {
+      "port": 1428,
+      "url": "http://localhost:1428/",
+      "loaded": true,
+      "status": 200,
+      "error": null,
+      "api_bases": [
+        "http://localhost:8000/api"
+      ],
+      "ws_urls": [],
+      "endpoints_found": [],
+      "network_requests": [
+        {
+          "url": "http://localhost:1428/",
+          "method": "GET",
+          "resourceType": "document"
+        },
+        {
+          "url": "http://localhost:1428/help-system.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:1428/ws-client.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/signals",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ],
+      "libraries_detected": {
+        "chartjs": false,
+        "lightweight_charts": false,
+        "three": false,
+        "gsap": false
+      },
+      "backend_status_text": "Connected (Mock Data)",
+      "console_messages": [
+        "log: [PROPHECY] Initializing PROPHECY Alert Center... {}",
+        "error: Failed to load resource: the server responded with a status of 404 (File not found)",
+        "error: Failed to load resource: the server responded with a status of 404 (File not found)",
+        "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "error: [PROPHECY ERROR] Error fetching PROPHECY events Error: HTTP 404\n    at fetchProphecies (http://localhost:1428/:543:27)\n    at async init (http://localhost:1428/:890:13)",
+        "log: [PROPHECY] \u26a0\ufe0f Falling back to mock PROPHECY events {}",
+        "log: [PROPHECY] \u26a0\ufe0f Using MOCK PROPHECY events - API unavailable {}",
+        "log: [PROPHECY] \u2705 PROPHECY Alert Center initialized {}"
+      ],
+      "html_snippet": "<!DOCTYPE html><html lang=\"en\"><head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <meta http-equiv=\"Cache-Control\" content=\"no-cache, no-store, must-revalidate\">\n    <title>PROPHECY Alert Center - The Oracle's Eye</title>\n    \n    <script src=\"../help-system.js\" defer=\"\"></script>\n    <script src=\"../ws-client.js\" defer=\"\"></script>\n    \n    <style>\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n        \n        body {\n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Monaco', monospace;\n            background: #000;\n            color: #fff;\n            padding: 20px;\n            overflow-x: hidden;\n        }\n        \n        .container {\n            max-width: 1800px;\n            margin: 0 auto;\n        }\n        \n        .header {\n            margin-bottom: 30px;\n            padding-bottom: 20px;\n            border-bottom: 1px solid rgba(251, 191, 36, 0.3);\n        }\n        \n        .header h1 {\n            font-size: 32px;\n            color: #fbbf24;\n            margin-bottom: 8px;\n            display: flex;",
+      "api_requests_observed": [
+        {
+          "url": "http://localhost:8000/api/dashboard/signals",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ]
+    },
+    {
+      "port": 1429,
+      "url": "http://localhost:1429/",
+      "loaded": true,
+      "status": 200,
+      "error": null,
+      "api_bases": [
+        "http://localhost:8000/api"
+      ],
+      "ws_urls": [],
+      "endpoints_found": [],
+      "network_requests": [
+        {
+          "url": "http://localhost:1429/",
+          "method": "GET",
+          "resourceType": "document"
+        },
+        {
+          "url": "http://localhost:1429/help-system.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:1429/ws-client.js",
+          "method": "GET",
+          "resourceType": "script"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/market-data",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/signals",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/opportunities",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/positions",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ],
+      "libraries_detected": {
+        "chartjs": false,
+        "lightweight_charts": false,
+        "three": false,
+        "gsap": false
+      },
+      "backend_status_text": "Connected (14 symbols)",
+      "console_messages": [
+        "log: [Scanner] Initializing Market Scanner... {}",
+        "error: Failed to load resource: the server responded with a status of 404 (File not found)",
+        "error: Failed to load resource: the server responded with a status of 404 (File not found)",
+        "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "error: [Scanner ERROR] Signals fetch failed Error: HTTP 404\n    at http://localhost:1429/:652:27\n    at async fetchSignals (http://localhost:1429/:672:20)\n    at async Promise.all (index 1)\n    at async fetchAllData (http://localhost:1429/:791:73)\n    at async refreshData (http://localhost:1429/:1174:75)\n    at async init (http://localhost:1429/:1162:13)",
+        "log: [Scanner] \u2705 Market Scanner initialized {}"
+      ],
+      "html_snippet": "<!DOCTYPE html><html lang=\"en\"><head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <meta http-equiv=\"Cache-Control\" content=\"no-cache, no-store, must-revalidate\">\n    <title>Market Scanner - Multi-Symbol Command Center</title>\n    \n    <script src=\"../help-system.js\" defer=\"\"></script>\n    <script src=\"../ws-client.js\" defer=\"\"></script>\n    \n    <style>\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n        \n        body {\n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Monaco', monospace;\n            background: #000;\n            color: #fff;\n            padding: 20px;\n            overflow-x: hidden;\n        }\n        \n        .container {\n            max-width: 1800px;\n            margin: 0 auto;\n        }\n        \n        .header {\n            margin-bottom: 30px;\n            padding-bottom: 20px;\n            border-bottom: 1px solid rgba(74, 222, 128, 0.3);\n        }\n        \n        .header h1 {\n            font-size: 32px;\n            color: #4ade80;\n            margin-bottom: 8px;\n            display: flex;",
+      "api_requests_observed": [
+        {
+          "url": "http://localhost:8000/api/dashboard/market-data",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/signals",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/opportunities",
+          "method": "GET",
+          "resourceType": "fetch"
+        },
+        {
+          "url": "http://localhost:8000/api/dashboard/positions",
+          "method": "GET",
+          "resourceType": "fetch"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_views": 10,
+    "probed": 10,
+    "successful_loads": 10,
+    "ports": [
+      1420,
+      1421,
+      1422,
+      1423,
+      1424,
+      1425,
+      1426,
+      1427,
+      1428,
+      1429
+    ]
+  }
+}
