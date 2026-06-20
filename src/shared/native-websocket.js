@@ -9,7 +9,7 @@ const getWsUrl = () => {
   if (typeof window !== 'undefined') {
     const configuredBackend = localStorage.getItem('SOVEREIGN_BACKEND_URL');
     if (configuredBackend) {
-      // Convert backend URL (e.g. http://host:8000/api) to WS url (e.g. ws://host:8000/ws/stream)
+      // Convert backend URL (e.g. http://host:8001/api) to WS url (e.g. ws://host:8001/ws/stream)
       return configuredBackend.replace(/^http/, 'ws').replace(/\/api\/?$/, '') + '/ws/stream';
     }
     
@@ -18,11 +18,10 @@ const getWsUrl = () => {
     const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
     
     if (host) {
-      // Force connection to mainnet server .130 as requested by the user
-      return `ws://130.61.202.29:8000/ws/stream`;
+      return `${wsProtocol}//${window.location.hostname}:8001/ws/stream`;
     }
   }
-  return 'ws://130.61.202.29:8000/ws/stream';
+  return 'ws://127.0.0.1:8001/ws/stream';
 };
 
 const WS_URL = getWsUrl();
