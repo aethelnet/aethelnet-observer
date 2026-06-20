@@ -1,0 +1,1669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Market Connections Network - Port 1421</title>
+    <link rel="icon" href="data:,">
+    
+    <!-- Three.js for 3D visualization -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.module.js"
+        }
+    }
+    </script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #voronoi-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: auto;  /* Enable clicks on Voronoi cells */
+            z-index: 1;
+            opacity: 0.15;
+            cursor: pointer;
+        }
+        
+        .connection-label {
+            position: fixed !important;  /* Use fixed positioning to avoid browser quirks */
+            pointer-events: none;
+            z-index: 1000;
+            white-space: nowrap;
+            text-align: center;
+        }
+        
+        #info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            min-width: 250px;
+            z-index: 100;
+        }
+        
+        #info-panel h1 {
+            font-size: 20px;
+            margin-bottom: 15px;
+            color: #4ade80;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .status.connected {
+            background: #4ade80;
+            color: #000;
+        }
+        
+        .status.disconnected {
+            background: #f87171;
+            color: #fff;
+        }
+        
+        .symbol-info {
+            margin: 8px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 4px;
+            border-left: 2px solid transparent;
+            font-size: 12px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .symbol-info:hover {
+            background: rgba(255, 255, 255, 0.06);
+            transform: translateX(2px);
+        }
+        
+        .symbol-info.selected {
+            border-left-color: #4ade80;
+            background: rgba(74, 222, 128, 0.1);
+        }
+        
+        .symbol-name {
+            font-weight: bold;
+            color: #4ade80;
+        }
+        
+        .symbol-price {
+            color: #fff;
+        }
+        
+        .symbol-signal {
+            font-size: 10px;
+            margin-top: 4px;
+        }
+        
+        .signal-buy {
+            color: #4ade80;
+        }
+        
+        .signal-sell {
+            color: #f87171;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            z-index: 100;
+        }
+        
+        #controls button {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 12px;
+        }
+        
+        #controls button:hover {
+            background: #444;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #4ade80;
+            z-index: 200;
+        }
+        
+        .error {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(248, 113, 113, 0.9);
+            color: #000;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 400px;
+            z-index: 200;
+            display: none;
+        }
+        
+        .error.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container">
+        <canvas id="voronoi-canvas"></canvas>
+    </div>
+    
+    <div id="loading">🔗 Loading Market Connections Network...</div>
+    
+    <div class="error" id="error-message"></div>
+    
+    <div id="info-panel">
+        <h1>🔗 Market Connections</h1>
+        <div style="color: #888; font-size: 10px; margin-bottom: 10px;">See how markets move together</div>
+        
+        <!-- Quick Help -->
+        <div style="margin-bottom: 15px; padding: 8px; background: rgba(74, 222, 128, 0.1); border: 1px solid rgba(74, 222, 128, 0.3); border-radius: 4px;">
+            <div style="color: #4ade80; font-size: 9px; font-weight: bold; margin-bottom: 4px;">💡 Quick Tip:</div>
+            <div style="color: #aaa; font-size: 8px; line-height: 1.4;">
+                Click any colored node to see its connections. Use the slider to filter by correlation strength.
+            </div>
+        </div>
+        
+        <!-- Node Details Panel (shown when node is selected) -->
+        <div id="node-details" style="display: none; margin-top: 15px; padding: 12px; background: rgba(74, 222, 128, 0.1); border: 1px solid #4ade80; border-radius: 4px; animation: fadeIn 0.3s;">
+            <div style="color: #4ade80; font-size: 11px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                <span>📊</span> <span>Selected Market</span>
+            </div>
+            <div id="node-details-content" style="color: #fff; font-size: 10px; line-height: 1.6;">
+                <!-- Details will be populated here -->
+            </div>
+        </div>
+        
+        <!-- Connection Status -->
+        <div style="margin-bottom: 15px;">
+            <div style="color: #888; font-size: 10px; margin-bottom: 5px;">Backend Connection:</div>
+            <span id="backend-status" class="status disconnected">Disconnected</span>
+        </div>
+        
+        <!-- Correlation Filter -->
+        <div style="margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 4px;">
+            <div style="color: #888; font-size: 10px; margin-bottom: 8px; font-weight: bold;">Filter by Strength:</div>
+            <div style="margin-bottom: 6px;">
+                <label style="color: #aaa; font-size: 9px; display: block; margin-bottom: 4px;">
+                    Show connections above: <strong style="color: #fff;" id="correlation-value">30%</strong>
+                </label>
+                <input type="range" id="correlation-filter" min="0" max="100" value="30" 
+                       style="width: 100%; cursor: pointer; accent-color: #4ade80;">
+            </div>
+            <div style="color: #666; font-size: 8px; margin-top: 6px; line-height: 1.4;">
+                <div>🟢 <strong>Green lines</strong> = Strong (70%+)</div>
+                <div>🟡 <strong>Yellow lines</strong> = Medium (50-70%)</div>
+                <div>⚪ <strong>Gray lines</strong> = Weak (30-50%)</div>
+            </div>
+        </div>
+        
+        <!-- Visualization Legend -->
+        <div style="margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 4px;">
+            <div style="color: #888; font-size: 10px; margin-bottom: 8px; font-weight: bold;">What You're Seeing:</div>
+            <div style="color: #aaa; font-size: 9px; margin-bottom: 6px; line-height: 1.5;">
+                <div style="margin-bottom: 4px;">
+                    🟢 <strong style="color: #4ade80;">Green nodes</strong> = Buy signal
+                </div>
+                <div style="margin-bottom: 4px;">
+                    🔴 <strong style="color: #f87171;">Red nodes</strong> = Sell signal
+                </div>
+                <div style="margin-bottom: 4px;">
+                    ⚪ <strong style="color: #888;">Gray nodes</strong> = Neutral
+                </div>
+                <div style="margin-bottom: 4px;">
+                    📏 <strong>Bigger nodes</strong> = More trading volume
+                </div>
+                <div>
+                    🔗 <strong>Lines</strong> = Market connections (thicker = stronger)
+                </div>
+            </div>
+        </div>
+        
+        <!-- Market Data List -->
+        <div style="margin-bottom: 15px;">
+            <div style="color: #888; font-size: 10px; margin-bottom: 8px; font-weight: bold;">Top Trading Pairs:</div>
+            <div id="symbols-list">
+                <p style="color: #888; font-size: 11px;">Loading market data...</p>
+            </div>
+        </div>
+        
+        <!-- Connection Status -->
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #333;">
+            <div style="color: #888; font-size: 9px; margin-bottom: 4px;">Updates every 10 seconds</div>
+            <div style="color: #666; font-size: 8px;">Data from trading backend</div>
+        </div>
+    </div>
+    
+    <div id="controls">
+        <div style="color: #888; font-size: 10px; margin-bottom: 8px; font-weight: bold;">Controls:</div>
+        <button id="reset-camera" 
+                title="Return camera to default viewing angle and position"
+                aria-label="Reset camera to default view"
+                data-help="Reset View: Returns the 3D camera to its default position and angle. Useful when you've rotated or zoomed too far.">Reset View</button>
+        <button id="toggle-orbits" 
+                title="Show or hide connection lines between market nodes"
+                aria-label="Toggle connection lines visibility"
+                data-help="Toggle Connections: Shows or hides the connection lines between market nodes. Connections represent correlations between different markets.">Toggle Connections</button>
+        <button id="toggle-labels" 
+                title="Show or hide correlation labels on connections"
+                aria-label="Toggle correlation labels"
+                data-help="Toggle Labels: Shows or hides correlation values on connection lines. Labels show the strength of relationships between markets.">Toggle Labels</button>
+        <button id="reset-filter" 
+                title="Reset correlation filter threshold to 30%"
+                aria-label="Reset correlation filter to 30%"
+                data-help="Reset Filter: Resets the correlation filter to 30%, showing only connections with correlation strength above this threshold.">Reset Filter</button>
+        <div style="color: #666; font-size: 9px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #333;">
+            <div style="margin-bottom: 3px;">🖱️ <strong>Drag</strong> = Rotate view</div>
+            <div style="margin-bottom: 3px;">🖱️ <strong>Scroll</strong> = Zoom in/out</div>
+            <div>🖱️ <strong>Click node</strong> = See connections</div>
+        </div>
+        <button id="help-btn" 
+                style="
+                    margin-top: 10px;
+                    padding: 6px 12px;
+                    background: rgba(74, 222, 128, 0.2);
+                    border: 1px solid rgba(74, 222, 128, 0.4);
+                    color: #4ade80;
+                    border-radius: 4px;
+                    cursor: help;
+                    font-size: 11px;
+                    width: 100%;
+                "
+                title="Show help (F1 or ?)"
+                aria-label="Show help and documentation">? Help</button>
+    </div>
+    
+    <script src="../help-system.js"></script>
+    <script type="module">
+        // ========================================================================
+        // CONFIGURATION
+        // ========================================================================
+        // Backend API endpoint - same as MVP, connects to trading backend
+        const API_BASE = 'http://localhost:8000/api';
+        
+        // ========================================================================
+        // ERROR HANDLING & LOGGING
+        // ========================================================================
+        function log(message, data = {}) {
+            const timestamp = new Date().toISOString();
+            console.log(`[Creative] [${timestamp}] ${message}`, data);
+        }
+        
+        function logError(message, error) {
+            const timestamp = new Date().toISOString();
+            console.error(`[ERROR] [Creative] [${timestamp}] ${message}`, error);
+            showError(message);
+        }
+        
+        function showError(message) {
+            const errorEl = document.getElementById('error-message');
+            errorEl.textContent = message;
+            errorEl.classList.add('show');
+            setTimeout(() => {
+                errorEl.classList.remove('show');
+            }, 5000);
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        // ========================================================================
+        // THREE.JS SETUP - 3D Network Visualization Engine
+        // ========================================================================
+        // Three.js is a 3D graphics library for creating WebGL scenes
+        // We use it to create a network graph showing market connections
+        // Nodes = trading symbols, Edges = correlations/connections
+        
+        let scene, camera, renderer, controls;
+        // nodes Map: stores all 3D node objects (trading symbols)
+        // Key = trading symbol (e.g., "BTCEUR"), Value = node object with mesh, position, data
+        let nodes = new Map(); // symbol -> node object
+        let connections = [];  // Array of connection objects (edges between nodes)
+        let connectionsVisible = true;  // Whether to show connection lines
+        let labelsVisible = true;  // Whether to show text labels on connection lines
+        let selectedNode = null;  // Currently selected node
+        let connectionLabels = new Map();  // HTML label elements for connection lines
+        let raycaster, mouse;  // For click detection
+        let minCorrelation = 0.3;  // Minimum correlation to show (0-1)
+        let priceHistory = new Map();  // Store price history for better correlation calculation
+        let voronoiCanvas = null;  // Canvas for Voronoi diagram
+        let voronoiCtx = null;  // Canvas context for Voronoi diagram
+        
+        async function initThreeJS() {
+            try {
+                log('Initializing Three.js...');
+                
+                // Import Three.js and store globally
+                ThreeJS = await import('three');
+                
+                if (!ThreeJS) {
+                    throw new Error('Three.js import returned null/undefined');
+                }
+                
+                log('Three.js imported successfully', { version: ThreeJS.REVISION || 'unknown' });
+                
+                const { Scene, PerspectiveCamera, WebGLRenderer, Color, AmbientLight, 
+                        DirectionalLight, PointLight } = ThreeJS;
+                
+                // ========================================================================
+                // SCENE SETUP - The 3D "world" where planets will live
+                // ========================================================================
+                scene = new Scene();
+                scene.background = new Color(0x000011); // Dark blue space background
+                
+                // ========================================================================
+                // CAMERA SETUP - Your "eye" viewing the 3D scene
+                // ========================================================================
+                // PerspectiveCamera: mimics human vision (things get smaller with distance)
+                // Parameters: field of view (75°), aspect ratio, near plane, far plane
+                camera = new PerspectiveCamera(
+                    75,                                    // Field of view (degrees)
+                    window.innerWidth / window.innerHeight, // Aspect ratio (width/height)
+                    0.1,                                   // Near clipping plane (don't render closer)
+                    10000                                  // Far clipping plane (don't render farther)
+                );
+                camera.position.set(0, 30, 80); // Start position: closer to see nodes better
+                
+                // ========================================================================
+                // RENDERER SETUP - Draws the 3D scene to the screen
+                // ========================================================================
+                // WebGLRenderer: uses WebGL (GPU acceleration) for fast 3D rendering
+                renderer = new WebGLRenderer({ antialias: true }); // antialias = smooth edges
+                renderer.setSize(window.innerWidth, window.innerHeight); // Full screen
+                renderer.setPixelRatio(window.devicePixelRatio); // High DPI support
+                renderer.domElement.style.position = 'absolute';
+                renderer.domElement.style.zIndex = '2'; // Above Voronoi canvas
+                document.getElementById('canvas-container').appendChild(renderer.domElement);
+                
+                // Raycaster for click detection
+                const { Raycaster, Vector2 } = ThreeJS;
+                raycaster = new Raycaster();
+                mouse = new Vector2();
+                
+                // ========================================================================
+                // CLICK DETECTION - Select nodes on click
+                // ========================================================================
+                // Set up click handler after renderer is created
+                renderer.domElement.addEventListener('click', (event) => {
+                    if (!raycaster || !camera) return;
+                    
+                    // Calculate mouse position in normalized device coordinates
+                    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+                    
+                    // Update raycaster
+                    raycaster.setFromCamera(mouse, camera);
+                    
+                    // Get all node meshes
+                    const nodeMeshes = Array.from(nodes.values()).map(node => node.mesh);
+                    
+                    // Find intersections
+                    const intersects = raycaster.intersectObjects(nodeMeshes);
+                    
+                    if (intersects.length > 0) {
+                        const clickedMesh = intersects[0].object;
+                        const symbol = clickedMesh.userData.symbol;
+                        if (symbol) {
+                            selectNode(symbol);
+                        }
+                    } else {
+                        // Clicked on empty space - deselect
+                        deselectNode();
+                    }
+                });
+                
+                // ========================================================================
+                // LIGHTING SETUP - Makes planets visible in 3D space
+                // ========================================================================
+                // AmbientLight: soft, even lighting from all directions (like daylight)
+                const ambientLight = new AmbientLight(0xffffff, 1.5); // White light, 150% intensity (very bright)
+                scene.add(ambientLight);
+                
+                // DirectionalLight: strong light from one direction (like sunlight)
+                const directionalLight = new DirectionalLight(0xffffff, 3.0); // White light, 300% intensity (very bright)
+                directionalLight.position.set(50, 50, 50); // Light comes from top-right
+                scene.add(directionalLight);
+                
+                // Add a second light from opposite side for better visibility
+                const directionalLight2 = new DirectionalLight(0xffffff, 2.5); // Additional bright light
+                directionalLight2.position.set(-50, -50, -50); // Light from opposite side
+                scene.add(directionalLight2);
+                
+                // Add a point light at center for extra visibility
+                const pointLight = new PointLight(0xffffff, 2.0, 500); // Very bright point light, 500 unit range
+                pointLight.position.set(0, 0, 0); // Center of scene
+                scene.add(pointLight);
+                
+                log('✅ Lighting setup complete', { 
+                    ambient: 1.5, 
+                    directional1: 3.0, 
+                    directional2: 2.5, 
+                    point: 2.0 
+                });
+                
+                // ========================================================================
+                // VORONOI CANVAS INITIALIZATION - 2D Voronoi background
+                // ========================================================================
+                voronoiCanvas = document.getElementById('voronoi-canvas');
+                if (voronoiCanvas) {
+                    voronoiCtx = voronoiCanvas.getContext('2d');
+                    voronoiCanvas.width = window.innerWidth;
+                    voronoiCanvas.height = window.innerHeight;
+                    
+                    // Add click handler for Voronoi cells
+                    voronoiCanvas.addEventListener('click', (event) => {
+                        const rect = voronoiCanvas.getBoundingClientRect();
+                        const x = event.clientX - rect.left;
+                        const y = event.clientY - rect.top;
+                        
+                        // Find which cell was clicked
+                        const cellSize = 15;
+                        const cellKey = `${Math.floor(x/cellSize)},${Math.floor(y/cellSize)}`;
+                        
+                        const cellData = voronoiCellMap.get(cellKey);
+                        if (cellData && cellData.symbol) {
+                            // Select the symbol for this cell
+                            selectNode(cellData.symbol);
+                            log(`Clicked Voronoi cell for ${cellData.symbol}`, { correlation: cellData.correlation });
+                        }
+                    });
+                    
+                    log('✅ Voronoi canvas initialized with click detection');
+                }
+                
+                // ========================================================================
+                // CAMERA CONTROLS - User interaction for viewing the galaxy
+                // ========================================================================
+                // Mouse drag: Rotate camera around the galaxy
+                // Scroll wheel: Zoom in/out
+                
+                let isDragging = false;  // Track if user is dragging mouse
+                let previousMousePosition = { x: 0, y: 0 };  // Last mouse position
+                
+                // Mouse down: Start dragging
+                renderer.domElement.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    previousMousePosition = { x: e.clientX, y: e.clientY };
+                });
+                
+                // Mouse move: Rotate camera while dragging
+                renderer.domElement.addEventListener('mousemove', (e) => {
+                    if (isDragging) {
+                        // Calculate how much mouse moved
+                        const deltaX = e.clientX - previousMousePosition.x;  // Horizontal movement
+                        const deltaY = e.clientY - previousMousePosition.y;  // Vertical movement
+                        
+                        // Rotate camera around Y-axis (vertical) based on horizontal mouse movement
+                        camera.position.applyAxisAngle({ x: 0, y: 1, z: 0 }, deltaX * 0.01);
+                        camera.lookAt(0, 0, 0);  // Keep looking at center
+                        previousMousePosition = { x: e.clientX, y: e.clientY };
+                    }
+                });
+                
+                // Mouse up: Stop dragging
+                renderer.domElement.addEventListener('mouseup', () => {
+                    isDragging = false;
+                });
+                
+                // Scroll wheel: Zoom in/out
+                renderer.domElement.addEventListener('wheel', (e) => {
+                    const delta = e.deltaY * 0.01;  // Scroll amount (positive = zoom out, negative = zoom in)
+                    camera.position.multiplyScalar(1 + delta);  // Move camera closer/farther
+                    
+                    // Limit zoom range (don't get too close or too far)
+                    if (camera.position.length() < 30) camera.position.normalize().multiplyScalar(30);   // Min distance
+                    if (camera.position.length() > 500) camera.position.normalize().multiplyScalar(500); // Max distance
+                });
+                
+                controls = { update: () => {} }; // Placeholder for compatibility
+                
+                log('Three.js initialized successfully');
+                
+                // Start render loop
+                animate();
+                
+            } catch (error) {
+                logError('Failed to initialize Three.js', error);
+                console.error('[ERROR] Three.js initialization failed:', {
+                    message: error.message,
+                    stack: error.stack,
+                    name: error.name
+                });
+                
+                // Show fallback message
+                const container = document.getElementById('canvas-container');
+                container.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; height: 100vh; flex-direction: column; color: #fff;">
+                        <h2 style="color: #f87171; margin-bottom: 20px;">⚠️ Three.js Failed to Load</h2>
+                        <p style="color: #888; margin-bottom: 10px;">Error: ${error.message}</p>
+                        <p style="color: #888; font-size: 12px;">Check browser console for details</p>
+                        <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer;">
+                            Reload Page
+                        </button>
+                    </div>
+                `;
+                hideLoading();
+            }
+        }
+        
+        // Three.js classes (loaded once)
+        let ThreeJS = null;
+        
+        // ========================================================================
+        // CORRELATION CALCULATION - Calculate how markets are connected
+        // ========================================================================
+        // For ML tuning: We need to see which markets move together
+        // Enhanced correlation based on:
+        // 1. Price movement similarity (24h change) - PRIMARY
+        // 2. Signal similarity (if signals align) - SECONDARY
+        // 3. Volume correlation (trading activity patterns) - TERTIARY
+        // 4. Price direction (both up/down = higher correlation)
+        function calculateCorrelation(data1, data2) {
+            // ========================================================================
+            // PRICE MOVEMENT CORRELATION (Primary - 50% weight)
+            // ========================================================================
+            // Calculate how similar their 24h price changes are
+            const change1 = data1.change_24h || 0;
+            const change2 = data2.change_24h || 0;
+            
+            // Same direction (both positive or both negative) = higher correlation
+            const sameDirection = (change1 >= 0 && change2 >= 0) || (change1 < 0 && change2 < 0);
+            const directionBonus = sameDirection ? 0.2 : 0;
+            
+            // Similar magnitude = higher correlation
+            const changeDiff = Math.abs(change1 - change2);
+            const priceCorr = Math.max(0, 1 - (changeDiff / 15)) + directionBonus;  // Normalize to 0-1
+            
+            // ========================================================================
+            // SIGNAL CORRELATION (Secondary - 30% weight)
+            // ========================================================================
+            // Do they have similar trading signals?
+            let signalCorr = 0;
+            if (data1.signal_strength && data2.signal_strength) {
+                const bothBuy = (data1.signal_strength.includes('BUY') && data2.signal_strength.includes('BUY'));
+                const bothSell = (data1.signal_strength.includes('SELL') && data2.signal_strength.includes('SELL'));
+                
+                if (bothBuy || bothSell) {
+                    // Check signal strength match
+                    const bothStrong = (data1.signal_strength.includes('STRONG') && data2.signal_strength.includes('STRONG'));
+                    signalCorr = bothStrong ? 0.7 : 0.5;  // Strong match = higher correlation
+                } else {
+                    // Opposite signals = negative correlation (but we clamp to 0)
+                    signalCorr = -0.1;
+                }
+            }
+            
+            // ========================================================================
+            // VOLUME CORRELATION (Tertiary - 20% weight)
+            // ========================================================================
+            // Similar trading volumes suggest similar market activity
+            const vol1 = Math.log10((data1.volume || 0) + 1);
+            const vol2 = Math.log10((data2.volume || 0) + 1);
+            const volDiff = Math.abs(vol1 - vol2);
+            const volCorr = Math.max(0, 1 - (volDiff / 5));  // Normalize to 0-1
+            
+            // ========================================================================
+            // WEIGHTED AVERAGE
+            // ========================================================================
+            // Price movement is most important for ML tuning
+            const correlation = (priceCorr * 0.5) + (Math.max(0, signalCorr) * 0.3) + (volCorr * 0.2);
+            return Math.max(0, Math.min(1, correlation));  // Clamp 0-1
+        }
+        
+        // ========================================================================
+        // NODE CREATION - Creates a 3D sphere representing a trading symbol
+        // ========================================================================
+        // Each trading symbol (BTC, ETH, etc.) becomes a node in the network
+        // 
+        // Visualization Mapping:
+        // - Node = Trading Symbol (e.g., BTCEUR, ETHEUR)
+        // - Node Size = Trading Volume (larger volume = bigger node)
+        // - Node Color = Trading Signal (green = buy, red = sell, gray = neutral)
+        // - Node Position = Arranged in 3D space for network layout
+        //
+        // Parameters:
+        //   symbol: Trading pair symbol (e.g., "BTCEUR", "ETHUSDT")
+        //   data: Market data object from backend API
+        //   index: Position in the list (for calculating 3D position)
+        //   total: Total number of symbols (for spacing)
+        function createNode(symbol, data, index, total) {
+            if (!ThreeJS || !scene) {
+                logError('Three.js not initialized', new Error('ThreeJS or scene not ready'));
+                return;
+            }
+            
+            try {
+                const { SphereGeometry, MeshStandardMaterial, Mesh, Group } = ThreeJS;
+                
+                // ========================================================================
+                // POSITION CALCULATION - Arrange planets in a 3D sphere
+                // ========================================================================
+                // Uses spherical coordinates to evenly distribute planets around center
+                // Each planet gets a unique position based on its index
+                const radius = 20 + (index * 4);  // Distance from center (closer for better visibility)
+                const theta = (index / total) * Math.PI * 2;  // Angle around circle (0 to 2π)
+                const phi = Math.acos((index * 2.0) / total - 1.0);  // Angle up/down (0 to π)
+                
+                // Convert spherical to Cartesian coordinates (x, y, z)
+                const x = radius * Math.sin(phi) * Math.cos(theta);
+                const y = radius * Math.sin(phi) * Math.sin(theta);
+                const z = radius * Math.cos(phi);
+                
+                // ========================================================================
+                // PLANET SIZE - Based on trading volume
+                // ========================================================================
+                // Volume = Total amount of cryptocurrency traded in 24 hours
+                // Larger volume = bigger planet (more trading activity)
+                // Uses logarithmic scale so huge volumes don't create giant planets
+                const volume = data.volume || 0;  // Trading volume from API (e.g., 491.98 for BTC)
+                const size = Math.max(5, Math.min(12, Math.log10(volume + 1) / 2 + 4));  // Size between 5-12 units (much larger for visibility)
+                
+                // ========================================================================
+                // PLANET COLOR - Based on trading signal with intensity
+                // ========================================================================
+                // Signal = Trading recommendation from backend algorithm
+                // - STRONG BUY / BUY = Green (algorithm suggests buying)
+                // - STRONG SELL / SELL = Red (algorithm suggests selling)
+                // - Neutral / No signal = Gray
+                // Color intensity varies based on signal strength and 24h change
+                let color = 0x888888; // Default: neutral gray
+                let colorIntensity = 1.0; // Brightness multiplier
+                
+                if (data.signal_strength) {
+                    if (data.signal_strength.includes('STRONG BUY') || data.signal_strength.includes('BUY')) {
+                        color = 0x4ade80; // Green = buy signal
+                        // Make STRONG BUY brighter
+                        if (data.signal_strength.includes('STRONG')) {
+                            colorIntensity = 1.5;
+                        }
+                    } else if (data.signal_strength.includes('STRONG SELL') || data.signal_strength.includes('SELL')) {
+                        color = 0xf87171; // Red = sell signal
+                        // Make STRONG SELL brighter
+                        if (data.signal_strength.includes('STRONG')) {
+                            colorIntensity = 1.5;
+                        }
+                    }
+                }
+                
+                // Adjust brightness based on 24h price change (more change = brighter)
+                const change24h = Math.abs(data.change_24h || 0);
+                colorIntensity += change24h * 0.1; // More change = more brightness
+                colorIntensity = Math.min(colorIntensity, 2.0); // Cap at 2x brightness
+                
+                // ========================================================================
+                // CREATE 3D PLANET OBJECT
+                // ========================================================================
+                // SphereGeometry: Creates a 3D sphere shape
+                // Parameters: radius (size), width segments, height segments
+                const geometry = new SphereGeometry(size, 32, 32);
+                
+                // MeshStandardMaterial: Material that responds to light (looks 3D)
+                // emissive: Makes planet glow with its signal color
+                // Brightness varies based on signal strength and price volatility
+                const material = new MeshStandardMaterial({ 
+                    color: color,                          // Base color
+                    emissive: color,                       // Glow color (same as base)
+                    emissiveIntensity: 1.0 * colorIntensity, // Glow strength (maximum for visibility)
+                    metalness: 0.1,                        // Slight metallic look
+                    roughness: 0.2,                        // Very shiny
+                    transparent: false,
+                    opacity: 1.0,
+                    wireframe: false  // Solid spheres (set to true for wireframe debug)
+                });
+                
+                // Mesh: Combines geometry + material = visible 3D object
+                const planet = new Mesh(geometry, material);
+                
+                // Store color intensity for animation (AFTER planet is created)
+                planet.userData = {
+                    baseColor: color,
+                    colorIntensity: colorIntensity,
+                    change24h: data.change_24h || 0,
+                    volume: volume
+                };
+                planet.position.set(x, y, z);  // Place planet at calculated position
+                
+                // Make node clickable
+                planet.userData.symbol = symbol;
+                planet.userData.isNode = true;
+                
+                // Group: Container for planet (allows adding orbit paths later)
+                const orbitGroup = new Group();
+                orbitGroup.add(planet);
+                
+                // ========================================================================
+                // STORE PLANET DATA
+                // ========================================================================
+                // Save reference so we can update/access node later
+                nodes.set(symbol, {
+                    mesh: planet,           // The 3D sphere object
+                    group: orbitGroup,      // Container group
+                    data: data,             // Original market data from API
+                    position: { x, y, z },  // 3D coordinates
+                    material: material,     // Material reference for animation
+                    baseSize: size          // Original size for pulsing animation
+                });
+                
+                // Add node to the 3D scene
+                scene.add(orbitGroup);  // Add group containing the planet
+                
+                // Debug: Log node creation with position
+                log(`✅ Node ${symbol} created`, { 
+                    position: `(${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)})`,
+                    size: size.toFixed(2),
+                    color: color,
+                    inScene: scene.children.includes(orbitGroup),
+                    sceneChildren: scene.children.length
+                });
+                
+                // Debug: Verify node is in scene
+                log(`Node ${symbol} added to scene`, { 
+                    position: { x, y, z }, 
+                    size, 
+                    inScene: scene.children.includes(orbitGroup),
+                    sceneChildrenCount: scene.children.length
+                });
+                
+                log(`Created node for ${symbol}`, { 
+                    position: { x, y, z }, 
+                    size, 
+                    color: color.toString(16),
+                    volume: volume,
+                    signal: data.signal_strength
+                });
+                
+            } catch (error) {
+                logError(`Failed to create node for ${symbol}`, error);
+            }
+        }
+        
+        // ========================================================================
+        // VORONOI DIAGRAM - 2D Voronoi background based on node positions
+        // ========================================================================
+        // Stores cell data for click detection
+        let voronoiCellMap = new Map(); // key: "x,y" -> { symbol, correlation }
+        
+        function updateVoronoiDiagram() {
+            if (!voronoiCanvas || !voronoiCtx || nodes.size === 0 || !camera) return;
+            
+            // Clear canvas and cell map
+            voronoiCtx.clearRect(0, 0, voronoiCanvas.width, voronoiCanvas.height);
+            voronoiCellMap.clear();
+            
+            // Get node positions projected to 2D screen space
+            const points = [];
+            const volumes = [];
+            const symbols = [];
+            
+            nodes.forEach((node, symbol) => {
+                if (!node.mesh) return;
+                
+                // Project 3D position to 2D screen coordinates
+                const vector = node.mesh.position.clone();
+                vector.project(camera);
+                
+                const x = (vector.x * 0.5 + 0.5) * voronoiCanvas.width;
+                const y = (-vector.y * 0.5 + 0.5) * voronoiCanvas.height;
+                
+                // Only include points that are visible on screen (with some margin)
+                if (x >= -100 && x <= voronoiCanvas.width + 100 && 
+                    y >= -100 && y <= voronoiCanvas.height + 100) {
+                    points.push({ x, y, symbol });
+                    volumes.push(node.data?.volume || 1);
+                    symbols.push(symbol);
+                }
+            });
+            
+            if (points.length < 2) return;
+            
+            // Calculate correlations to selected symbol (if any)
+            let correlations = new Map();
+            if (selectedNode) {
+                const selectedData = nodes.get(selectedNode)?.data;
+                if (selectedData) {
+                    symbols.forEach(symbol => {
+                        const nodeData = nodes.get(symbol)?.data;
+                        if (nodeData && symbol !== selectedNode) {
+                            const correlation = calculateCorrelation(selectedData, nodeData);
+                            correlations.set(symbol, correlation);
+                        }
+                    });
+                }
+            }
+            
+            // Simple Voronoi-like cells using distance-based coloring
+            // Create a grid and color each cell based on closest node
+            const cellSize = 15; // Size of each Voronoi-like cell
+            const maxVolume = Math.max(...volumes, 1);
+            const maxCorrelation = correlations.size > 0 ? Math.max(...Array.from(correlations.values())) : 1;
+            
+            voronoiCtx.strokeStyle = 'rgba(74, 222, 128, 0.15)';
+            voronoiCtx.lineWidth = 0.5;
+            
+            for (let x = 0; x < voronoiCanvas.width; x += cellSize) {
+                for (let y = 0; y < voronoiCanvas.height; y += cellSize) {
+                    // Find closest point
+                    let minDist = Infinity;
+                    let closestIndex = 0;
+                    let closestSymbol = '';
+                    
+                    points.forEach((point, i) => {
+                        const dx = point.x - x;
+                        const dy = point.y - y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            closestIndex = i;
+                            closestSymbol = point.symbol;
+                        }
+                    });
+                    
+                    // Calculate cell appearance
+                    let alpha, cellColor;
+                    
+                    if (selectedNode && closestSymbol !== selectedNode) {
+                        // Organize by correlation to selected symbol
+                        const correlation = correlations.get(closestSymbol) || 0;
+                        const correlationFactor = maxCorrelation > 0 ? correlation / maxCorrelation : 0;
+                        // Higher correlation = larger, brighter cells
+                        const sizeMultiplier = 0.8 + (correlationFactor * 0.4); // 0.8x to 1.2x size
+                        const adjustedCellSize = cellSize * sizeMultiplier;
+                        alpha = 0.1 + (correlationFactor * 0.2); // 0.1 to 0.3 opacity
+                        cellColor = correlation > 0.7 ? 'rgba(74, 222, 128' : 
+                                   correlation > 0.5 ? 'rgba(251, 191, 36' : 
+                                   'rgba(156, 163, 175'; // Green, yellow, gray
+                    } else {
+                        // Default: organize by volume
+                        const volume = volumes[closestIndex] || 1;
+                        const sizeFactor = Math.log10(volume + 1) / Math.log10(maxVolume + 1);
+                        alpha = 0.08 + (sizeFactor * 0.12);
+                        cellColor = 'rgba(74, 222, 128';
+                    }
+                    
+                    // Store cell data for click detection
+                    const cellKey = `${Math.floor(x/cellSize)},${Math.floor(y/cellSize)}`;
+                    voronoiCellMap.set(cellKey, { 
+                        symbol: closestSymbol, 
+                        x: x, 
+                        y: y,
+                        correlation: correlations.get(closestSymbol) || 0
+                    });
+                    
+                    // Draw cell
+                    voronoiCtx.fillStyle = `${cellColor}, ${alpha})`;
+                    voronoiCtx.fillRect(x, y, cellSize, cellSize);
+                    voronoiCtx.strokeRect(x, y, cellSize, cellSize);
+                }
+            }
+        }
+        
+        // ========================================================================
+        // CONNECTION CREATION - Draw lines between correlated markets
+        // ========================================================================
+        // For ML tuning: Shows which markets move together
+        // Stronger correlation = thicker, brighter line
+        function createConnections(allData) {
+            // Clear existing connections
+            connections.forEach(conn => {
+                if (scene) scene.remove(conn.line);
+            });
+            connections = [];
+            
+            if (!ThreeJS || !scene) return;
+            
+            const { BufferGeometry, BufferAttribute, LineBasicMaterial, Line } = ThreeJS;
+            
+            // Calculate correlations between all pairs
+            for (let i = 0; i < allData.length; i++) {
+                for (let j = i + 1; j < allData.length; j++) {
+                    const data1 = allData[i];
+                    const data2 = allData[j];
+                    const correlation = calculateCorrelation(data1, data2);
+                    
+                    // Only show connections above minimum correlation threshold
+                    if (correlation >= minCorrelation) {
+                        const node1 = nodes.get(data1.symbol);
+                        const node2 = nodes.get(data2.symbol);
+                        
+                        if (node1 && node2 && node1.mesh && node2.mesh) {
+                            // Use actual mesh positions (not stored position, which might be outdated)
+                            const pos1 = node1.mesh.position;
+                            const pos2 = node2.mesh.position;
+                            
+                            // Create line geometry
+                            const geometry = new BufferGeometry();
+                            const positions = new Float32Array([
+                                pos1.x, pos1.y, pos1.z,
+                                pos2.x, pos2.y, pos2.z
+                            ]);
+                            geometry.setAttribute('position', new BufferAttribute(positions, 3));
+                            
+                            // Line color and thickness based on correlation strength
+                            const lineColor = correlation > 0.7 ? 0x4ade80 : (correlation > 0.5 ? 0xfbbf24 : 0x888888);
+                            const lineWidth = correlation * 2;  // Thicker = stronger correlation
+                            
+                            const material = new LineBasicMaterial({ 
+                                color: lineColor,
+                                opacity: correlation * 0.6,
+                                transparent: true
+                            });
+                            
+                            const line = new Line(geometry, material);
+                            scene.add(line);
+                            
+                            // Store correlation in line userData for filtering
+                            line.userData.correlation = correlation;
+                            line.userData.fromSymbol = data1.symbol;
+                            line.userData.toSymbol = data2.symbol;
+                            
+                            // ========================================================================
+                            // CREATE CONNECTION LABELS - Show symbols and correlation at line endpoints
+                            // ========================================================================
+                            // Create label for "from" symbol (at start of line)
+                            const labelFrom = document.createElement('div');
+                            labelFrom.className = 'connection-label';
+                            labelFrom.innerHTML = `${data1.symbol}<br><span style="font-size: 9px; opacity: 0.7;">${(correlation * 100).toFixed(0)}%</span>`;
+                            labelFrom.style.cssText = `
+                                position: fixed;
+                                color: #fff;
+                                font-size: 11px;
+                                font-weight: bold;
+                                text-shadow: 0 0 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.7);
+                                pointer-events: none;
+                                white-space: nowrap;
+                                z-index: 1000;
+                                opacity: 0;
+                                transition: opacity 0.3s;
+                                transform: translate(-50%, -50%);
+                                text-align: center;
+                                left: -9999px;
+                                top: -9999px;
+                                display: none;
+                            `;
+                            document.getElementById('canvas-container').appendChild(labelFrom);
+                            
+                            // Create label for "to" symbol (at end of line)
+                            const labelTo = document.createElement('div');
+                            labelTo.className = 'connection-label';
+                            labelTo.innerHTML = `${data2.symbol}<br><span style="font-size: 9px; opacity: 0.7;">${(correlation * 100).toFixed(0)}%</span>`;
+                            labelTo.style.cssText = `
+                                position: fixed;
+                                color: #fff;
+                                font-size: 11px;
+                                font-weight: bold;
+                                text-shadow: 0 0 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.7);
+                                pointer-events: none;
+                                white-space: nowrap;
+                                z-index: 1000;
+                                opacity: 0;
+                                transition: opacity 0.3s;
+                                transform: translate(-50%, -50%);
+                                text-align: center;
+                                left: -9999px;
+                                top: -9999px;
+                                display: none;
+                            `;
+                            document.getElementById('canvas-container').appendChild(labelTo);
+                            
+                            const connectionKey = `${data1.symbol}-${data2.symbol}`;
+                            connectionLabels.set(connectionKey, {
+                                fromLabel: labelFrom,
+                                toLabel: labelTo,
+                                fromSymbol: data1.symbol,
+                                toSymbol: data2.symbol
+                            });
+                            
+                            connections.push({
+                                line: line,
+                                from: data1.symbol,
+                                to: data2.symbol,
+                                correlation: correlation,
+                                key: connectionKey
+                            });
+                            
+                            log(`Connection: ${data1.symbol} ↔ ${data2.symbol} (${(correlation * 100).toFixed(1)}%)`);
+                        }
+                    }
+                }
+            }
+            
+            log(`Created ${connections.length} connections`);
+        }
+        
+        // ========================================================================
+        // API CONNECTION - Fetches market data from backend
+        // ========================================================================
+        // This function connects to the same backend API as the MVP
+        // Fetches real-time market data: prices, signals, volumes for all trading symbols
+        let apiConnected = false;
+        
+        async function fetchMarketData() {
+            try {
+                log('Fetching market data from', `${API_BASE}/dashboard/market-data`);
+                
+                // Fetch market data from backend API
+                // Returns array of objects, each containing:
+                //   - symbol: Trading pair (e.g., "BTCEUR")
+                //   - price: Current price in EUR
+                //   - signal: Numerical signal value
+                //   - signal_strength: Text signal ("STRONG BUY", "MODERATE SELL", etc.)
+                //   - volume: 24-hour trading volume
+                //   - change_24h: 24-hour price change percentage
+                const response = await fetch(`${API_BASE}/dashboard/market-data`);
+                
+                log('Response received', { status: response.status, ok: response.ok });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                // Parse JSON response
+                const data = await response.json();
+                log('Market data received', { count: data.length, symbols: data.map(d => d.symbol) });
+                
+                // ========================================================================
+                // UPDATE 3D NETWORK VISUALIZATION
+                // ========================================================================
+                // Clear existing nodes and connections before creating new ones
+                nodes.forEach((node) => {
+                    if (scene) scene.remove(node.group);
+                });
+                nodes.clear();
+                
+                connections.forEach(conn => {
+                    if (scene) scene.remove(conn.line);
+                });
+                connections = [];
+                
+                // Clear connection label elements
+                connectionLabels.forEach(labels => {
+                    labels.fromLabel.remove();
+                    labels.toLabel.remove();
+                });
+                connectionLabels.clear();
+                
+                // Deselect any selected node
+                deselectNode();
+                
+                // Create nodes for each trading symbol
+                // Each symbol becomes a node in the network
+                if (!scene) {
+                    logError('Scene not initialized', new Error('Three.js scene not ready'));
+                    return;
+                }
+                
+                log(`Creating ${data.length} nodes after clearing old ones`);
+                
+                // Create nodes - with error handling
+                let nodesCreated = 0;
+                data.forEach((symbolData, index) => {
+                    try {
+                        createNode(symbolData.symbol, symbolData, index, data.length);
+                        nodesCreated++;
+                    } catch (error) {
+                        logError(`Failed to create node for ${symbolData.symbol}`, error);
+                    }
+                });
+                
+                log(`Created ${nodesCreated}/${data.length} nodes`, { 
+                    nodesInMap: nodes.size,
+                    sceneChildren: scene.children.length 
+                });
+                
+                // Verify nodes are in scene
+                if (nodes.size === 0) {
+                    logError('No nodes created! Check createNode function');
+                }
+                
+                // Create connections between correlated markets
+                // This is the key visualization for ML tuning!
+                createConnections(data);
+                
+                // Update Voronoi diagram after nodes and connections are created
+                updateVoronoiDiagram();
+                
+                // Update info panel with latest data
+                updateInfoPanel(data);
+                
+                // Mark API as connected
+                apiConnected = true;
+                updateBackendStatus();
+                hideLoading();
+                
+            } catch (error) {
+                logError('Failed to fetch market data', error);
+                console.error('[ERROR] Full error details:', {
+                    message: error.message,
+                    stack: error.stack,
+                    apiBase: API_BASE,
+                    url: `${API_BASE}/dashboard/market-data`
+                });
+                apiConnected = false;
+                updateBackendStatus();
+                hideLoading();
+            }
+        }
+        
+        // ========================================================================
+        // UPDATE INFO PANEL - Shows top 5 trading symbols with their data
+        // ========================================================================
+        // Displays: Symbol name, current price, and trading signal
+        function updateInfoPanel(data) {
+            const listEl = document.getElementById('symbols-list');
+            listEl.innerHTML = '';
+            
+            if (!data || data.length === 0) {
+                listEl.innerHTML = '<p style="color: #888; font-size: 11px;">No market data available</p>';
+                return;
+            }
+            
+            // Show top 5 symbols (or all if less than 5)
+            data.slice(0, 5).forEach(symbolData => {
+                const div = document.createElement('div');
+                const isSelected = selectedNode === symbolData.symbol;
+                div.className = 'symbol-info' + (isSelected ? ' selected' : '');
+                
+                // Make clickable to select node
+                div.addEventListener('click', () => {
+                    selectNode(symbolData.symbol);
+                });
+                
+                const signalColor = symbolData.signal_strength?.includes('BUY') ? '#4ade80' : 
+                                   symbolData.signal_strength?.includes('SELL') ? '#f87171' : '#888';
+                
+                div.innerHTML = `
+                    <div class="symbol-name" style="font-weight: bold; margin-bottom: 4px;">${symbolData.symbol}</div>
+                    <div class="symbol-price" style="color: #fff; margin-bottom: 3px;">$${symbolData.price?.toFixed(2) || '--'}</div>
+                    <div class="symbol-signal" style="color: ${signalColor}; font-size: 9px;">
+                        ${symbolData.signal_strength || 'N/A'}
+                    </div>
+                `;
+                listEl.appendChild(div);
+            });
+        }
+        
+        function updateBackendStatus() {
+            const el = document.getElementById('backend-status');
+            el.className = `status ${apiConnected ? 'connected' : 'disconnected'}`;
+            el.textContent = apiConnected ? 'Connected' : 'Disconnected';
+        }
+        
+        // ========================================================================
+        // ANIMATION LOOP - Continuously updates and renders the 3D scene
+        // ========================================================================
+        // This function runs ~60 times per second (60 FPS)
+        // Updates planet rotations, camera position, then redraws everything
+        function animate() {
+            requestAnimationFrame(animate);  // Schedule next frame
+            
+            // ========================================================================
+            // ANIMATE PLANETS - Multiple visual effects mapped to backend data
+            // ========================================================================
+            const time = Date.now() * 0.001;  // Current time in seconds (for smooth animations)
+            
+            // Animate nodes (trading symbols)
+            nodes.forEach((node, index) => {
+                // ========================================================================
+                // ROTATION - Visible rotation with variable speed
+                // ========================================================================
+                // Rotation speed varies based on 24h price change (more change = faster rotation)
+                // This makes volatile symbols spin faster
+                const change24h = Math.abs(node.data.change_24h || 0);
+                const rotationSpeed = 0.02 + (change24h * 0.002);  // Faster base speed + change-based speed
+                node.mesh.rotation.y += rotationSpeed;  // Rotate around Y-axis (vertical)
+                node.mesh.rotation.x += 0.003;  // Also rotate around X-axis for 3D effect
+                
+                // ========================================================================
+                // PULSING SIZE - Based on trading volume
+                // ========================================================================
+                // Nodes pulse (grow/shrink) based on volume
+                // Higher volume = faster, more noticeable pulse
+                // This visualizes trading activity
+                const volume = node.data.volume || 0;
+                const pulseSpeed = Math.log10(volume + 1) * 0.5;  // Volume-based pulse speed
+                const pulseAmount = 0.1 + (volume / 1000000) * 0.1;  // Volume-based pulse size
+                const scale = 1.0 + Math.sin(time * pulseSpeed) * pulseAmount;
+                node.mesh.scale.set(scale, scale, scale);
+                
+                // ========================================================================
+                // GLOW INTENSITY - Based on price change (volatility)
+                // ========================================================================
+                // Nodes glow brighter when price changes more
+                // Creates a "volatility" effect - more volatile = brighter glow
+                if (node.material) {
+                    const change24h = Math.abs(node.data.change_24h || 0);
+                    const glowIntensity = 0.3 + (change24h * 0.05) + Math.sin(time * 2) * 0.1;
+                    node.material.emissiveIntensity = Math.min(glowIntensity, 1.0);
+                }
+                
+                // ========================================================================
+                // POSITION OSCILLATION - Subtle floating effect
+                // ========================================================================
+                // Nodes float up/down slightly for more organic movement
+                // Each node floats at different speed for variety
+                const floatSpeed = 0.5 + (index % 3) * 0.2;  // Different speeds per node
+                const floatAmount = 0.5;  // Small floating distance
+                const baseY = node.position.y;
+                node.mesh.position.y = baseY + Math.sin(time * floatSpeed) * floatAmount;
+            });
+            
+            // Update connection lines (they need to follow node positions)
+            connections.forEach(conn => {
+                const node1 = nodes.get(conn.from);
+                const node2 = nodes.get(conn.to);
+                
+                if (node1 && node2 && conn.line && node1.mesh && node2.mesh) {
+                    const positions = conn.line.geometry.attributes.position;
+                    const pos1 = node1.mesh.position;
+                    const pos2 = node2.mesh.position;
+                    
+                    // Only update if positions are valid numbers (not NaN)
+                    if (!isNaN(pos1.x) && !isNaN(pos1.y) && !isNaN(pos1.z) &&
+                        !isNaN(pos2.x) && !isNaN(pos2.y) && !isNaN(pos2.z)) {
+                        positions.setXYZ(0, pos1.x, pos1.y, pos1.z);
+                        positions.setXYZ(1, pos2.x, pos2.y, pos2.z);
+                        positions.needsUpdate = true;
+                    }
+                    
+                    // ========================================================================
+                    // UPDATE CONNECTION LABEL POSITIONS - At line endpoints
+                    // ========================================================================
+                    // Update labels at the ends of connection lines
+                    const labelData = connectionLabels.get(conn.key);
+                    if (labelData) {
+                        // Check if connection and labels should be visible
+                        const shouldShow = conn.line && conn.line.visible && connectionsVisible;
+                        const labelVisible = shouldShow && labelsVisible;
+                        
+                        // Project "from" node position to screen
+                        const vector1 = pos1.clone();
+                        vector1.project(camera);
+                        const x1 = (vector1.x * 0.5 + 0.5) * window.innerWidth;
+                        const y1 = (-vector1.y * 0.5 + 0.5) * window.innerHeight;
+                        
+                        // Project "to" node position to screen
+                        const vector2 = pos2.clone();
+                        vector2.project(camera);
+                        const x2 = (vector2.x * 0.5 + 0.5) * window.innerWidth;
+                        const y2 = (-vector2.y * 0.5 + 0.5) * window.innerHeight;
+                        
+                        // Update label positions if valid and visible
+                        if (labelVisible && !isNaN(x1) && !isNaN(y1) && x1 >= 0 && x1 <= window.innerWidth && y1 >= 0 && y1 <= window.innerHeight) {
+                            labelData.fromLabel.style.left = x1 + 'px';
+                            labelData.fromLabel.style.top = y1 + 'px';
+                            labelData.fromLabel.style.opacity = '0.8';
+                            labelData.fromLabel.style.display = 'block';
+                        } else {
+                            labelData.fromLabel.style.display = 'none';
+                            labelData.fromLabel.style.opacity = '0';
+                        }
+                        
+                        if (labelVisible && !isNaN(x2) && !isNaN(y2) && x2 >= 0 && x2 <= window.innerWidth && y2 >= 0 && y2 <= window.innerHeight) {
+                            labelData.toLabel.style.left = x2 + 'px';
+                            labelData.toLabel.style.top = y2 + 'px';
+                            labelData.toLabel.style.opacity = '0.8';
+                            labelData.toLabel.style.display = 'block';
+                        } else {
+                            labelData.toLabel.style.display = 'none';
+                            labelData.toLabel.style.opacity = '0';
+                        }
+                    }
+                }
+            });
+            
+            // ========================================================================
+            // UPDATE CAMERA - Keep looking at center of galaxy
+            // ========================================================================
+            // After user drags camera, keep it focused on center (0, 0, 0)
+            if (camera) {
+                camera.lookAt(0, 0, 0);  // Always look at center
+            }
+            
+            // ========================================================================
+            // UPDATE VORONOI DIAGRAM - Redraw based on current camera view
+            // ========================================================================
+            // Update Voronoi diagram to match current 3D view
+            updateVoronoiDiagram();
+            
+            // ========================================================================
+            // RENDER SCENE - Draw everything to screen
+            // ========================================================================
+            // Takes the 3D scene and camera, renders it to the canvas
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+        }
+        
+        // ========================================================================
+        // USER CONTROLS - Button event handlers
+        // ========================================================================
+        
+        // Reset Camera Button - Returns camera to default position
+        document.getElementById('reset-camera').addEventListener('click', () => {
+            if (camera) {
+                camera.position.set(0, 30, 60);  // Default: closer to see nodes
+                camera.lookAt(0, 0, 0);           // Look at center of network
+                log('Camera reset to default position');
+            }
+        });
+        
+        // Toggle Orbits Button - Show/hide orbit paths (future feature)
+        document.getElementById('toggle-orbits').addEventListener('click', () => {
+            connectionsVisible = !connectionsVisible;
+            connections.forEach(conn => {
+                conn.line.visible = connectionsVisible;
+            });
+            log(`Market connections ${connectionsVisible ? 'shown' : 'hidden'}`);
+        });
+        
+        // Toggle Labels Button - Show/hide text labels on connection lines
+        document.getElementById('toggle-labels').addEventListener('click', () => {
+            labelsVisible = !labelsVisible;
+            // Update all labels, considering connection visibility
+            connectionLabels.forEach((labelData, key) => {
+                const conn = connections.find(c => c.key === key);
+                const shouldShow = conn && conn.line && conn.line.visible && connectionsVisible;
+                const labelVisible = shouldShow && labelsVisible;
+                
+                labelData.fromLabel.style.opacity = labelVisible ? 0.8 : 0;
+                labelData.fromLabel.style.display = labelVisible ? 'block' : 'none';
+                labelData.toLabel.style.opacity = labelVisible ? 0.8 : 0;
+                labelData.toLabel.style.display = labelVisible ? 'block' : 'none';
+            });
+            log(`Connection labels ${labelsVisible ? 'shown' : 'hidden'}`, { count: connectionLabels.size });
+        });
+        
+        // ========================================================================
+        // CORRELATION FILTER - Filter connections by minimum correlation
+        // ========================================================================
+        const correlationFilter = document.getElementById('correlation-filter');
+        const correlationValue = document.getElementById('correlation-value');
+        
+        if (correlationFilter && correlationValue) {
+            correlationFilter.addEventListener('input', (e) => {
+                minCorrelation = e.target.value / 100;  // Convert percentage to 0-1
+                correlationValue.textContent = e.target.value + '%';
+                
+                // Update connection visibility based on filter
+                connections.forEach(conn => {
+                    if (conn.line) {
+                        const shouldShow = conn.correlation >= minCorrelation;
+                        conn.line.visible = shouldShow && connectionsVisible;
+                        
+                        // Update label visibility
+                        const labelData = connectionLabels.get(conn.key);
+                        if (labelData) {
+                            const labelVisible = shouldShow && connectionsVisible && labelsVisible;
+                            labelData.fromLabel.style.display = labelVisible ? 'block' : 'none';
+                            labelData.toLabel.style.display = labelVisible ? 'block' : 'none';
+                        }
+                    }
+                });
+                
+                log(`Filtered connections: showing ${connections.filter(c => c.correlation >= minCorrelation).length} of ${connections.length}`);
+            });
+            
+            // Reset Filter Button
+            document.getElementById('reset-filter').addEventListener('click', () => {
+                minCorrelation = 0.3;
+                correlationFilter.value = 30;
+                correlationValue.textContent = '30%';
+                
+                // Show all connections above 30%
+                connections.forEach(conn => {
+                    if (conn.line) {
+                        const shouldShow = conn.correlation >= minCorrelation;
+                        conn.line.visible = shouldShow && connectionsVisible;
+                        
+                        const labelData = connectionLabels.get(conn.key);
+                        if (labelData) {
+                            const labelVisible = shouldShow && connectionsVisible && labelsVisible;
+                            labelData.fromLabel.style.display = labelVisible ? 'block' : 'none';
+                            labelData.toLabel.style.display = labelVisible ? 'block' : 'none';
+                        }
+                    }
+                });
+                
+                log('Filter reset to 30%');
+            });
+        }
+        
+        // ========================================================================
+        // NODE SELECTION FUNCTIONS
+        // ========================================================================
+        function selectNode(symbol) {
+            if (selectedNode === symbol) {
+                // Clicking same node again = deselect
+                deselectNode();
+                return;
+            }
+            
+            // Deselect previous node
+            if (selectedNode) {
+                const prevNode = nodes.get(selectedNode);
+                if (prevNode && prevNode.material) {
+                    prevNode.material.emissiveIntensity = prevNode.material.userData.originalEmissive || 0.3;
+                }
+            }
+            
+            // Select new node
+            selectedNode = symbol;
+            const node = nodes.get(symbol);
+            
+            if (node && node.material) {
+                // Store original emissive
+                node.material.userData.originalEmissive = node.material.emissiveIntensity;
+                // Highlight selected node
+                node.material.emissiveIntensity = 1.0;
+            }
+            
+            // Highlight connections to selected node
+            highlightNodeConnections(symbol);
+            
+            // Show details panel
+            showNodeDetails(symbol, node.data);
+            
+            // Update info panel to highlight selected symbol
+            updateInfoPanel(Array.from(nodes.values()).map(n => n.data));
+            
+            // Reorganize Voronoi diagram by correlation to selected symbol
+            updateVoronoiDiagram();
+            
+            log(`Selected node: ${symbol}`);
+        }
+        
+        // ========================================================================
+        // HIGHLIGHT NODE CONNECTIONS - Show only connections to selected node
+        // ========================================================================
+        function highlightNodeConnections(symbol) {
+            connections.forEach(conn => {
+                if (conn.line) {
+                    const isConnected = conn.from === symbol || conn.to === symbol;
+                    // Brighten connections to selected node, dim others
+                    if (isConnected) {
+                        conn.line.material.opacity = Math.min(1.0, conn.correlation * 0.8 + 0.2);
+                        conn.line.material.needsUpdate = true;
+                    } else {
+                        conn.line.material.opacity = conn.correlation * 0.2;  // Dim other connections
+                        conn.line.material.needsUpdate = true;
+                    }
+                }
+            });
+        }
+        
+        function resetConnectionVisibility() {
+            connections.forEach(conn => {
+                if (conn.line) {
+                    // Restore original opacity based on correlation
+                    conn.line.material.opacity = conn.correlation * 0.6;
+                    conn.line.material.needsUpdate = true;
+                }
+            });
+        }
+        
+        function deselectNode() {
+            if (selectedNode) {
+                const node = nodes.get(selectedNode);
+                if (node && node.material) {
+                    node.material.emissiveIntensity = node.material.userData.originalEmissive || 0.3;
+                }
+            }
+            
+            selectedNode = null;
+            resetConnectionVisibility();  // Restore all connection visibility
+            hideNodeDetails();
+            
+            // Reset Voronoi diagram to volume-based organization
+            updateVoronoiDiagram();
+            
+            // Update info panel to remove highlight
+            if (nodes.size > 0) {
+                updateInfoPanel(Array.from(nodes.values()).map(n => n.data));
+            }
+            
+            log('Deselected node');
+        }
+        
+        function showNodeDetails(symbol, data) {
+            const detailsPanel = document.getElementById('node-details');
+            const detailsContent = document.getElementById('node-details-content');
+            
+            if (!detailsPanel || !detailsContent) return;
+            
+            // Find connections for this node
+            const nodeConnections = connections.filter(conn => 
+                conn.from === symbol || conn.to === symbol
+            );
+            
+            detailsContent.innerHTML = `
+                <div style="margin-bottom: 8px;">
+                    <strong style="color: #4ade80;">${symbol}</strong>
+                </div>
+                <div style="margin-bottom: 4px;">Price: <strong>$${data.price?.toFixed(2) || '--'}</strong></div>
+                <div style="margin-bottom: 4px;">Signal: <strong style="color: ${data.signal_strength?.includes('BUY') ? '#4ade80' : '#f87171'}">${data.signal_strength || 'N/A'}</strong></div>
+                <div style="margin-bottom: 4px;">24h Change: <strong>${data.change_24h?.toFixed(2) || '--'}%</strong></div>
+                <div style="margin-bottom: 4px;">Volume: <strong>${(data.volume || 0).toLocaleString()}</strong></div>
+                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #333;">
+                    <div style="color: #888; font-size: 9px; margin-bottom: 4px;">Connected to:</div>
+                    ${nodeConnections.map(conn => {
+                        const otherSymbol = conn.from === symbol ? conn.to : conn.from;
+                        return `<div style="font-size: 9px; color: #aaa;">• ${otherSymbol} (${(conn.correlation * 100).toFixed(1)}%)</div>`;
+                    }).join('')}
+                </div>
+            `;
+            
+            detailsPanel.style.display = 'block';
+        }
+        
+        function hideNodeDetails() {
+            const detailsPanel = document.getElementById('node-details');
+            if (detailsPanel) {
+                detailsPanel.style.display = 'none';
+            }
+        }
+        
+        // ========================================================================
+        // INITIALIZATION - Sets up the entire Market Galaxy visualization
+        // ========================================================================
+        // This function runs when the page loads
+        // Order: 1) Initialize 3D engine, 2) Fetch market data, 3) Create planets
+        async function init() {
+            log('🌌 Market Galaxy - Initializing...');
+            
+            try {
+                // Step 1: Initialize Three.js 3D engine
+                // Sets up scene, camera, renderer, lights
+                await initThreeJS();
+                log('Three.js initialized, fetching market data...');
+                
+                // Step 2: Fetch market data from backend
+                // This will create planets for each trading symbol
+                await fetchMarketData();
+                
+                // Step 3: Set up auto-refresh
+                // Updates market data every 10 seconds to show latest prices/signals
+                setInterval(() => {
+                    log('Auto-refreshing market data...');
+                    fetchMarketData();  // Re-fetch and update planets
+                }, 10000);  // 10 seconds = 10000 milliseconds
+                
+                log('✅ Market Connections Network initialized');
+            } catch (error) {
+                logError('Initialization failed', error);
+                hideLoading();
+            }
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            // Update Voronoi canvas size
+            if (voronoiCanvas) {
+                voronoiCanvas.width = window.innerWidth;
+                voronoiCanvas.height = window.innerHeight;
+                updateVoronoiDiagram();
+            }
+            if (camera && renderer) {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        });
+        
+        // Start when page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
+

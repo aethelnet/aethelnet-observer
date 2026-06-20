@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Auratic Trading System</title>
+    <link rel="stylesheet" href="../shared/styles.css">
+    <link rel="stylesheet" href="../styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Dashboard</h1>
+            <p>Main monitoring dashboard with performance metrics and controls</p>
+        </header>
+        
+        <!-- System Status -->
+        <div id="system-status-container"></div>
+        
+        <!-- Metrics Summary -->
+        <div class="summary-cards" id="metrics-summary">
+            <!-- MetricsCard components will be inserted here -->
+        </div>
+        
+        <!-- P&L Chart -->
+        <div class="chart-container">
+            <h2>P&L Over Time</h2>
+            <canvas id="pnlChart" aria-label="P&L Over Time Chart" role="img"></canvas>
+        </div>
+        
+        <!-- Market Data and Positions Grid -->
+        <div class="grid">
+            <!-- Market Data Table -->
+            <div class="card">
+                <h2>Market Data</h2>
+                <div id="market-data-container"></div>
+            </div>
+            
+            <!-- Positions List -->
+            <div class="card">
+                <h2>Open Positions</h2>
+                <div id="positions-container"></div>
+            </div>
+        </div>
+        
+        <!-- Control Panel -->
+        <div class="card" style="margin-bottom: 20px;">
+            <h2>Control Panel</h2>
+            <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                <button id="emergency-stop-btn" class="btn btn-danger" style="flex: 1; min-width: 150px;" 
+                        aria-label="Emergency Stop - Immediately halt all trading activity"
+                        data-help="Emergency Stop: Immediately halts all trading activity. This is a critical safety feature that stops all open positions and prevents new trades. Use only in emergency situations. Trading can be resumed manually after stopping.">
+                    🛑 Emergency Stop
+                </button>
+                <button id="trading-toggle-btn" class="btn btn-secondary" style="flex: 1; min-width: 150px;" 
+                        aria-label="Toggle Trading - Enable or disable trading"
+                        data-help="Trading Toggle: Enable or disable the trading system. When disabled, the system will not execute new trades but will continue monitoring the market. Current status is shown next to the button.">
+                    ⏸️ Trading: <span id="trading-status">Unknown</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Recent Trades -->
+        <div class="card">
+            <h2>Recent Trades</h2>
+            <div id="trades-container"></div>
+        </div>
+    </div>
+    
+    <!-- Component Scripts -->
+    <script type="module" src="../components/SystemStatus.js"></script>
+    <script type="module" src="../components/MetricsCard.js"></script>
+    <script type="module" src="../shared/api.js"></script>
+    <script type="module" src="../shared/websocket.js"></script>
+    
+    <!-- Dashboard Logic -->
+    <script type="module" src="dashboard.js"></script>
+</body>
+</html>
+
+
+

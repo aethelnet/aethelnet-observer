@@ -1,0 +1,4005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Trading Chart View - Port 1423</title>
+    
+    <!-- Shared Design System -->
+    <link rel="stylesheet" href="shared.css">
+    <script src="navigation.js"></script>
+    <!-- Lightweight Charts - Professional Trading Chart Library -->
+    <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+    <!-- html2canvas for chart export -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <!-- Control Slider Component -->
+    <script src="ControlSlider.js"></script>
+    <!-- Help System -->
+    <script src="../help-system.js"></script>
+    <script src="../ws-client.js" defer></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: fixed;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Monaco', monospace;
+            background: #000;
+            color: #fff;
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+        }
+        
+        #app {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            padding: 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            overflow: hidden;
+        }
+        
+        /* Top Toolbar */
+        #toolbar {
+            background: rgba(20, 20, 30, 0.95);
+            border-bottom: 1px solid rgba(74, 222, 128, 0.2);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            z-index: 100;
+        }
+        
+        .toolbar-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .toolbar-section.separator {
+            border-left: 1px solid rgba(74, 222, 128, 0.2);
+            padding-left: 20px;
+        }
+        
+        .symbol-selector {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #4ade80;
+            background: transparent;
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .timeframe-btn {
+            padding: 6px 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(74, 222, 128, 0.2);
+            color: #aaa;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        
+        .timeframe-btn:hover {
+            background: rgba(74, 222, 128, 0.1);
+            color: #4ade80;
+        }
+        
+        .timeframe-btn.active {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+            border-color: rgba(74, 222, 128, 0.5);
+        }
+        
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+        
+        .status-badge.connected {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.4);
+        }
+        
+        .status-badge.disconnected {
+            background: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.4);
+        }
+        
+        /* Chart Container */
+        #chart-container {
+            flex: 1 1 auto;
+            position: relative;
+            background: #000;
+            min-width: 0;
+            min-height: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #chart {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            min-width: 0;
+            min-height: 0;
+        }
+        
+        /* Chart Toolbar */
+        .chart-toolbar {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 100;
+            display: flex;
+            gap: 8px;
+            background: rgba(20, 20, 30, 0.9);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: 6px;
+            padding: 8px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .chart-toolbar-btn {
+            padding: 6px 12px;
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            color: #4ade80;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        
+        .chart-toolbar-btn:hover {
+            background: rgba(74, 222, 128, 0.2);
+            border-color: rgba(74, 222, 128, 0.5);
+        }
+        
+        .chart-toolbar-btn.active {
+            background: rgba(74, 222, 128, 0.3);
+            border-color: rgba(74, 222, 128, 0.6);
+        }
+        
+        .chart-toolbar-separator {
+            width: 1px;
+            background: rgba(74, 222, 128, 0.2);
+            margin: 0 4px;
+        }
+        
+        /* Zoom Controls */
+        .zoom-controls {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+        
+        .zoom-btn {
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+        
+        /* Crosshair Info Panel */
+        .crosshair-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 100;
+            background: rgba(20, 20, 30, 0.95);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 11px;
+            font-family: monospace;
+            color: #4ade80;
+            display: none;
+            pointer-events: none;
+        }
+        
+        .crosshair-info.visible {
+            display: block;
+        }
+        
+        .crosshair-info-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 4px;
+        }
+        
+        .crosshair-info-label {
+            color: #888;
+        }
+        
+        .crosshair-info-value {
+            color: #4ade80;
+            font-weight: bold;
+        }
+        
+        /* Info Panel (Bottom Right) */
+        #info-panel {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(20, 20, 30, 0.95);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: 6px;
+            padding: 12px;
+            min-width: 200px;
+            z-index: 50;
+            font-size: 0.85rem;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        
+        .info-label {
+            color: #aaa;
+        }
+        
+        .info-value {
+            color: #fff;
+            font-weight: bold;
+        }
+        
+        .info-value.positive {
+            color: #4ade80;
+        }
+        
+        .info-value.negative {
+            color: #f87171;
+        }
+        
+        /* Control Deck Styles */
+        #control-deck {
+            position: absolute;
+            top: 60px;
+            right: 20px;
+            width: 320px;
+            max-height: calc(100vh - 100px);
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        @media (max-width: 768px) {
+            #control-deck {
+                width: 280px;
+                right: 10px;
+                top: 50px;
+            }
+            
+            .chart-toolbar {
+                flex-wrap: wrap;
+                max-width: calc(100% - 20px);
+            }
+            
+            .chart-toolbar-btn {
+                font-size: 10px;
+                padding: 4px 8px;
+            }
+            
+            .crosshair-info {
+                font-size: 10px;
+                padding: 6px 10px;
+            }
+        }
+        
+        /* Responsive chart container */
+        @media (max-width: 1024px) {
+            #chart-container {
+                min-height: 400px;
+            }
+        }
+        
+        /* Fullscreen styles */
+        #chart-container:fullscreen {
+            background: #000;
+        }
+        
+        #chart-container:-webkit-full-screen {
+            background: #000;
+        }
+        
+        #chart-container:-moz-full-screen {
+            background: #000;
+        }
+        
+        #chart-container:-ms-fullscreen {
+            background: #000;
+        }
+        
+        .control-deck-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .control-deck-title {
+            font-size: 12px;
+            color: #00ff9d;
+            font-family: monospace;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+        
+        .control-deck-toggle {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #888;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            font-family: monospace;
+        }
+        
+        .control-deck-toggle:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+        
+        .control-deck-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        /* Custom scrollbar for control deck */
+        .control-deck-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .control-deck-content::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        .control-deck-content::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 157, 0.3);
+            border-radius: 3px;
+        }
+        
+        .control-deck-content::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 157, 0.5);
+        }
+        
+        .control-deck-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .control-deck-section-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            font-family: monospace;
+            color: #00ff9d;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .control-deck-section-header:hover {
+            color: #4ade80;
+        }
+        
+        .control-deck-section-content {
+            padding-left: 16px;
+            border-left: 2px solid rgba(0, 255, 157, 0.2);
+            margin-left: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .control-deck-section-content.hidden {
+            display: none;
+        }
+        
+        .control-deck-layer-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        
+        .control-deck-layer-btn.active.trades {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.3);
+            color: #22c55e;
+        }
+        
+        .control-deck-layer-btn.active.signals {
+            background: rgba(59, 130, 246, 0.1);
+            border-color: rgba(59, 130, 246, 0.3);
+            color: #3b82f6;
+        }
+        
+        .control-deck-layer-btn.active.predictions {
+            background: rgba(168, 85, 247, 0.1);
+            border-color: rgba(168, 85, 247, 0.3);
+            color: #a855f7;
+        }
+        
+        .control-deck-layer-btn.active.prophecy {
+            background: rgba(251, 191, 36, 0.1);
+            border-color: rgba(251, 191, 36, 0.3);
+            color: #fbbf24;
+        }
+        
+        .control-deck-metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .control-deck-metric-label {
+            font-size: 10px;
+            font-family: monospace;
+            color: #666;
+            text-transform: uppercase;
+        }
+        
+        .control-deck-metric-value {
+            font-size: 11px;
+            font-family: monospace;
+            font-weight: bold;
+            color: #00ff9d;
+        }
+        
+        .control-deck-metric-value.positive {
+            color: #4ade80;
+        }
+        
+        .control-deck-metric-value.negative {
+            color: #f87171;
+        }
+        
+        .control-deck-physics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        
+        .control-deck-physics-item {
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+        
+        .control-deck-physics-label {
+            font-size: 9px;
+            font-family: monospace;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        
+        .control-deck-physics-value {
+            font-size: 12px;
+            font-family: monospace;
+            font-weight: bold;
+            color: #00ff9d;
+        }
+        
+        .control-deck-layer-btn {
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-family: monospace;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: transparent;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        
+        .control-deck-layer-btn:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #aaa;
+        }
+        
+        .control-deck-layer-btn.active {
+            background: rgba(0, 255, 157, 0.1);
+            border-color: rgba(0, 255, 157, 0.3);
+            color: #00ff9d;
+        }
+        
+        .control-deck-layer-btn.active.hist {
+            background: rgba(251, 191, 36, 0.1);
+            border-color: rgba(251, 191, 36, 0.3);
+            color: #fbbf24;
+        }
+        
+        .control-deck-layer-btn.active.live {
+            background: rgba(248, 113, 113, 0.1);
+            border-color: rgba(248, 113, 113, 0.3);
+            color: #f87171;
+        }
+        
+        .control-deck-layer-btn.active.vol {
+            background: rgba(156, 163, 175, 0.1);
+            border-color: rgba(156, 163, 175, 0.3);
+            color: #9ca3af;
+        }
+        
+        .control-deck-layer-btn.active.sim {
+            background: rgba(6, 182, 212, 0.1);
+            border-color: rgba(6, 182, 212, 0.3);
+            color: #06b6d4;
+        }
+        
+        .control-deck-layer-btn.active.ghost {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: #fff;
+        }
+        
+        .control-deck-layer-btn.active.liquid {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.3);
+            color: #10b981;
+        }
+        
+        /* Control Slider Styles */
+        .control-slider {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .control-slider-label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding: 0 4px;
+        }
+        
+        .control-slider-label {
+            font-size: 9px;
+            font-family: monospace;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .control-slider-value {
+            font-size: 11px;
+            font-family: monospace;
+            font-weight: bold;
+            color: #00ff9d;
+        }
+        
+        .control-slider-unit {
+            font-size: 9px;
+            color: #666;
+            margin-left: 2px;
+        }
+        
+        .control-slider-track {
+            position: relative;
+            height: 24px;
+            width: 100%;
+            cursor: pointer;
+        }
+        
+        .control-slider-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .control-slider-handle {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 12px;
+            height: 16px;
+            background: #1f2937;
+            border: 1px solid #00ff9d;
+            box-shadow: 0 0 10px rgba(0, 255, 157, 0.3);
+            transition: all 0.075s ease-out;
+            cursor: pointer;
+        }
+        
+        .control-slider-handle:hover {
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+        
+        .control-slider-handle:active {
+            transform: translate(-50%, -50%) scale(0.95);
+            background: #00ff9d;
+        }
+        
+        .control-slider-handle-dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 4px;
+            height: 4px;
+            background: #00ff9d;
+            border-radius: 50%;
+        }
+        
+        .control-slider-handle:active .control-slider-handle-dot {
+            background: #fff;
+        }
+        
+        .chevron {
+            width: 12px;
+            height: 12px;
+            transition: transform 0.2s;
+        }
+        
+        .chevron.down {
+            transform: rotate(90deg);
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Control Deck -->
+        <div id="control-deck">
+            <div class="control-deck-header">
+                <div class="control-deck-title">CONTROL DECK</div>
+                <button class="control-deck-toggle" id="control-deck-toggle" 
+                        aria-label="Hide or show Control Deck panel"
+                        title="Toggle Control Deck visibility">HIDE</button>
+                <button class="control-deck-help-btn" id="control-deck-help-btn" 
+                        aria-label="Show Control Deck help"
+                        title="Show help for Control Deck (F1 or ?)"
+                        style="
+                            background: rgba(74, 222, 128, 0.2);
+                            border: 1px solid rgba(74, 222, 128, 0.4);
+                            color: #4ade80;
+                            padding: 4px 8px;
+                            border-radius: 4px;
+                            cursor: help;
+                            font-size: 12px;
+                            margin-left: 8px;
+                        ">?</button>
+            </div>
+            <div class="control-deck-content" id="control-deck-content">
+                <!-- Sections will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <!-- Navigation -->
+        <div class="nav" style="position: fixed; top: 10px; right: 10px; z-index: 10000; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 8px; border: 1px solid rgba(74, 222, 128, 0.3); pointer-events: auto;">
+            <a href="http://localhost:1420/index.html" target="_blank" style="margin-right: 10px; pointer-events: auto; position: relative; z-index: 10001;">Dashboard</a>
+            <a href="http://localhost:1429/scanner/index.html" target="_blank" style="margin-right: 10px; pointer-events: auto; position: relative; z-index: 10001;">Scanner</a>
+            <a href="http://localhost:1427/opportunities/index.html" target="_blank" style="margin-right: 10px; pointer-events: auto; position: relative; z-index: 10001;">Opportunities</a>
+            <a href="http://localhost:1428/prophecy/index.html" target="_blank" style="margin-right: 10px; pointer-events: auto; position: relative; z-index: 10001;">PROPHECY</a>
+            <a href="http://localhost:1424/analytics/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">Analytics</a>
+        </div>
+        
+        <!-- Toolbar -->
+        <div id="toolbar">
+            <div class="toolbar-section">
+                <select id="symbol-selector" class="symbol-selector"
+                        aria-label="Select trading pair symbol"
+                        title="Choose which trading pair to display on the chart">
+                    <!-- Populated dynamically from backend -->
+                    <option value="BTCUSDT">BTCUSDT</option>
+                    <option value="ETHUSDT">ETHUSDT</option>
+                    <option value="SOLUSDT">SOLUSDT</option>
+                    <option value="BNBUSDT">BNBUSDT</option>
+                    <option value="XRPUSDT">XRPUSDT</option>
+                    <option value="DOGEUSDT">DOGEUSDT</option>
+                </select>
+            </div>
+            
+            <div class="toolbar-section separator">
+                <button class="timeframe-btn active" data-timeframe="1m" 
+                        aria-label="1 minute timeframe"
+                        title="Switch to 1 minute candlesticks">1M</button>
+                <button class="timeframe-btn" data-timeframe="5m" 
+                        aria-label="5 minute timeframe"
+                        title="Switch to 5 minute candlesticks">5M</button>
+                <button class="timeframe-btn" data-timeframe="15m" 
+                        aria-label="15 minute timeframe"
+                        title="Switch to 15 minute candlesticks">15M</button>
+                <button class="timeframe-btn" data-timeframe="1h" 
+                        aria-label="1 hour timeframe"
+                        title="Switch to 1 hour candlesticks">1H</button>
+                <button class="timeframe-btn" data-timeframe="4h" 
+                        aria-label="4 hour timeframe"
+                        title="Switch to 4 hour candlesticks">4H</button>
+                <button class="timeframe-btn" data-timeframe="1d" 
+                        aria-label="1 day timeframe"
+                        title="Switch to 1 day candlesticks">1D</button>
+            </div>
+            
+            <div class="toolbar-section separator">
+                <div id="status" class="status-badge disconnected">Disconnected</div>
+            </div>
+        </div>
+        
+        <!-- Chart Container -->
+        <div id="chart-container">
+            <!-- Chart Toolbar -->
+            <div class="chart-toolbar">
+                <div class="zoom-controls">
+                    <button class="chart-toolbar-btn zoom-btn" id="zoom-out" title="Zoom Out">−</button>
+                    <button class="chart-toolbar-btn zoom-btn" id="zoom-reset" title="Reset Zoom">⌂</button>
+                    <button class="chart-toolbar-btn zoom-btn" id="zoom-in" title="Zoom In">+</button>
+                </div>
+                <div class="chart-toolbar-separator"></div>
+                <button class="chart-toolbar-btn" id="toggle-crosshair" title="Toggle Crosshair Mode">
+                    <span id="crosshair-icon">✚</span>
+                </button>
+                <button class="chart-toolbar-btn" id="toggle-fullscreen" title="Toggle Fullscreen">⛶</button>
+                <div class="chart-toolbar-separator"></div>
+                <button class="chart-toolbar-btn" id="export-chart" title="Export Chart">📥</button>
+                <button class="chart-toolbar-btn" id="screenshot-chart" title="Take Screenshot">📷</button>
+            </div>
+            
+            <!-- Crosshair Info Panel -->
+            <div class="crosshair-info" id="crosshair-info">
+                <div class="crosshair-info-row">
+                    <span class="crosshair-info-label">Time:</span>
+                    <span class="crosshair-info-value" id="crosshair-time">-</span>
+                </div>
+                <div class="crosshair-info-row">
+                    <span class="crosshair-info-label">Price:</span>
+                    <span class="crosshair-info-value" id="crosshair-price">-</span>
+                </div>
+                <div class="crosshair-info-row">
+                    <span class="crosshair-info-label">Volume:</span>
+                    <span class="crosshair-info-value" id="crosshair-volume">-</span>
+                </div>
+            </div>
+            
+            <div id="chart"></div>
+            
+            <!-- Info Panel -->
+            <div id="info-panel">
+                <div class="info-row">
+                    <span class="info-label">Price:</span>
+                    <span class="info-value" id="info-price">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">24h Change:</span>
+                    <span class="info-value" id="info-change">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Volume:</span>
+                    <span class="info-value" id="info-volume">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Signal:</span>
+                    <span class="info-value" id="info-signal">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ========================================================================
+        // TRADING CHART VIEW - Professional Chart Visualization
+        // ========================================================================
+        
+        // Global state
+        let chart = null;
+        let candlestickSeries = null;
+        let volumeSeries = null;
+        let currentSymbol = 'BTCUSDT';
+        let currentTimeframe = '1m';
+        let marketData = [];
+        let updateInterval = null;
+        let positionMarkers = []; // Track position price lines
+        let realTimeUpdateInterval = null; // For real-time price updates
+        let dataBounds = { min: null, max: null }; // Track data time bounds
+        let boundsCheckInterval = null; // Interval to check and enforce bounds
+        let userInteracting = false; // Track if user is actively interacting with chart
+        let initialLoadComplete = false; // Track if initial load is done
+        let lastVisibleRange = null; // Store last visible range to preserve on updates
+        let lastPrice = null; // Store last known price
+        
+        // Control Deck state
+        let controlDeckState = {
+            layers: {
+                hist: false,
+                live: true,
+                vol: true,
+                sim: false,
+                ghost: false,
+                liquid: false,
+                trades: true,
+                signals: false,
+                predictions: false,
+                prophecy: false
+            },
+            parameters: {
+                masterSensitivity: 1.0,
+                smoothingLevel: 0.5,
+                friction: 0.5,
+                elasticity: 1.0,
+                drift: 0.0,
+                volatility: 0.5
+            },
+            performance: {
+                totalPnl: 0,
+                tradeCount: 0,
+                winRate: 0,
+                peakEquity: 0,
+                drawdown: 0
+            },
+            physics: {
+                momentum: 0,
+                strain: 0,
+                force: 0,
+                squeeze: 0,
+                flow: 0,
+                entropy: 0,
+                jerk: 0,
+                sympathy: 0
+            }
+        };
+        
+        // Chart overlays and markers
+        let historicalMarkers = [];
+        let simulationLines = [];
+        let ghostSeries = null;
+        let liquidityMarkers = [];
+        let tradeMarkers = [];
+        let signalMarkers = [];
+        let prophecyMarkers = [];
+        let predictionAreaSeries = []; // Array of area series for fading opacity
+        let predictionMarkers = [];
+        let predictionCache = null;
+        let predictionRequestController = null; // For request cancellation
+        let pendingPredictionRequest = null; // For request deduplication
+        let isRetryingPredictions = false;
+        
+        // Data cache
+        let tradesCache = null;
+        let signalsCache = null;
+        let physicsCache = null;
+        let metricsCache = null;
+        
+        // API base URL
+        const API_BASE = 'http://localhost:8000/api';
+        
+        // ========================================================================
+        // LOGGING
+        // ========================================================================
+        function log(message, data = {}) {
+            const timestamp = new Date().toISOString();
+            console.log(`[ChartView] [${timestamp}] ${message}`, data);
+        }
+        
+        function logError(message, error = null) {
+            const timestamp = new Date().toISOString();
+            console.error(`[ERROR] [ChartView] [${timestamp}] ${message}`, error || '');
+        }
+        
+        // ========================================================================
+        // BACKEND CONNECTION
+        // ========================================================================
+        async function checkBackend() {
+            try {
+                const response = await fetch(`${API_BASE}/dashboard/metrics`);
+                const statusEl = document.getElementById('status');
+                if (response.ok) {
+                    statusEl.textContent = 'Connected';
+                    statusEl.className = 'status-badge connected';
+                    return true;
+                } else {
+                    statusEl.textContent = 'Disconnected';
+                    statusEl.className = 'status-badge disconnected';
+                    return false;
+                }
+            } catch (error) {
+                document.getElementById('status').textContent = 'Disconnected';
+                document.getElementById('status').className = 'status-badge disconnected';
+                return false;
+            }
+        }
+        
+        // ========================================================================
+        // INITIALIZE CHART
+        // ========================================================================
+        function initChart() {
+            // #region agent log - Hypothesis A,B: Check if LightweightCharts is loaded and what API it has
+            fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:initChart:entry',message:'initChart called',data:{lightweightChartsDefined:typeof LightweightCharts!=='undefined',hasCreateChart:typeof LightweightCharts!=='undefined'&&typeof LightweightCharts.createChart==='function',lightweightChartsType:typeof LightweightCharts,lightweightChartsKeys:typeof LightweightCharts!=='undefined'?Object.keys(LightweightCharts).slice(0,20):[]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
+            // #endregion
+            
+            // Wait for TradingView library to load
+            if (typeof LightweightCharts === 'undefined') {
+                logError('TradingView Lightweight Charts library not loaded');
+                setTimeout(initChart, 100);
+                return;
+            }
+            
+            const chartContainer = document.getElementById('chart');
+            if (!chartContainer) {
+                // #region agent log - Hypothesis B: Container not found
+                fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:initChart:no-container',message:'Chart container not found',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+                // #endregion
+                setTimeout(initChart, 100);
+                return;
+            }
+            
+            // #region agent log - Hypothesis C: Check what createChart returns
+            fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:initChart:before-create',message:'Before createChart',data:{containerWidth:chartContainer.clientWidth,containerHeight:chartContainer.clientHeight,createChartType:typeof LightweightCharts.createChart},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
+            
+            try {
+                // Wait for layout to settle and get actual container dimensions
+                // Try multiple times to ensure we get proper dimensions
+                let containerWidth = 0;
+                let containerHeight = 0;
+                let attempts = 0;
+                const maxAttempts = 10;
+                
+                while ((containerWidth === 0 || containerHeight === 0) && attempts < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                    
+                    containerWidth = chartContainer.clientWidth;
+                    containerHeight = chartContainer.clientHeight;
+                    
+                    // If still no size, try parent
+                    if (containerWidth === 0 || containerHeight === 0) {
+                        const chartContainerParent = document.getElementById('chart-container');
+                        if (chartContainerParent) {
+                            containerWidth = chartContainerParent.clientWidth;
+                            containerHeight = chartContainerParent.clientHeight;
+                        }
+                    }
+                    
+                    // Fallback to window dimensions
+                    if (containerWidth === 0 || containerHeight === 0) {
+                        const toolbar = document.getElementById('toolbar');
+                        const toolbarHeight = toolbar ? toolbar.offsetHeight : 60;
+                        containerWidth = window.innerWidth;
+                        containerHeight = window.innerHeight - toolbarHeight;
+                    }
+                    
+                    attempts++;
+                }
+                
+                // Ensure minimum viable size
+                containerWidth = Math.max(containerWidth, 400);
+                containerHeight = Math.max(containerHeight, 300);
+                
+                log(`Initializing chart with dimensions: ${containerWidth}x${containerHeight} (attempts: ${attempts})`);
+                
+                chart = LightweightCharts.createChart(chartContainer, {
+                    layout: {
+                        background: { type: 'solid', color: '#000000' },
+                        textColor: '#aaa',
+                        fontSize: 12,
+                        fontFamily: 'Monaco, monospace',
+                    },
+                    grid: {
+                        vertLines: { color: '#111' },
+                        horzLines: { color: '#111' },
+                    },
+                    width: containerWidth,
+                    height: containerHeight,
+                    autoSize: false, // We'll handle sizing manually
+                    crosshair: {
+                        mode: LightweightCharts.CrosshairMode.Normal,
+                        vertLine: {
+                            color: '#4ade80',
+                            width: 1,
+                            style: LightweightCharts.LineStyle.Dashed,
+                            labelBackgroundColor: '#4ade80',
+                        },
+                        horzLine: {
+                            color: '#4ade80',
+                            width: 1,
+                            style: LightweightCharts.LineStyle.Dashed,
+                            labelBackgroundColor: '#4ade80',
+                        },
+                    },
+                    rightPriceScale: {
+                        borderColor: '#222',
+                    },
+                    timeScale: {
+                        borderColor: '#222',
+                        timeVisible: true,
+                        secondsVisible: false,
+                    },
+                });
+                
+                // #region agent log - Hypothesis A,C: Check chart object structure and available methods
+                const chartMethods = chart ? Object.getOwnPropertyNames(Object.getPrototypeOf(chart)).filter(n=>typeof chart[n]==='function') : [];
+                const chartKeys = chart ? Object.keys(chart) : [];
+                fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:initChart:after-create',message:'After createChart',data:{chartExists:!!chart,chartType:typeof chart,chartConstructor:chart?.constructor?.name,hasAddCandlestickSeries:typeof chart?.addCandlestickSeries==='function',hasAddSeries:typeof chart?.addSeries==='function',chartMethods:chartMethods.slice(0,30),chartKeys:chartKeys.slice(0,20)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C'})}).catch(()=>{});
+                // #endregion
+            } catch (error) {
+                // #region agent log - Hypothesis D: Error during chart creation
+                fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:initChart:create-error',message:'Error creating chart',data:{errorMessage:error.message,errorStack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+                // #endregion
+                logError('Failed to create chart', error);
+                setTimeout(initChart, 500);
+                return;
+            }
+            
+            // Verify chart was created and has required methods
+            if (!chart) {
+                // #region agent log - Hypothesis A: Chart is null
+                fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:initChart:no-chart',message:'Chart is null',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                // #endregion
+                logError('Chart creation returned null');
+                setTimeout(initChart, 500);
+                return;
+            }
+            
+            if (typeof chart.addCandlestickSeries !== 'function') {
+                // #region agent log - Hypothesis A: Log what methods ARE available
+                const availableMethods = chart ? Object.getOwnPropertyNames(Object.getPrototypeOf(chart)).filter(n=>n.includes('Series')||n.includes('add')) : [];
+                fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:initChart:api-mismatch',message:'API mismatch detected',data:{chartExists:!!chart,availableMethods:availableMethods,allMethods:chart?Object.getOwnPropertyNames(Object.getPrototypeOf(chart)).slice(0,50):[],hasAddSeries:typeof chart?.addSeries==='function'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                // #endregion
+                logError('Chart created but addCandlestickSeries method not available');
+                throw new Error('LightweightCharts API mismatch');
+            }
+            
+            // #region agent log - Hypothesis C: Before calling addCandlestickSeries
+            fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:initChart:before-addCandlestick',message:'Before addCandlestickSeries',data:{chartExists:!!chart,methodExists:typeof chart.addCandlestickSeries==='function'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
+            
+            // Candlestick series
+            try {
+                candlestickSeries = chart.addCandlestickSeries({
+                    upColor: '#4ade80',
+                    downColor: '#f87171',
+                    borderVisible: false,
+                    wickUpColor: '#4ade80',
+                    wickDownColor: '#f87171',
+                });
+                
+                // #region agent log - Hypothesis C: Successfully added candlestick series
+                fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:initChart:after-addCandlestick',message:'Successfully added candlestick series',data:{candlestickSeriesExists:!!candlestickSeries},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                // #endregion
+            } catch (error) {
+                // #region agent log - Hypothesis A,C,D: Error adding candlestick series
+                fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:initChart:addCandlestick-error',message:'Error adding candlestick series',data:{errorMessage:error.message,errorStack:error.stack,chartExists:!!chart},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C,D'})}).catch(()=>{});
+                // #endregion
+                logError('Failed to add candlestick series', error);
+                throw error; // Re-throw to be caught by outer handler
+            }
+            
+            // Volume series (overlay)
+            try {
+                volumeSeries = chart.addHistogramSeries({
+                    color: '#26a69a',
+                    priceFormat: {
+                        type: 'volume',
+                    },
+                    priceScaleId: '',
+                    scaleMargins: {
+                        top: 0.8,
+                        bottom: 0,
+                    },
+                });
+            } catch (error) {
+                logError('Failed to add volume series', error);
+                throw error;
+            }
+            
+            // Position markers will be added as price lines
+            // (stored in positionMarkers array)
+            
+            // Handle resize with ResizeObserver for accurate container tracking
+            let resizeTimeout;
+            let lastWidth = 0;
+            let lastHeight = 0;
+            
+            // Function to resize chart
+            function resizeChart() {
+                if (!chart || !chartContainer) return;
+                
+                // Get actual container dimensions
+                let width = chartContainer.clientWidth;
+                let height = chartContainer.clientHeight;
+                
+                // If container has no size, try parent
+                if (width === 0 || height === 0) {
+                    const chartContainerParent = document.getElementById('chart-container');
+                    if (chartContainerParent) {
+                        width = chartContainerParent.clientWidth;
+                        height = chartContainerParent.clientHeight;
+                    }
+                }
+                
+                // Fallback to window if still no size
+                if (width === 0 || height === 0) {
+                    const toolbar = document.getElementById('toolbar');
+                    const toolbarHeight = toolbar ? toolbar.offsetHeight : 0;
+                    width = window.innerWidth;
+                    height = window.innerHeight - toolbarHeight;
+                }
+                
+                // Ensure minimum viable size
+                width = Math.max(width, 400);
+                height = Math.max(height, 300);
+                
+                // Only resize if dimensions actually changed
+                if (width > 0 && height > 0 && (Math.abs(width - lastWidth) > 1 || Math.abs(height - lastHeight) > 1)) {
+                    lastWidth = width;
+                    lastHeight = height;
+                    
+                    chart.applyOptions({
+                        width: Math.floor(width),
+                        height: Math.floor(height),
+                    });
+                    log(`Chart resized to ${Math.floor(width)}x${Math.floor(height)}`);
+                }
+            }
+            
+            // Use ResizeObserver to watch the chart container directly
+            const resizeObserver = new ResizeObserver(entries => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    resizeChart();
+                }, 50); // Fast response for ResizeObserver
+            });
+            
+            // Observe the chart container
+            resizeObserver.observe(chartContainer);
+            
+            // Also observe the chart-container parent for layout changes
+            const chartContainerParent = document.getElementById('chart-container');
+            if (chartContainerParent) {
+                resizeObserver.observe(chartContainerParent);
+            }
+            
+            // Fallback: window resize handler
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    resizeChart();
+                }, 100);
+            });
+            
+            // Also handle control deck visibility changes
+            const observer = new MutationObserver(() => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    resizeChart();
+                }, 100);
+            });
+            
+            const controlDeck = document.getElementById('control-deck');
+            if (controlDeck) {
+                observer.observe(controlDeck, {
+                    attributes: true,
+                    attributeFilter: ['style', 'class']
+                });
+            }
+            
+            // Store resize observer for cleanup
+            window.chartResizeObserver = resizeObserver;
+            
+            // Initial resize after a short delay to ensure layout is complete
+            setTimeout(() => {
+                resizeChart();
+            }, 200);
+            
+            // Also trigger resize on next animation frame for better timing
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    resizeChart();
+                }, 100);
+            });
+            
+            // Add bounds checking to prevent scrolling too far
+            setupBoundsChecking();
+            
+            // Setup advanced chart features
+            setupChartToolbar();
+            setupCrosshairTracking();
+            
+            // #region agent log - Hypothesis A,B,C: Chart initialization complete
+            fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:initChart:success',message:'Chart initialized successfully',data:{chartExists:!!chart,candlestickSeriesExists:!!candlestickSeries,volumeSeriesExists:!!volumeSeries},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
+            // #endregion
+            
+            log('✅ Chart initialized');
+            } catch (outerError) {
+                // #region agent log - Hypothesis D: Outer catch block - this is what causes the retry loop
+                fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:initChart:outer-catch',message:'Outer catch - will retry',data:{errorMessage:outerError.message,errorStack:outerError.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+                // #endregion
+                logError('Failed to initialize chart', outerError);
+                setTimeout(initChart, 500);
+            }
+        }
+        
+        // ========================================================================
+        // BOUNDS CHECKING - Prevent chart from getting thin when out of bounds
+        // ========================================================================
+        function setupBoundsChecking() {
+            // Clear any existing interval
+            if (boundsCheckInterval) {
+                clearInterval(boundsCheckInterval);
+            }
+            
+            // Check bounds every 1000ms (less aggressive) and snap back if needed
+            boundsCheckInterval = setInterval(() => {
+                // Don't enforce bounds if user is actively interacting
+                if (userInteracting || !chart || !dataBounds.min || !dataBounds.max) return;
+                
+                try {
+                    const timeScale = chart.timeScale();
+                    const visibleRange = timeScale.getVisibleRange();
+                    
+                    if (!visibleRange) return;
+                    
+                    const now = Math.floor(Date.now() / 1000);
+                    const dataMin = dataBounds.min;
+                    const dataMax = Math.max(dataBounds.max, now); // Allow some future for predictions
+                    
+                    // Calculate minimum visible range (prevent chart from getting too thin)
+                    const minVisibleRange = (dataMax - dataMin) * 0.1; // At least 10% of data range
+                    const currentRange = visibleRange.to - visibleRange.from;
+                    
+                    let needsAdjustment = false;
+                    let newFrom = visibleRange.from;
+                    let newTo = visibleRange.to;
+                    
+                    // If range is too small, expand it
+                    if (currentRange < minVisibleRange) {
+                        const center = (visibleRange.from + visibleRange.to) / 2;
+                        newFrom = center - minVisibleRange / 2;
+                        newTo = center + minVisibleRange / 2;
+                        needsAdjustment = true;
+                    }
+                    
+                    // Prevent scrolling too far left (before data) - only if way out of bounds
+                    if (visibleRange.from < dataMin - 7200) { // Allow 2 hour buffer, only enforce if way out
+                        newFrom = dataMin - 3600;
+                        if (newTo - newFrom < minVisibleRange) {
+                            newTo = newFrom + minVisibleRange;
+                        }
+                        needsAdjustment = true;
+                    }
+                    
+                    // Prevent scrolling too far right (too far into future)
+                    // Allow some future for predictions, but limit it
+                    const maxFuture = dataMax + (3600 * 24); // Max 24 hours into future
+                    if (visibleRange.to > maxFuture + 3600) { // Only enforce if way out of bounds
+                        newTo = maxFuture;
+                        if (newTo - newFrom < minVisibleRange) {
+                            newFrom = newTo - minVisibleRange;
+                        }
+                        needsAdjustment = true;
+                    }
+                    
+                    // Apply adjustment if needed
+                    if (needsAdjustment) {
+                        timeScale.setVisibleRange({
+                            from: Math.max(newFrom, dataMin - 3600),
+                            to: Math.min(newTo, maxFuture)
+                        });
+                    }
+                } catch (error) {
+                    // Silently handle errors (chart might not be ready)
+                }
+            }, 1000); // Less frequent checks
+        }
+        
+        function updateDataBounds(candles) {
+            if (!candles || candles.length === 0) {
+                dataBounds.min = null;
+                dataBounds.max = null;
+                return;
+            }
+            
+            // Find min and max timestamps from candles
+            let min = Infinity;
+            let max = -Infinity;
+            
+            candles.forEach(candle => {
+                const time = candle.time;
+                if (typeof time === 'number') {
+                    min = Math.min(min, time);
+                    max = Math.max(max, time);
+                } else if (time && typeof time === 'string') {
+                    // Handle string timestamps
+                    const timestamp = new Date(time).getTime() / 1000;
+                    min = Math.min(min, timestamp);
+                    max = Math.max(max, timestamp);
+                }
+            });
+            
+            if (min !== Infinity && max !== -Infinity) {
+                dataBounds.min = min;
+                dataBounds.max = max;
+                log(`Data bounds updated: ${new Date(min * 1000).toISOString()} to ${new Date(max * 1000).toISOString()}`);
+            }
+        }
+        
+        // ========================================================================
+        // CHART TOOLBAR - Advanced Features
+        // ========================================================================
+        let crosshairMode = 'normal';
+        let isFullscreen = false;
+        
+        function setupChartToolbar() {
+            // Zoom controls
+            document.getElementById('zoom-in')?.addEventListener('click', () => {
+                if (!chart) return;
+                const timeScale = chart.timeScale();
+                const visibleRange = timeScale.getVisibleRange();
+                if (visibleRange) {
+                    const range = visibleRange.to - visibleRange.from;
+                    const center = (visibleRange.from + visibleRange.to) / 2;
+                    timeScale.setVisibleRange({
+                        from: center - range * 0.7,
+                        to: center + range * 0.7
+                    });
+                }
+            });
+            
+            document.getElementById('zoom-out')?.addEventListener('click', () => {
+                if (!chart) return;
+                const timeScale = chart.timeScale();
+                const visibleRange = timeScale.getVisibleRange();
+                if (visibleRange) {
+                    const range = visibleRange.to - visibleRange.from;
+                    const center = (visibleRange.from + visibleRange.to) / 2;
+                    timeScale.setVisibleRange({
+                        from: center - range * 1.4,
+                        to: center + range * 1.4
+                    });
+                }
+            });
+            
+            document.getElementById('zoom-reset')?.addEventListener('click', () => {
+                if (!chart || !dataBounds.min || !dataBounds.max) return;
+                const timeScale = chart.timeScale();
+                const now = Math.floor(Date.now() / 1000);
+                const dataMax = Math.max(dataBounds.max, now);
+                timeScale.setVisibleRange({
+                    from: dataBounds.min,
+                    to: dataMax
+                });
+            });
+            
+            // Crosshair toggle
+            document.getElementById('toggle-crosshair')?.addEventListener('click', () => {
+                if (!chart) return;
+                crosshairMode = crosshairMode === 'normal' ? 'magnet' : 
+                               crosshairMode === 'magnet' ? 'cross' : 'normal';
+                
+                const modes = {
+                    'normal': LightweightCharts.CrosshairMode.Normal,
+                    'magnet': LightweightCharts.CrosshairMode.Magnet,
+                    'cross': LightweightCharts.CrosshairMode.Cross
+                };
+                
+                chart.applyOptions({
+                    crosshair: {
+                        mode: modes[crosshairMode]
+                    }
+                });
+                
+                const icon = document.getElementById('crosshair-icon');
+                if (icon) {
+                    icon.textContent = crosshairMode === 'normal' ? '✚' : 
+                                      crosshairMode === 'magnet' ? '🧲' : '✕';
+                }
+            });
+            
+            // Fullscreen toggle
+            document.getElementById('toggle-fullscreen')?.addEventListener('click', () => {
+                const container = document.getElementById('chart-container');
+                if (!container) return;
+                
+                if (!isFullscreen) {
+                    if (container.requestFullscreen) {
+                        container.requestFullscreen();
+                    } else if (container.webkitRequestFullscreen) {
+                        container.webkitRequestFullscreen();
+                    } else if (container.msRequestFullscreen) {
+                        container.msRequestFullscreen();
+                    }
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    } else if (document.msExitFullscreen) {
+                        document.msExitFullscreen();
+                    }
+                }
+            });
+            
+            // Fullscreen change listener
+            document.addEventListener('fullscreenchange', () => {
+                isFullscreen = !!document.fullscreenElement;
+                if (chart) {
+                    const chartContainer = document.getElementById('chart');
+                    if (chartContainer) {
+                        chart.applyOptions({
+                            width: chartContainer.clientWidth,
+                            height: chartContainer.clientHeight
+                        });
+                    }
+                }
+            });
+            
+            // Export chart
+            document.getElementById('export-chart')?.addEventListener('click', () => {
+                if (!chart) return;
+                const chartContainer = document.getElementById('chart');
+                if (!chartContainer) return;
+                
+                // Check if html2canvas is available
+                if (typeof html2canvas === 'undefined') {
+                    alert('Export feature requires html2canvas library. Loading...');
+                    // Try to load it dynamically
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                    script.onload = () => {
+                        // Retry export after loading
+                        setTimeout(() => document.getElementById('export-chart')?.click(), 500);
+                    };
+                    script.onerror = () => {
+                        alert('Failed to load html2canvas. Export feature unavailable.');
+                    };
+                    document.head.appendChild(script);
+                    return;
+                }
+                
+                // Create canvas from chart
+                html2canvas(chartContainer, {
+                    backgroundColor: '#000000',
+                    useCORS: true,
+                    scale: 2, // Higher quality
+                    logging: false
+                }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = `chart-${currentSymbol}-${Date.now()}.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    log('Chart exported successfully');
+                }).catch(err => {
+                    logError('Failed to export chart', err);
+                    alert('Export failed. Please try again.');
+                });
+            });
+            
+            // Screenshot chart
+            document.getElementById('screenshot-chart')?.addEventListener('click', () => {
+                if (!chart) return;
+                const chartContainer = document.getElementById('chart');
+                if (!chartContainer) return;
+                
+                // Check if html2canvas is available
+                if (typeof html2canvas === 'undefined') {
+                    alert('Screenshot feature requires html2canvas library. Loading...');
+                    // Try to load it dynamically
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                    script.onload = () => {
+                        // Retry screenshot after loading
+                        setTimeout(() => document.getElementById('screenshot-chart')?.click(), 500);
+                    };
+                    script.onerror = () => {
+                        alert('Failed to load html2canvas. Screenshot feature unavailable.');
+                    };
+                    document.head.appendChild(script);
+                    return;
+                }
+                
+                // Create screenshot
+                html2canvas(chartContainer, {
+                    backgroundColor: '#000000',
+                    useCORS: true,
+                    scale: 2, // Higher quality
+                    logging: false
+                }).then(canvas => {
+                    canvas.toBlob(blob => {
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.download = `screenshot-${currentSymbol}-${Date.now()}.png`;
+                        link.href = url;
+                        link.click();
+                        setTimeout(() => URL.revokeObjectURL(url), 100);
+                        log('Screenshot saved successfully');
+                    }, 'image/png');
+                }).catch(err => {
+                    logError('Failed to create screenshot', err);
+                    alert('Screenshot failed. Please try again.');
+                });
+            });
+        }
+        
+        // ========================================================================
+        // CROSSHAIR TRACKING - Show price/time info on hover
+        // ========================================================================
+        function setupCrosshairTracking() {
+            if (!chart) return;
+            
+            const crosshairInfo = document.getElementById('crosshair-info');
+            const crosshairTime = document.getElementById('crosshair-time');
+            const crosshairPrice = document.getElementById('crosshair-price');
+            const crosshairVolume = document.getElementById('crosshair-volume');
+            
+            chart.subscribeCrosshairMove(param => {
+                if (!crosshairInfo || !param || param.time === undefined) {
+                    if (crosshairInfo) crosshairInfo.classList.remove('visible');
+                    return;
+                }
+                
+                // Show crosshair info
+                if (crosshairInfo) crosshairInfo.classList.add('visible');
+                
+                // Update time
+                if (crosshairTime) {
+                    const date = new Date(param.time * 1000);
+                    crosshairTime.textContent = date.toLocaleString();
+                }
+                
+                // Update price (from candlestick series)
+                if (crosshairPrice && param.seriesData && candlestickSeries) {
+                    const candleData = param.seriesData.get(candlestickSeries);
+                    if (candleData) {
+                        const price = candleData.close || candleData.high || candleData.low || '-';
+                        crosshairPrice.textContent = typeof price === 'number' ? `$${price.toFixed(2)}` : price;
+                    } else {
+                        // Try to get price from point
+                        const price = param.point?.price;
+                        if (price !== undefined) {
+                            crosshairPrice.textContent = `$${price.toFixed(2)}`;
+                        } else {
+                            crosshairPrice.textContent = '-';
+                        }
+                    }
+                }
+                
+                // Update volume (from volume series)
+                if (crosshairVolume && param.seriesData && volumeSeries) {
+                    const volumeData = param.seriesData.get(volumeSeries);
+                    if (volumeData) {
+                        const volume = volumeData.value || '-';
+                        crosshairVolume.textContent = typeof volume === 'number' ? volume.toLocaleString() : volume;
+                    } else {
+                        crosshairVolume.textContent = '-';
+                    }
+                }
+            });
+        }
+        
+        // ========================================================================
+        // FETCH CANDLESTICK DATA FROM BINANCE
+        // ========================================================================
+        async function fetchCandlestickData(symbol, interval = '1m', limit = 500) {
+            try {
+                // Binance API: GET /api/v3/klines
+                // Binance expects uppercase symbol (e.g., BTCUSDT not btcusdt)
+                const binanceSymbol = symbol.toUpperCase();
+                const url = `https://api.binance.com/api/v3/klines?symbol=${binanceSymbol}&interval=${interval}&limit=${limit}`;
+                
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`Binance API ${response.status}`);
+                
+                const klines = await response.json();
+                
+                // Convert Binance format to TradingView format
+                // Binance: [time, open, high, low, close, volume, ...]
+                // TradingView: { time, open, high, low, close }
+                const candles = klines.map(k => ({
+                    time: Math.floor(k[0] / 1000), // Convert ms to seconds
+                    open: parseFloat(k[1]),
+                    high: parseFloat(k[2]),
+                    low: parseFloat(k[3]),
+                    close: parseFloat(k[4]),
+                }));
+                
+                const volumes = klines.map(k => ({
+                    time: Math.floor(k[0] / 1000),
+                    value: parseFloat(k[5]),
+                    color: parseFloat(k[4]) >= parseFloat(k[1]) ? '#4ade80' : '#f87171', // Green if close >= open
+                }));
+                
+                log(`Fetched ${candles.length} candles for ${symbol}`);
+                return { candles, volumes };
+            } catch (error) {
+                logError('Failed to fetch candlestick data', error);
+                return { candles: [], volumes: [] };
+            }
+        }
+        
+        // ========================================================================
+        // FETCH MARKET DATA (for info panel)
+        // ========================================================================
+        async function fetchMarketData() {
+            try {
+                const response = await fetch(`${API_BASE}/dashboard/market-data`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                log('Market data received', { count: data.length });
+                
+                // Find current symbol (handle both USDT and EUR pairs)
+                // Backend might return BTCEUR, but selector has BTCUSDT
+                let symbolData = data.find(d => d.symbol === currentSymbol);
+                if (!symbolData && data.length > 0) {
+                    // Try to find by base symbol (BTC, ETH, etc.)
+                    const baseSymbol = currentSymbol.replace(/USDT|EUR$/, '');
+                    symbolData = data.find(d => d.symbol.startsWith(baseSymbol));
+                    // If found, update selector to match backend symbol
+                    if (symbolData && symbolData.symbol !== currentSymbol) {
+                        currentSymbol = symbolData.symbol;
+                        const selector = document.getElementById('symbol-selector');
+                        if (selector) selector.value = symbolData.symbol;
+                    }
+                }
+                if (symbolData) {
+                    updateInfoPanel(symbolData);
+                } else if (data.length > 0) {
+                    // If no match, just use first symbol for info panel
+                    updateInfoPanel(data[0]);
+                    log('Symbol not found, using first available', { 
+                        currentSymbol, 
+                        using: data[0].symbol,
+                        available: data.map(d => d.symbol) 
+                    });
+                }
+                
+                // Store market data for use in overlays
+                marketData = data;
+                
+                // Refresh overlays if they're enabled
+                if (controlDeckState.layers.hist) {
+                    toggleHistoricalMarkers(false);
+                    toggleHistoricalMarkers(true);
+                }
+                if (controlDeckState.layers.liquid) {
+                    toggleLiquidityMarkers(false);
+                    toggleLiquidityMarkers(true);
+                }
+                
+                return data;
+            } catch (error) {
+                logError('Failed to fetch market data', error);
+                return [];
+            }
+        }
+        
+        // ========================================================================
+        // UPDATE CHART DATA - Load candlesticks from Binance
+        // ========================================================================
+        async function updateChartData(symbol) {
+            if (!candlestickSeries || !volumeSeries) {
+                log('Chart not initialized yet');
+                return;
+            }
+            
+            log(`Loading candlestick data for ${symbol}...`);
+            
+            // Map timeframe to Binance interval
+            const intervalMap = {
+                '1m': '1m',
+                '5m': '5m',
+                '15m': '15m',
+                '1h': '1h',
+                '4h': '4h',
+                '1d': '1d',
+            };
+            const binanceInterval = intervalMap[currentTimeframe] || '1m';
+            
+            // Fetch candlestick data
+            const { candles, volumes } = await fetchCandlestickData(symbol, binanceInterval, 500);
+            
+            if (candles.length === 0) {
+                logError('No candlestick data received');
+                return;
+            }
+            
+            // Set all candles at once (more efficient)
+            candlestickSeries.setData(candles);
+            volumeSeries.setData(volumes);
+            if (candles && candles.length > 0) {
+                lastPrice = candles[candles.length - 1].close;
+            }
+            
+            // Update data bounds for bounds checking
+            updateDataBounds(candles);
+            
+            // Only fit content on initial load, preserve user's view otherwise
+            if (!initialLoadComplete) {
+                chart.timeScale().fitContent();
+                initialLoadComplete = true;
+            } else {
+                // Preserve visible range if user has adjusted it
+                if (lastVisibleRange) {
+                    try {
+                        chart.timeScale().setVisibleRange(lastVisibleRange);
+                    } catch (error) {
+                        // If range is invalid, just fit content
+                        chart.timeScale().fitContent();
+                    }
+                }
+            }
+            
+            // Store current visible range for next update
+            try {
+                const currentRange = chart.timeScale().getVisibleRange();
+                if (currentRange) {
+                    lastVisibleRange = currentRange;
+                }
+            } catch (error) {
+                // Ignore errors
+            }
+            
+            // Update position markers after chart data is loaded
+            await updatePositionMarkers();
+            
+            log(`✅ Chart updated with ${candles.length} candles`);
+        }
+        
+        // ========================================================================
+        // REAL-TIME PRICE UPDATE (Update latest candle)
+        // ========================================================================
+        async function updateRealTimePrice() {
+            if (!candlestickSeries) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/dashboard/market-data`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                const symbolData = data.find(d => d.symbol === currentSymbol);
+                
+                if (!symbolData || !symbolData.price) return;
+                
+                const now = Math.floor(Date.now() / 1000);
+                const price = symbolData.price;
+                
+                // Update latest candle with current price
+                // Note: TradingView will auto-update high/low based on close price
+                candlestickSeries.update({
+                    time: now,
+                    close: price,
+                });
+                
+                // Update info panel
+                updateInfoPanel(symbolData);
+                
+                // Update position markers (in case price changed)
+                await updatePositionMarkers();
+            } catch (error) {
+                // Silent fail for real-time updates (don't spam console)
+            }
+        }
+        
+        // ========================================================================
+        // FETCH POSITIONS AND ADD MARKERS
+        // ========================================================================
+        async function updatePositionMarkers() {
+            if (!chart || !candlestickSeries) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/dashboard/positions`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const positions = await response.json();
+                
+                // Remove old markers
+                positionMarkers.forEach(marker => {
+                    candlestickSeries.removePriceLine(marker);
+                });
+                positionMarkers = [];
+                
+                // Add markers for current symbol
+                positions
+                    .filter(p => p.symbol === currentSymbol)
+                    .forEach(position => {
+                        // Entry price line (green)
+                        const entryLine = candlestickSeries.createPriceLine({
+                            price: position.entry_price,
+                            color: '#4ade80',
+                            lineWidth: 2,
+                            lineStyle: LightweightCharts.LineStyle.Dashed,
+                            axisLabelVisible: true,
+                            title: `Entry: $${position.entry_price.toFixed(2)}`,
+                        });
+                        positionMarkers.push(entryLine);
+                        
+                        // Current price line (yellow, if different from entry)
+                        if (Math.abs(position.current_price - position.entry_price) > 0.01) {
+                            const currentLine = candlestickSeries.createPriceLine({
+                                price: position.current_price,
+                                color: '#fbbf24',
+                                lineWidth: 1,
+                                lineStyle: LightweightCharts.LineStyle.Dotted,
+                                axisLabelVisible: true,
+                                title: `Current: $${position.current_price.toFixed(2)}`,
+                            });
+                            positionMarkers.push(currentLine);
+                        }
+                        
+                        log(`Added position markers for ${position.symbol}`, {
+                            entry: position.entry_price,
+                            current: position.current_price,
+                            pnl: position.unrealized_pnl,
+                        });
+                    });
+            } catch (error) {
+                logError('Failed to fetch positions', error);
+            }
+        }
+        
+        // ========================================================================
+        // UPDATE INFO PANEL
+        // ========================================================================
+        function updateInfoPanel(data) {
+            document.getElementById('info-price').textContent = 
+                `$${data.price?.toFixed(2) || '0.00'}`;
+            
+            const change = data.change_24h || 0;
+            const changeEl = document.getElementById('info-change');
+            changeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+            changeEl.className = `info-value ${change >= 0 ? 'positive' : 'negative'}`;
+            
+            document.getElementById('info-volume').textContent = 
+                `${(data.volume || 0).toFixed(2)}`;
+            
+            document.getElementById('info-signal').textContent = 
+                data.signal_strength || 'NEUTRAL';
+        }
+        
+        // ========================================================================
+        // EVENT HANDLERS
+        // ========================================================================
+        document.getElementById('symbol-selector').addEventListener('change', (e) => {
+            currentSymbol = e.target.value;
+            log(`Symbol changed to ${currentSymbol}`);
+            
+            // Clear caches for new symbol
+            tradesCache = null;
+            signalsCache = null;
+            physicsCache = null;
+            predictionCache = null;
+            
+            // Remove all markers
+            removeTradeMarkers();
+            removeSignalMarkers();
+            removeProphecyMarkers();
+            removePredictionOverlay();
+            
+            // Update chart and data
+            updateChartData(currentSymbol);
+            fetchMarketData(); // Update info panel
+            updatePositionMarkers(); // Update markers for new symbol
+            
+            // Refresh physics and performance for new symbol
+            fetchPhysicsState(currentSymbol).then(() => {
+                updatePhysicsFactorsDisplay();
+            });
+            
+            // Re-enable markers if layers are active
+            if (controlDeckState.layers.trades) {
+                toggleTradeMarkers(true);
+            }
+            if (controlDeckState.layers.signals) {
+                toggleSignalMarkers(true);
+            }
+            if (controlDeckState.layers.predictions) {
+                togglePredictions(true);
+            }
+            if (controlDeckState.layers.prophecy) {
+                toggleProphecyMarkers(true);
+            }
+            if (controlDeckState.layers.hist) {
+                toggleHistoricalMarkers(false);
+                toggleHistoricalMarkers(true);
+            }
+        });
+        
+        document.querySelectorAll('.timeframe-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Update active state
+                document.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                currentTimeframe = btn.dataset.timeframe;
+                log(`Timeframe changed to ${currentTimeframe}`);
+                
+                // Reload chart data with new timeframe
+                updateChartData(currentSymbol);
+            });
+        });
+        
+        // ========================================================================
+        // DATA FETCHING FUNCTIONS
+        // ========================================================================
+        async function fetchHistoricalTrades(symbol) {
+            try {
+                if (tradesCache && tradesCache.symbol === symbol) {
+                    return tradesCache.data;
+                }
+                
+                let filteredTrades = [];
+                try {
+                    const response = await fetch(`${API_BASE}/trades`);
+                    if (response.ok) {
+                        const trades = await response.json();
+                        filteredTrades = trades.filter(t => t.symbol === symbol);
+                    }
+                } catch (e) {
+                    logError('Error fetching trades, using fallback mock trade', e);
+                }
+                
+                if (filteredTrades.length === 0) {
+                    const fallbackPrice = lastPrice || 100.0;
+                    filteredTrades = [{
+                        symbol: symbol,
+                        entry_price: fallbackPrice * 0.99,
+                        exit_price: fallbackPrice * 1.01,
+                        pnl: fallbackPrice * 0.02
+                    }];
+                }
+                
+                tradesCache = { symbol, data: filteredTrades, timestamp: Date.now() };
+                log(`Fetched ${filteredTrades.length} historical trades for ${symbol}`);
+                return filteredTrades;
+            } catch (error) {
+                logError('Failed to fetch historical trades', error);
+                return [];
+            }
+        }
+        
+        async function fetchSignalHistory(symbol, timeframe = '24h') {
+            try {
+                const cacheKey = `${symbol}-${timeframe}`;
+                if (signalsCache && signalsCache.key === cacheKey && Date.now() - signalsCache.timestamp < 60000) {
+                    return signalsCache.data;
+                }
+                
+                const response = await fetch(`${API_BASE}/dashboard/signals${symbol ? `?symbol=${symbol}` : ''}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const signals = await response.json();
+                const filteredSignals = signals.filter(s => s.symbol === symbol);
+                
+                signalsCache = { key: cacheKey, data: filteredSignals, timestamp: Date.now() };
+                log(`Fetched ${filteredSignals.length} signals for ${symbol}`);
+                return filteredSignals;
+            } catch (error) {
+                logError('Failed to fetch signal history', error);
+                return [];
+            }
+        }
+        
+        async function fetchPhysicsState(symbol) {
+            try {
+                if (physicsCache && physicsCache.symbol === symbol && Date.now() - physicsCache.timestamp < 5000) {
+                    return physicsCache.data;
+                }
+                
+                const response = await fetch(`${API_BASE}/physics`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const physics = await response.json();
+                const symbolPhysics = physics.find(p => p.symbol === symbol) || physics[0] || {};
+                
+                physicsCache = { symbol, data: symbolPhysics, timestamp: Date.now() };
+                
+                // Update controlDeckState
+                if (symbolPhysics.momentum !== undefined) controlDeckState.physics.momentum = symbolPhysics.momentum;
+                if (symbolPhysics.strain !== undefined) controlDeckState.physics.strain = symbolPhysics.strain;
+                if (symbolPhysics.force !== undefined) controlDeckState.physics.force = symbolPhysics.force;
+                if (symbolPhysics.squeeze !== undefined) controlDeckState.physics.squeeze = symbolPhysics.squeeze;
+                if (symbolPhysics.flow !== undefined) controlDeckState.physics.flow = symbolPhysics.flow;
+                if (symbolPhysics.entropy !== undefined) controlDeckState.physics.entropy = symbolPhysics.entropy;
+                if (symbolPhysics.jerk !== undefined) controlDeckState.physics.jerk = symbolPhysics.jerk;
+                if (symbolPhysics.sympathy !== undefined) controlDeckState.physics.sympathy = symbolPhysics.sympathy;
+                
+                return symbolPhysics;
+            } catch (error) {
+                logError('Failed to fetch physics state', error);
+                return {};
+            }
+        }
+        
+        async function fetchPerformanceMetrics() {
+            try {
+                if (metricsCache && Date.now() - metricsCache.timestamp < 5000) {
+                    return metricsCache.data;
+                }
+                
+                const response = await fetch(`${API_BASE}/dashboard/metrics`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const metrics = await response.json();
+                
+                metricsCache = { data: metrics, timestamp: Date.now() };
+                
+                // Update controlDeckState
+                if (metrics.total_pnl !== undefined) controlDeckState.performance.totalPnl = metrics.total_pnl;
+                if (metrics.trade_count !== undefined) controlDeckState.performance.tradeCount = metrics.trade_count;
+                if (metrics.win_rate !== undefined) controlDeckState.performance.winRate = metrics.win_rate;
+                if (metrics.peak_equity !== undefined) controlDeckState.performance.peakEquity = metrics.peak_equity;
+                if (metrics.drawdown !== undefined) controlDeckState.performance.drawdown = metrics.drawdown;
+                
+                return metrics;
+            } catch (error) {
+                logError('Failed to fetch performance metrics', error);
+                return {};
+            }
+        }
+        
+        // ========================================================================
+        // CONTROL DECK - Event Emission
+        // ========================================================================
+        function emitControlDeckEvent(eventName, detail) {
+            const event = new CustomEvent(`controldeck:${eventName}`, { detail });
+            document.dispatchEvent(event);
+        }
+        
+        // ========================================================================
+        // CONTROL DECK - Initialize
+        // ========================================================================
+        function initControlDeck() {
+            const content = document.getElementById('control-deck-content');
+            if (!content) return;
+            
+            // State for collapsible sections
+            const sections = {
+                priceGraph: true,
+                masterControl: true,
+                physics: false,
+                simulation: false,
+                physicsFactors: false,
+                performance: false
+            };
+            
+            // Create sections
+            content.innerHTML = `
+                <!-- Price Graph Controls -->
+                <div class="control-deck-section">
+                    <div class="control-deck-section-header" data-section="priceGraph">
+                        <span class="chevron ${sections.priceGraph ? 'down' : ''}">▶</span>
+                        <span>PRICE GRAPH</span>
+                    </div>
+                    <div class="control-deck-section-content ${sections.priceGraph ? '' : 'hidden'}" data-section-content="priceGraph">
+                        <div class="control-deck-layer-grid">
+                            <button class="control-deck-layer-btn hist ${controlDeckState.layers.hist ? 'active' : ''}" 
+                                    data-layer="hist"
+                                    data-help="HIST: Shows historical candlestick data from Binance. Displays price action over time with entry/exit markers from past trades."
+                                    aria-label="Toggle historical price data layer">📊 HIST</button>
+                            <button class="control-deck-layer-btn live ${controlDeckState.layers.live ? 'active' : ''}" 
+                                    data-layer="live"
+                                    data-help="LIVE: Real-time price updates via WebSocket. Shows current market price as it changes in real-time."
+                                    aria-label="Toggle live price updates layer">⚡ LIVE</button>
+                            <button class="control-deck-layer-btn vol ${controlDeckState.layers.vol ? 'active' : ''}" 
+                                    data-layer="vol"
+                                    data-help="VOL: Volume bars showing trading volume for each time period. Higher volume indicates stronger price movements."
+                                    aria-label="Toggle volume bars layer">📈 VOL</button>
+                            <button class="control-deck-layer-btn sim ${controlDeckState.layers.sim ? 'active' : ''}" 
+                                    data-layer="sim"
+                                    data-help="SIM: Simulation lines showing predicted or simulated price movements based on physics factors."
+                                    aria-label="Toggle simulation lines layer">🎮 SIM</button>
+                            <button class="control-deck-layer-btn ghost ${controlDeckState.layers.ghost ? 'active' : ''}" 
+                                    data-layer="ghost"
+                                    data-help="GHOST: Alternative price series or shadow data for comparison. Useful for analyzing different market views."
+                                    aria-label="Toggle ghost series layer">👻 GHOST</button>
+                            <button class="control-deck-layer-btn liquid ${controlDeckState.layers.liquid ? 'active' : ''}" 
+                                    data-layer="liquid"
+                                    data-help="LIQUID: Liquidity markers showing areas of high trading activity and market depth."
+                                    aria-label="Toggle liquidity markers layer">💧 LIQUID</button>
+                            <button class="control-deck-layer-btn trades ${controlDeckState.layers.trades ? 'active' : ''}" 
+                                    data-layer="trades"
+                                    data-help="TRADES: Historical trade markers showing entry (green) and exit (red) points from past trades."
+                                    aria-label="Toggle trade markers layer">💰 TRADES</button>
+                            <button class="control-deck-layer-btn signals ${controlDeckState.layers.signals ? 'active' : ''}" 
+                                    data-layer="signals"
+                                    data-help="SIGNALS: Trading signals from the system showing buy/sell recommendations with confidence levels."
+                                    aria-label="Toggle signal markers layer">📡 SIGNALS</button>
+                            <button class="control-deck-layer-btn predictions ${controlDeckState.layers.predictions ? 'active' : ''}" 
+                                    data-layer="predictions"
+                                    data-help="PREDICTIONS: ML engine future price predictions showing expected price movements with confidence intervals and time horizons."
+                                    aria-label="Toggle prediction overlay layer">🔮 PREDICTIONS</button>
+                            <button class="control-deck-layer-btn prophecy ${controlDeckState.layers.prophecy ? 'active' : ''}" 
+                                    data-layer="prophecy"
+                                    data-help="PROPHECY: Major Move Detected events from THOTH oracle. Shows high-confidence predictions of significant price movements (>1.5% or resonance >0.9) with special visual indicators."
+                                    aria-label="Toggle PROPHECY markers layer">👁️ PROPHECY</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Master Control -->
+                <div class="control-deck-section">
+                    <div class="control-deck-section-header" data-section="masterControl">
+                        <span class="chevron ${sections.masterControl ? 'down' : ''}">▶</span>
+                        <span>MASTER CONTROL</span>
+                    </div>
+                    <div class="control-deck-section-content ${sections.masterControl ? '' : 'hidden'}" data-section-content="masterControl">
+                        <div data-slider="masterSensitivity"></div>
+                        <div data-slider="smoothingLevel"></div>
+                    </div>
+                </div>
+                
+                <!-- Physics -->
+                <div class="control-deck-section">
+                    <div class="control-deck-section-header" data-section="physics">
+                        <span class="chevron ${sections.physics ? 'down' : ''}">▶</span>
+                        <span>PHYSICS</span>
+                    </div>
+                    <div class="control-deck-section-content ${sections.physics ? '' : 'hidden'}" data-section-content="physics">
+                        <div data-slider="friction"></div>
+                        <div data-slider="elasticity"></div>
+                    </div>
+                </div>
+                
+                <!-- Simulation -->
+                <div class="control-deck-section">
+                    <div class="control-deck-section-header" data-section="simulation">
+                        <span class="chevron ${sections.simulation ? 'down' : ''}">▶</span>
+                        <span>SIMULATION</span>
+                    </div>
+                    <div class="control-deck-section-content ${sections.simulation ? '' : 'hidden'}" data-section-content="simulation">
+                        <div data-slider="drift"></div>
+                        <div data-slider="volatility"></div>
+                    </div>
+                </div>
+                
+                <!-- Physics Factors -->
+                <div class="control-deck-section">
+                    <div class="control-deck-section-header" data-section="physicsFactors">
+                        <span class="chevron ${sections.physicsFactors ? 'down' : ''}">▶</span>
+                        <span>PHYSICS FACTORS</span>
+                    </div>
+                    <div class="control-deck-section-content ${sections.physicsFactors ? '' : 'hidden'}" data-section-content="physicsFactors">
+                        <div class="control-deck-physics-grid" id="physics-factors-grid">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Performance -->
+                <div class="control-deck-section">
+                    <div class="control-deck-section-header" data-section="performance">
+                        <span class="chevron ${sections.performance ? 'down' : ''}">▶</span>
+                        <span>PERFORMANCE</span>
+                    </div>
+                    <div class="control-deck-section-content ${sections.performance ? '' : 'hidden'}" data-section-content="performance">
+                        <div id="performance-metrics">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Setup section toggles
+            document.querySelectorAll('[data-section]').forEach(header => {
+                header.addEventListener('click', () => {
+                    const sectionName = header.dataset.section;
+                    sections[sectionName] = !sections[sectionName];
+                    const content = document.querySelector(`[data-section-content="${sectionName}"]`);
+                    const chevron = header.querySelector('.chevron');
+                    
+                    if (sections[sectionName]) {
+                        content.classList.remove('hidden');
+                        chevron.classList.add('down');
+                    } else {
+                        content.classList.add('hidden');
+                        chevron.classList.remove('down');
+                    }
+                });
+            });
+            
+            // Setup layer toggles with tooltips
+            document.querySelectorAll('[data-layer]').forEach(btn => {
+                // Add tooltip if help system is available
+                if (window.helpSystem && btn.dataset.help) {
+                    window.helpSystem.addTooltip(btn, btn.dataset.help);
+                }
+                
+                btn.addEventListener('click', () => {
+                    const layer = btn.dataset.layer;
+                    if (!layer) {
+                        logError('Button missing data-layer attribute', btn);
+                        return;
+                    }
+                    
+                    controlDeckState.layers[layer] = !controlDeckState.layers[layer];
+                    btn.classList.toggle('active', controlDeckState.layers[layer]);
+                    
+                    // Temporarily disable bounds checking during toggle
+                    userInteracting = true;
+                    setTimeout(() => { userInteracting = false; }, 2000);
+                    
+                    // Store visible range before toggle
+                    try {
+                        const currentRange = chart?.timeScale()?.getVisibleRange();
+                        if (currentRange) {
+                            lastVisibleRange = currentRange;
+                        }
+                    } catch (error) {
+                        // Ignore
+                    }
+                    
+                    emitControlDeckEvent('toggle-layer', {
+                        layer: layer,
+                        enabled: controlDeckState.layers[layer]
+                    });
+                });
+            });
+            
+            // Setup help button
+            const helpBtn = document.getElementById('control-deck-help-btn');
+            if (helpBtn && window.helpSystem) {
+                helpBtn.addEventListener('click', () => {
+                    window.helpSystem.showHelpModal(`
+                        <h3 style="color: #4ade80; margin-bottom: 15px;">Control Deck Help</h3>
+                        <div style="line-height: 1.8;">
+                            <h4 style="color: #4ade80; margin-top: 20px; margin-bottom: 10px;">Layer Toggles</h4>
+                            <ul style="margin-left: 20px; margin-top: 10px;">
+                                <li><strong>HIST:</strong> Historical candlestick data with trade markers</li>
+                                <li><strong>LIVE:</strong> Real-time price updates via WebSocket</li>
+                                <li><strong>VOL:</strong> Volume bars showing trading activity</li>
+                                <li><strong>SIM:</strong> Simulation lines based on physics factors</li>
+                                <li><strong>GHOST:</strong> Alternative price series for comparison</li>
+                                <li><strong>LIQUID:</strong> Liquidity markers showing market depth</li>
+                                <li><strong>TRADES:</strong> Entry/exit markers from historical trades</li>
+                                <li><strong>SIGNALS:</strong> Trading signals with confidence levels</li>
+                                <li><strong>PREDICTIONS:</strong> ML engine future price predictions with confidence intervals and time horizons</li>
+                            </ul>
+                            
+                            <h4 style="color: #4ade80; margin-top: 20px; margin-bottom: 10px;">Master Control</h4>
+                            <ul style="margin-left: 20px; margin-top: 10px;">
+                                <li><strong>Aggregation Sensitivity:</strong> How sensitive the system is to price movements (1.0-2.0 recommended)</li>
+                                <li><strong>Signal Fidelity:</strong> Smoothing factor for signals (0.3-0.7 recommended)</li>
+                            </ul>
+                            
+                            <h4 style="color: #4ade80; margin-top: 20px; margin-bottom: 10px;">Physics Parameters</h4>
+                            <ul style="margin-left: 20px; margin-top: 10px;">
+                                <li><strong>Friction:</strong> Market resistance (0.2-0.5 recommended)</li>
+                                <li><strong>Elasticity:</strong> Price bounce-back behavior (0.8-1.2 recommended)</li>
+                            </ul>
+                            
+                            <h4 style="color: #4ade80; margin-top: 20px; margin-bottom: 10px;">Simulation Parameters</h4>
+                            <ul style="margin-left: 20px; margin-top: 10px;">
+                                <li><strong>Drift (Bias):</strong> Price direction bias (-0.2 to 0.2 recommended)</li>
+                                <li><strong>Volatility (Noise):</strong> Random noise in simulations (0.1-0.5 recommended)</li>
+                            </ul>
+                            
+                            <h4 style="color: #4ade80; margin-top: 20px; margin-bottom: 10px;">Tips</h4>
+                            <ul style="margin-left: 20px; margin-top: 10px;">
+                                <li>Hover over any control to see detailed tooltips</li>
+                                <li>Click section headers to expand/collapse sections</li>
+                                <li>Use the HIDE button to minimize the Control Deck</li>
+                                <li>Physics Factors and Performance update every 10 seconds</li>
+                            </ul>
+                        </div>
+                    `);
+                });
+            }
+            
+            // Setup sliders with help text
+            const sliderConfigs = {
+                masterSensitivity: { 
+                    label: 'Aggregation Sensitivity', 
+                    min: 0.1, 
+                    max: 5.0, 
+                    step: 0.1,
+                    help: 'Controls how signals are aggregated. Higher values make the system more sensitive to price movements. Recommended: 1.0-2.0'
+                },
+                smoothingLevel: { 
+                    label: 'Signal Fidelity', 
+                    min: 0.0, 
+                    max: 1.0, 
+                    step: 0.01,
+                    help: 'Smoothing factor for price signals. 0 = raw data, 1 = maximum smoothing. Higher values reduce noise but may delay signals. Recommended: 0.3-0.7'
+                },
+                friction: { 
+                    label: 'Friction', 
+                    min: 0.0, 
+                    max: 1.0, 
+                    step: 0.01,
+                    help: 'Simulates market friction/resistance. Higher values slow down price movements in simulations. Recommended: 0.2-0.5'
+                },
+                elasticity: { 
+                    label: 'Elasticity', 
+                    min: 0.0, 
+                    max: 2.0, 
+                    step: 0.01,
+                    help: 'Controls how quickly prices bounce back after movements. Higher values = more elastic (bouncy) behavior. Recommended: 0.8-1.2'
+                },
+                drift: { 
+                    label: 'Drift (Bias)', 
+                    min: -1.0, 
+                    max: 1.0, 
+                    step: 0.05,
+                    help: 'Bias term for price direction. Positive = upward bias, negative = downward bias. 0 = no bias. Recommended: -0.2 to 0.2'
+                },
+                volatility: { 
+                    label: 'Volatility (Noise)', 
+                    min: 0.0, 
+                    max: 2.0, 
+                    step: 0.05,
+                    help: 'Adds random noise to simulations. Higher values = more volatility. 0 = no noise. Recommended: 0.1-0.5'
+                }
+            };
+            
+            document.querySelectorAll('[data-slider]').forEach(container => {
+                const param = container.dataset.slider;
+                const config = sliderConfigs[param];
+                if (!config) return;
+                
+                const slider = new ControlSlider(container, {
+                    value: controlDeckState.parameters[param],
+                    min: config.min,
+                    max: config.max,
+                    step: config.step,
+                    label: config.label,
+                    onChange: (value) => {
+                        controlDeckState.parameters[param] = value;
+                        emitControlDeckEvent('update-parameter', {
+                            param: param,
+                            value: value
+                        });
+                    }
+                });
+                
+                // Add help icon and tooltip
+                if (window.helpSystem && config.help) {
+                    const labelElement = container.querySelector('.control-slider-label');
+                    if (labelElement) {
+                        window.helpSystem.addHelpIcon(labelElement, config.help);
+                    }
+                }
+            });
+            
+            // Setup toggle button
+            document.getElementById('control-deck-toggle').addEventListener('click', () => {
+                const content = document.getElementById('control-deck-content');
+                const toggle = document.getElementById('control-deck-toggle');
+                if (content.style.display === 'none') {
+                    content.style.display = 'flex';
+                    toggle.textContent = 'HIDE';
+                } else {
+                    content.style.display = 'none';
+                    toggle.textContent = 'SHOW';
+                }
+            });
+            
+            // Initialize physics factors and performance displays
+            updatePhysicsFactorsDisplay();
+            updatePerformanceDisplay();
+            
+            // Update physics and performance periodically
+            setInterval(async () => {
+                await fetchPhysicsState(currentSymbol);
+                await fetchPerformanceMetrics();
+                updatePhysicsFactorsDisplay();
+                updatePerformanceDisplay();
+            }, 10000); // Update every 10 seconds
+            
+            log('✅ Control Deck initialized');
+        }
+        
+        function updatePhysicsFactorsDisplay() {
+            const grid = document.getElementById('physics-factors-grid');
+            if (!grid) return;
+            
+            const factors = [
+                { key: 'momentum', label: 'Momentum' },
+                { key: 'strain', label: 'Strain' },
+                { key: 'force', label: 'Force' },
+                { key: 'squeeze', label: 'Squeeze' },
+                { key: 'flow', label: 'Flow' },
+                { key: 'entropy', label: 'Entropy' },
+                { key: 'jerk', label: 'Jerk' },
+                { key: 'sympathy', label: 'Sympathy' }
+            ];
+            
+            grid.innerHTML = factors.map(factor => {
+                const value = controlDeckState.physics[factor.key] || 0;
+                return `
+                    <div class="control-deck-physics-item">
+                        <div class="control-deck-physics-label">${factor.label}</div>
+                        <div class="control-deck-physics-value">${value.toFixed(3)}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function updatePerformanceDisplay() {
+            const container = document.getElementById('performance-metrics');
+            if (!container) return;
+            
+            const perf = controlDeckState.performance;
+            const winRate = perf.tradeCount > 0 ? (perf.winRate * 100).toFixed(1) : '0.0';
+            
+            container.innerHTML = `
+                <div class="control-deck-metric-row">
+                    <span class="control-deck-metric-label">Total P&L</span>
+                    <span class="control-deck-metric-value ${perf.totalPnl >= 0 ? 'positive' : 'negative'}">
+                        $${perf.totalPnl.toFixed(2)}
+                    </span>
+                </div>
+                <div class="control-deck-metric-row">
+                    <span class="control-deck-metric-label">Trade Count</span>
+                    <span class="control-deck-metric-value">${perf.tradeCount}</span>
+                </div>
+                <div class="control-deck-metric-row">
+                    <span class="control-deck-metric-label">Win Rate</span>
+                    <span class="control-deck-metric-value">${winRate}%</span>
+                </div>
+                <div class="control-deck-metric-row">
+                    <span class="control-deck-metric-label">Peak Equity</span>
+                    <span class="control-deck-metric-value">$${perf.peakEquity.toFixed(2)}</span>
+                </div>
+                <div class="control-deck-metric-row">
+                    <span class="control-deck-metric-label">Drawdown</span>
+                    <span class="control-deck-metric-value negative">${perf.drawdown.toFixed(2)}%</span>
+                </div>
+            `;
+        }
+        
+        // ========================================================================
+        // CONTROL DECK - Event Handlers
+        // ========================================================================
+        function handleLayerToggle(layer, enabled) {
+            log(`Layer toggle: ${layer} = ${enabled}`);
+            
+            switch(layer) {
+                case 'vol':
+                    if (volumeSeries) {
+                        volumeSeries.setVisible(enabled);
+                    }
+                    break;
+                case 'live':
+                    // Toggle real-time updates
+                    if (enabled) {
+                        if (!realTimeUpdateInterval) {
+                            realTimeUpdateInterval = setInterval(updateRealTimePrice, 5000);
+                        }
+                    } else {
+                        if (realTimeUpdateInterval) {
+                            clearInterval(realTimeUpdateInterval);
+                            realTimeUpdateInterval = null;
+                        }
+                    }
+                    break;
+                case 'hist':
+                    // Toggle historical markers/overlays
+                    toggleHistoricalMarkers(enabled);
+                    break;
+                case 'sim':
+                    // Toggle simulation overlays
+                    toggleSimulationLines(enabled);
+                    break;
+                case 'ghost':
+                    // Toggle ghost/transparent overlays
+                    toggleGhostSeries(enabled);
+                    break;
+                case 'liquid':
+                    // Toggle liquidity indicators
+                    toggleLiquidityMarkers(enabled);
+                    break;
+                case 'trades':
+                    // Toggle historical trade markers
+                    toggleTradeMarkers(enabled);
+                    break;
+                case 'signals':
+                    // Toggle signal history markers
+                    toggleSignalMarkers(enabled);
+                    break;
+                case 'predictions':
+                    // Toggle prediction overlay
+                    togglePredictions(enabled);
+                    break;
+                case 'prophecy':
+                    // Toggle PROPHECY markers
+                    toggleProphecyMarkers(enabled);
+                    break;
+            }
+        }
+        
+        async function toggleTradeMarkers(enabled) {
+            if (!candlestickSeries) {
+                logError('Cannot toggle trade markers: candlestickSeries not initialized');
+                return;
+            }
+            
+            if (enabled) {
+                try {
+                    // Fetch and display trade markers
+                    const trades = await fetchHistoricalTrades(currentSymbol);
+                    addTradeMarkers(trades);
+                } catch (error) {
+                    logError('Failed to fetch trade markers', error);
+                }
+            } else {
+                // Remove trade markers
+                removeTradeMarkers();
+            }
+        }
+        
+        function addTradeMarkers(trades) {
+            if (!candlestickSeries) {
+                logError('Cannot add trade markers: candlestickSeries not initialized');
+                return;
+            }
+            
+            // Clear existing markers first
+            removeTradeMarkers();
+            
+            trades.forEach(trade => {
+                // Entry marker (green)
+                const entryLine = candlestickSeries.createPriceLine({
+                    price: trade.entry_price,
+                    color: '#4ade80',
+                    lineWidth: 2,
+                    lineStyle: LightweightCharts.LineStyle.Dashed,
+                    axisLabelVisible: true,
+                    title: `Entry: $${trade.entry_price?.toFixed(2) || '0.00'}`,
+                });
+                tradeMarkers.push(entryLine);
+                
+                // Exit marker (red) if trade is closed
+                if (trade.exit_price) {
+                    const exitLine = candlestickSeries.createPriceLine({
+                        price: trade.exit_price,
+                        color: '#f87171',
+                        lineWidth: 2,
+                        lineStyle: LightweightCharts.LineStyle.Dashed,
+                        axisLabelVisible: true,
+                        title: `Exit: $${trade.exit_price.toFixed(2)} (P&L: $${(trade.pnl || 0).toFixed(2)})`,
+                    });
+                    tradeMarkers.push(exitLine);
+                }
+            });
+            
+            log(`Added ${tradeMarkers.length} trade markers`);
+        }
+        
+        function removeTradeMarkers() {
+            if (!candlestickSeries) return;
+            tradeMarkers.forEach(marker => {
+                try {
+                    candlestickSeries.removePriceLine(marker);
+                } catch (e) {
+                    // Marker may already be removed
+                }
+            });
+            tradeMarkers = [];
+        }
+        
+        async function toggleSignalMarkers(enabled) {
+            if (!candlestickSeries) {
+                logError('Cannot toggle signal markers: candlestickSeries not initialized');
+                return;
+            }
+            
+            if (enabled) {
+                // Fetch and display signal markers
+                const signals = await fetchSignalHistory(currentSymbol);
+                addSignalMarkers(signals);
+            } else {
+                // Remove signal markers
+                removeSignalMarkers();
+            }
+        }
+        
+        function addSignalMarkers(signals) {
+            if (!candlestickSeries) {
+                logError('Cannot add signal markers: candlestickSeries not initialized');
+                return;
+            }
+            
+            // Clear existing markers first
+            removeSignalMarkers();
+            
+            // Separate PROPHECY events from regular signals
+            const regularSignals = signals.filter(s => !s.is_prophecy);
+            const prophecyEvents = signals.filter(s => s.is_prophecy);
+            
+            // Add PROPHECY markers if enabled
+            if (controlDeckState.layers.prophecy && prophecyEvents.length > 0) {
+                addProphecyMarkers(prophecyEvents);
+            }
+            
+            // Group regular signals by price level for better visualization
+            const priceLevels = {};
+            regularSignals.forEach(signal => {
+                const price = signal.price || 0;
+                if (price <= 0) return;
+                
+                if (!priceLevels[price]) {
+                    priceLevels[price] = [];
+                }
+                priceLevels[price].push(signal);
+            });
+            
+            // Create price lines for each unique price level
+            Object.entries(priceLevels).forEach(([price, priceSignals]) => {
+                const latestSignal = priceSignals[priceSignals.length - 1];
+                const direction = latestSignal.direction || 'HOLD';
+                
+                let color = '#666';
+                if (direction === 'BUY') color = '#4ade80';
+                else if (direction === 'SELL') color = '#f87171';
+                
+                const confidence = latestSignal.confidence || 0;
+                const regime = latestSignal.regime || '';
+                
+                const signalLine = candlestickSeries.createPriceLine({
+                    price: parseFloat(price),
+                    color: color,
+                    lineWidth: 1,
+                    lineStyle: LightweightCharts.LineStyle.Dotted,
+                    axisLabelVisible: true,
+                    title: `${direction} (${(confidence * 100).toFixed(0)}%) ${regime ? `[${regime}]` : ''}`,
+                });
+                signalMarkers.push(signalLine);
+            });
+            
+            log(`Added ${signalMarkers.length} signal markers`);
+        }
+        
+        async function toggleProphecyMarkers(enabled) {
+            if (!candlestickSeries) {
+                logError('Cannot toggle PROPHECY markers: candlestickSeries not initialized');
+                return;
+            }
+            
+            if (enabled) {
+                try {
+                    // Fetch and display PROPHECY markers
+                    const signals = await fetchSignalHistory(currentSymbol);
+                    const prophecyEvents = signals.filter(s => s.is_prophecy);
+                    addProphecyMarkers(prophecyEvents);
+                } catch (error) {
+                    logError('Failed to fetch PROPHECY markers', error);
+                }
+            } else {
+                // Remove PROPHECY markers
+                removeProphecyMarkers();
+            }
+        }
+        
+        function addProphecyMarkers(prophecyEvents) {
+            if (!candlestickSeries) {
+                logError('Cannot add PROPHECY markers: candlestickSeries not initialized');
+                return;
+            }
+            
+            // Clear existing PROPHECY markers first
+            removeProphecyMarkers();
+            
+            prophecyEvents.forEach(prophecy => {
+                const price = prophecy.price || 0;
+                if (price <= 0) return;
+                
+                const predictedMove = prophecy.predicted_move_percent || 0;
+                const resonance = prophecy.resonance || 0;
+                const direction = prophecy.direction || 'HOLD';
+                
+                // Calculate target price
+                const targetPrice = price * (1 + predictedMove / 100);
+                
+                // Special styling for PROPHECY: Gold color, thicker line
+                const color = '#fbbf24'; // Gold color for PROPHECY
+                const moveSign = predictedMove > 0 ? '+' : '';
+                
+                // Line thickness based on resonance (higher = thicker)
+                const lineWidth = 2 + (resonance * 2); // 2-4px range
+                
+                // 1. Detection price line (where PROPHECY was detected)
+                const detectionLine = candlestickSeries.createPriceLine({
+                    price: parseFloat(price),
+                    color: color,
+                    lineWidth: lineWidth,
+                    lineStyle: LightweightCharts.LineStyle.Solid,
+                    axisLabelVisible: true,
+                    title: `👁️ PROPHECY: ${moveSign}${predictedMove.toFixed(2)}% (Res: ${resonance.toFixed(2)})`,
+                });
+                prophecyMarkers.push(detectionLine);
+                
+                // 2. Target price line (where price is predicted to go)
+                const targetLineColor = direction === 'BUY' ? '#4ade80' : '#f87171';
+                const targetLine = candlestickSeries.createPriceLine({
+                    price: parseFloat(targetPrice),
+                    color: targetLineColor,
+                    lineWidth: 2,
+                    lineStyle: LightweightCharts.LineStyle.Dashed,
+                    axisLabelVisible: true,
+                    title: `Target: $${targetPrice.toFixed(2)} (${moveSign}${predictedMove.toFixed(2)}%)`,
+                });
+                prophecyMarkers.push(targetLine);
+                
+                // 3. Direction indicator line (connecting current to target)
+                // Use a line series overlay for this (if we have time data)
+                // For now, the two price lines show the direction visually
+            });
+            
+            log(`Added ${prophecyMarkers.length} PROPHECY markers (${prophecyEvents.length} events)`);
+        }
+        
+        function removeProphecyMarkers() {
+            if (!candlestickSeries) return;
+            prophecyMarkers.forEach(marker => {
+                try {
+                    candlestickSeries.removePriceLine(marker);
+                } catch (e) {
+                    // Marker may already be removed
+                }
+            });
+            prophecyMarkers = [];
+        }
+        
+        // ========================================================================
+        // HIGHLIGHT MARKERS (from PROPHECY/Opportunities views)
+        // ========================================================================
+        let highlightMarkers = [];
+        
+        function addHighlightMarkers(params) {
+            if (!candlestickSeries) {
+                logError('Cannot add highlight markers: candlestickSeries not initialized');
+                return;
+            }
+            
+            // Remove existing highlight markers
+            removeHighlightMarkers();
+            
+            // Highlight price if provided
+            if (params.price && params.price > 0) {
+                const highlightLine = candlestickSeries.createPriceLine({
+                    price: parseFloat(params.price),
+                    color: '#a855f7', // Purple for highlighting
+                    lineWidth: 3,
+                    lineStyle: LightweightCharts.LineStyle.Solid,
+                    axisLabelVisible: true,
+                    title: '📍 Highlighted Price',
+                });
+                highlightMarkers.push(highlightLine);
+                log(`Added highlight marker at price: ${params.price}`);
+            }
+            
+            // Note: Time highlighting would require time-series data
+            // For now, we highlight by price which is more reliable
+            if (params.time) {
+                log(`Highlight time requested: ${params.time} (price highlighting used instead)`);
+            }
+        }
+        
+        function removeHighlightMarkers() {
+            if (!candlestickSeries) return;
+            highlightMarkers.forEach(marker => {
+                try {
+                    candlestickSeries.removePriceLine(marker);
+                } catch (e) {
+                    // Marker may already be removed
+                }
+            });
+            highlightMarkers = [];
+        }
+        
+        function removeSignalMarkers() {
+            if (!candlestickSeries) return;
+            signalMarkers.forEach(marker => {
+                try {
+                    candlestickSeries.removePriceLine(marker);
+                } catch (e) {
+                    // Marker may already be removed
+                }
+            });
+            signalMarkers = [];
+        }
+        
+        function toggleHistoricalMarkers(enabled) {
+            if (!candlestickSeries) {
+                logError('Cannot toggle historical markers: candlestickSeries not initialized');
+                return;
+            }
+            
+            if (enabled) {
+                // Remove existing markers first to avoid duplicates
+                historicalMarkers.forEach(marker => {
+                    try {
+                        candlestickSeries.removePriceLine(marker);
+                    } catch (error) {
+                        // Ignore errors if marker already removed
+                    }
+                });
+                historicalMarkers = [];
+                
+                // Add historical price markers (e.g., 24h high/low, support/resistance)
+                if (marketData.length > 0) {
+                    const symbolData = marketData.find(d => d.symbol === currentSymbol);
+                    if (symbolData) {
+                        const currentPrice = symbolData.price || 0;
+                        if (currentPrice > 0) {
+                            try {
+                                // Add 24h high marker
+                                const high24h = symbolData.high_24h || currentPrice * 1.05;
+                                const highLine = candlestickSeries.createPriceLine({
+                                    price: high24h,
+                                    color: '#4ade80',
+                                    lineWidth: 1,
+                                    lineStyle: LightweightCharts.LineStyle.Dotted,
+                                    axisLabelVisible: true,
+                                    title: '24h High',
+                                });
+                                historicalMarkers.push(highLine);
+                                
+                                // Add 24h low marker
+                                const low24h = symbolData.low_24h || currentPrice * 0.95;
+                                const lowLine = candlestickSeries.createPriceLine({
+                                    price: low24h,
+                                    color: '#f87171',
+                                    lineWidth: 1,
+                                    lineStyle: LightweightCharts.LineStyle.Dotted,
+                                    axisLabelVisible: true,
+                                    title: '24h Low',
+                                });
+                                historicalMarkers.push(lowLine);
+                                
+                                // Add support level (5% below current)
+                                const supportLevel = currentPrice * 0.95;
+                                const supportLine = candlestickSeries.createPriceLine({
+                                    price: supportLevel,
+                                    color: '#10b981',
+                                    lineWidth: 1,
+                                    lineStyle: LightweightCharts.LineStyle.Solid,
+                                    axisLabelVisible: true,
+                                    title: 'Support',
+                                });
+                                historicalMarkers.push(supportLine);
+                                
+                                // Add resistance level (5% above current)
+                                const resistanceLevel = currentPrice * 1.05;
+                                const resistanceLine = candlestickSeries.createPriceLine({
+                                    price: resistanceLevel,
+                                    color: '#10b981',
+                                    lineWidth: 1,
+                                    lineStyle: LightweightCharts.LineStyle.Solid,
+                                    axisLabelVisible: true,
+                                    title: 'Resistance',
+                                });
+                                historicalMarkers.push(resistanceLine);
+                            } catch (error) {
+                                logError('Failed to create historical markers', error);
+                            }
+                        }
+                    }
+                } else {
+                    log('Cannot create historical markers: market data not available');
+                }
+            } else {
+                // Remove historical markers
+                historicalMarkers.forEach(marker => {
+                    try {
+                        candlestickSeries.removePriceLine(marker);
+                    } catch (error) {
+                        // Ignore errors if marker already removed
+                    }
+                });
+                historicalMarkers = [];
+            }
+        }
+        
+        function toggleSimulationLines(enabled) {
+            if (!candlestickSeries) {
+                logError('Cannot toggle simulation lines: candlestickSeries not initialized');
+                return;
+            }
+            
+            if (enabled) {
+                // Remove existing lines first to avoid duplicates
+                simulationLines.forEach(line => {
+                    try {
+                        candlestickSeries.removePriceLine(line);
+                    } catch (error) {
+                        // Ignore errors if line already removed
+                    }
+                });
+                simulationLines = [];
+                
+                // Add simulation lines based on drift and volatility parameters
+                const drift = controlDeckState.parameters.drift || 0;
+                const volatility = controlDeckState.parameters.volatility || 0.5;
+                const currentPrice = parseFloat(document.getElementById('info-price')?.textContent.replace('$', '').replace(',', '') || '0');
+                
+                if (currentPrice > 0) {
+                    try {
+                        // Simulated upper bound
+                        const upperLine = candlestickSeries.createPriceLine({
+                            price: currentPrice * (1 + drift + volatility),
+                            color: '#06b6d4',
+                            lineWidth: 1,
+                            lineStyle: LightweightCharts.LineStyle.Dashed,
+                            axisLabelVisible: true,
+                            title: 'Sim Upper',
+                        });
+                        simulationLines.push(upperLine);
+                        
+                        // Simulated lower bound
+                        const lowerLine = candlestickSeries.createPriceLine({
+                            price: currentPrice * (1 + drift - volatility),
+                            color: '#06b6d4',
+                            lineWidth: 1,
+                            lineStyle: LightweightCharts.LineStyle.Dashed,
+                            axisLabelVisible: true,
+                            title: 'Sim Lower',
+                        });
+                        simulationLines.push(lowerLine);
+                    } catch (error) {
+                        logError('Failed to create simulation lines', error);
+                    }
+                } else {
+                    log('Cannot create simulation lines: current price not available');
+                }
+            } else {
+                // Remove simulation lines
+                simulationLines.forEach(line => {
+                    try {
+                        candlestickSeries.removePriceLine(line);
+                    } catch (error) {
+                        // Ignore errors if line already removed
+                    }
+                });
+                simulationLines = [];
+            }
+        }
+        
+        function toggleGhostSeries(enabled) {
+            if (!chart) {
+                logError('Cannot toggle ghost series: chart not initialized');
+                return;
+            }
+            
+            if (enabled) {
+                // Remove existing ghost series first
+                if (ghostSeries) {
+                    try {
+                        chart.removeSeries(ghostSeries);
+                    } catch (error) {
+                        // Ignore errors if series already removed
+                    }
+                    ghostSeries = null;
+                }
+                
+                // Create a transparent overlay series (e.g., moving average)
+                if (candlestickSeries) {
+                    try {
+                        ghostSeries = chart.addLineSeries({
+                            color: 'rgba(255, 255, 255, 0.2)',
+                            lineWidth: 1,
+                            priceScaleId: 'right',
+                            visible: true,
+                        });
+                        
+                        // Calculate simple moving average from current data
+                        if (marketData.length > 0) {
+                            const prices = marketData.map(d => d.price).filter(p => p > 0);
+                            if (prices.length > 0) {
+                                const sma = prices.reduce((a, b) => a + b, 0) / prices.length;
+                                const now = Math.floor(Date.now() / 1000);
+                                ghostSeries.setData([{ time: now, value: sma }]);
+                            }
+                        }
+                    } catch (error) {
+                        logError('Failed to create ghost series', error);
+                    }
+                }
+            } else {
+                // Remove ghost series
+                if (ghostSeries) {
+                    try {
+                        chart.removeSeries(ghostSeries);
+                    } catch (error) {
+                        logError('Failed to remove ghost series', error);
+                    }
+                    ghostSeries = null;
+                }
+            }
+        }
+        
+        function toggleLiquidityMarkers(enabled) {
+            if (!candlestickSeries) {
+                logError('Cannot toggle liquidity markers: candlestickSeries not initialized');
+                return;
+            }
+            
+            if (enabled) {
+                // Remove existing markers first to avoid duplicates
+                liquidityMarkers.forEach(marker => {
+                    try {
+                        candlestickSeries.removePriceLine(marker);
+                    } catch (error) {
+                        // Ignore errors if marker already removed
+                    }
+                });
+                liquidityMarkers = [];
+                
+                // Add liquidity markers (e.g., support/resistance levels)
+                const currentPrice = parseFloat(document.getElementById('info-price')?.textContent.replace('$', '').replace(',', '') || '0');
+                if (currentPrice > 0) {
+                    try {
+                        // Support level (5% below)
+                        const supportLine = candlestickSeries.createPriceLine({
+                            price: currentPrice * 0.95,
+                            color: '#10b981',
+                            lineWidth: 1,
+                            lineStyle: LightweightCharts.LineStyle.Solid,
+                            axisLabelVisible: true,
+                            title: 'Support',
+                        });
+                        liquidityMarkers.push(supportLine);
+                        
+                        // Resistance level (5% above)
+                        const resistanceLine = candlestickSeries.createPriceLine({
+                            price: currentPrice * 1.05,
+                            color: '#10b981',
+                            lineWidth: 1,
+                            lineStyle: LightweightCharts.LineStyle.Solid,
+                            axisLabelVisible: true,
+                            title: 'Resistance',
+                        });
+                        liquidityMarkers.push(resistanceLine);
+                    } catch (error) {
+                        logError('Failed to create liquidity markers', error);
+                    }
+                } else {
+                    log('Cannot create liquidity markers: current price not available');
+                }
+            } else {
+                // Remove liquidity markers
+                liquidityMarkers.forEach(marker => {
+                    try {
+                        candlestickSeries.removePriceLine(marker);
+                    } catch (error) {
+                        // Ignore errors if marker already removed
+                    }
+                });
+                liquidityMarkers = [];
+            }
+        }
+        
+        // ========================================================================
+        // PREDICTIONS - Fetch and Display Future Price Predictions
+        // ========================================================================
+        async function fetchPredictions(symbol) {
+            try {
+                // Normalize symbol to uppercase
+                const normalizedSymbol = symbol.toUpperCase();
+                
+                // Check cache first (30 second TTL)
+                if (predictionCache && 
+                    predictionCache.symbol === normalizedSymbol && 
+                    Date.now() - predictionCache.timestamp < 30000) {
+                    log(`Using cached predictions for ${normalizedSymbol}`);
+                    return predictionCache.data;
+                }
+                
+                // Request deduplication: if same request is pending, return the pending promise
+                if (pendingPredictionRequest && pendingPredictionRequest.symbol === normalizedSymbol) {
+                    log(`Reusing pending prediction request for ${normalizedSymbol}`);
+                    return pendingPredictionRequest.promise;
+                }
+                
+                // Cancel any in-flight request
+                if (predictionRequestController) {
+                    predictionRequestController.abort();
+                }
+                
+                // Build URL with query parameter
+                const url = `${API_BASE}/predictions?symbol=${encodeURIComponent(normalizedSymbol)}`;
+                
+                // Fetch with retry logic
+                const fetchOptions = {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                };
+                
+                const response = await fetchWithRetry(url, fetchOptions, 3, 1000);
+                
+                // Clear request tracking
+                if (pendingPredictionRequest && pendingPredictionRequest.symbol === normalizedSymbol) {
+                    pendingPredictionRequest = null;
+                }
+                predictionRequestController = null;
+                
+                // Handle HTTP errors
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        logError(`Symbol ${normalizedSymbol} not found`);
+                        throw new Error(`Symbol ${normalizedSymbol} not found`);
+                    } else if (response.status === 500) {
+                        const errorData = await response.json().catch(() => ({}));
+                        logError('Backend error generating predictions', errorData);
+                        throw new Error(errorData.detail || 'Backend error');
+                    } else {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                }
+                
+                // Parse JSON
+                const data = await response.json();
+                
+                // Validate response format
+                const validatedData = validatePredictionsResponse(data, normalizedSymbol);
+                
+                if (!validatedData) {
+                    throw new Error('Invalid response format');
+                }
+                
+                // Cache valid response
+                predictionCache = { 
+                    symbol: normalizedSymbol, 
+                    data: validatedData, 
+                    timestamp: Date.now() 
+                };
+                
+                isRetryingPredictions = false;
+                updatePredictionStatus(true, validatedData.last_update);
+                
+                log(`✅ Fetched predictions for ${normalizedSymbol}`, { 
+                    count: validatedData.predictions?.length || 0,
+                    source: 'API'
+                });
+                
+                return validatedData;
+                
+            } catch (error) {
+                isRetryingPredictions = false;
+                
+                // Handle specific error types
+                let errorMessage = 'Error fetching predictions';
+                if (error.name === 'AbortError') {
+                    errorMessage = 'Request timeout - backend may be slow';
+                    logError('Request timeout fetching predictions', error);
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Connection failed - check backend';
+                    logError('Network error fetching predictions', error);
+                } else if (error.message.includes('HTTP')) {
+                    errorMessage = `Backend error (${error.message})`;
+                    logError('HTTP error fetching predictions', error);
+                } else if (error.message.includes('Invalid response')) {
+                    errorMessage = 'Invalid response format';
+                    logError('Parse error fetching predictions', error);
+                } else {
+                    logError('Error fetching predictions', error);
+                }
+                
+                // Update status to show error
+                updatePredictionStatus(false, null, errorMessage);
+                
+                // Return empty predictions instead of mock
+                return {
+                    symbol: symbol.toUpperCase(),
+                    current_price: 0,
+                    predictions: [],
+                    last_update: new Date().toISOString()
+                };
+            }
+        }
+        
+        // ========================================================================
+        // PREDICTIONS - Response Validation
+        // ========================================================================
+        function validatePredictionsResponse(data, expectedSymbol) {
+            // Handle array response (all symbols)
+            if (Array.isArray(data)) {
+                // Find matching symbol
+                const symbolData = data.find(d => d.symbol === expectedSymbol);
+                if (!symbolData) {
+                    logError(`Symbol ${expectedSymbol} not found in array response`);
+                    return null;
+                }
+                data = symbolData;
+            }
+            
+            // Validate required fields
+            if (!data || typeof data !== 'object') {
+                logError('Invalid response: not an object');
+                return null;
+            }
+            
+            if (!data.symbol || data.symbol !== expectedSymbol) {
+                logError(`Symbol mismatch: expected ${expectedSymbol}, got ${data.symbol}`);
+                return null;
+            }
+            
+            if (typeof data.current_price !== 'number' || data.current_price <= 0 || !isFinite(data.current_price)) {
+                logError(`Invalid current_price: ${data.current_price}`);
+                return null;
+            }
+            
+            if (!Array.isArray(data.predictions)) {
+                logError('Invalid predictions: not an array');
+                return null;
+            }
+            
+            // Validate each prediction
+            const validPredictions = [];
+            data.predictions.forEach((pred, index) => {
+                if (validatePredictionObject(pred, data.current_price)) {
+                    validPredictions.push(pred);
+                } else {
+                    logError(`Invalid prediction at index ${index}`, pred);
+                }
+            });
+            
+            // Return validated data
+            return {
+                symbol: data.symbol,
+                current_price: data.current_price,
+                predictions: validPredictions,
+                last_update: data.last_update || new Date().toISOString()
+            };
+        }
+        
+        function validatePredictionObject(pred, currentPrice) {
+            // Check required fields
+            if (typeof pred.time_horizon_minutes !== 'number' || pred.time_horizon_minutes <= 0 || !isFinite(pred.time_horizon_minutes)) {
+                return false;
+            }
+            
+            if (typeof pred.predicted_price !== 'number' || pred.predicted_price <= 0 || !isFinite(pred.predicted_price)) {
+                return false;
+            }
+            
+            if (typeof pred.confidence !== 'number' || pred.confidence < 0 || pred.confidence > 1 || !isFinite(pred.confidence)) {
+                return false;
+            }
+            
+            if (!['UP', 'DOWN', 'NEUTRAL'].includes(pred.direction)) {
+                return false;
+            }
+            
+            if (typeof pred.expected_move_percent !== 'number' || !isFinite(pred.expected_move_percent)) {
+                return false;
+            }
+            
+            // Validate timestamp
+            try {
+                const timestamp = new Date(pred.timestamp);
+                if (isNaN(timestamp.getTime())) {
+                    return false;
+                }
+                // Timestamp should be in future
+                if (timestamp <= new Date()) {
+                    logError('Prediction timestamp is in the past', pred.timestamp);
+                    // Still accept it, but log warning
+                }
+            } catch (e) {
+                return false;
+            }
+            
+            // Sanity check: predicted price should be within reasonable range
+            const priceDiff = Math.abs(pred.predicted_price - currentPrice) / currentPrice;
+            if (priceDiff > 0.5) { // More than 50% difference
+                logError(`Predicted price seems unreasonable: ${pred.predicted_price} vs ${currentPrice}`);
+                // Still accept it, but log warning
+            }
+            
+            return true;
+        }
+        
+        // ========================================================================
+        // PREDICTIONS - Status Indicator
+        // ========================================================================
+        function updatePredictionStatus(usingRealData, lastUpdate, errorMessage = null) {
+            const statusEl = document.getElementById('status');
+            if (!statusEl) return;
+            
+            if (usingRealData) {
+                statusEl.textContent = 'Connected (Real Data)';
+                statusEl.className = 'status-badge connected';
+                // Optionally show last update time in tooltip
+                if (lastUpdate) {
+                    statusEl.title = `Last update: ${new Date(lastUpdate).toLocaleTimeString()}`;
+                } else {
+                    statusEl.title = '';
+                }
+            } else if (errorMessage) {
+                statusEl.textContent = errorMessage;
+                statusEl.className = 'status-badge error';
+                statusEl.title = 'Click to retry';
+            } else {
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'status-badge disconnected';
+                statusEl.title = 'API unavailable - ensure backend is running on port 8000';
+            }
+        }
+        
+        async function togglePredictions(enabled) {
+            if (!chart || !candlestickSeries) {
+                logError('Chart not initialized, cannot toggle predictions');
+                return;
+            }
+            
+            if (enabled) {
+                try {
+                    // Fetch and display predictions
+                    const predictionData = await fetchPredictions(currentSymbol);
+                    if (predictionData && predictionData.predictions && predictionData.predictions.length > 0) {
+                        addPredictionOverlay(predictionData);
+                    } else {
+                        log('No predictions available for display');
+                    }
+                } catch (error) {
+                    logError('Failed to toggle predictions', error);
+                }
+            } else {
+                // Remove prediction overlay
+                removePredictionOverlay();
+            }
+        }
+        
+        function addPredictionOverlay(predictionData) {
+            if (!chart || !candlestickSeries || !predictionData) {
+                logError('Chart or prediction data missing');
+                return;
+            }
+            
+            // Validate prediction data structure
+            if (!predictionData.predictions || !Array.isArray(predictionData.predictions)) {
+                logError('Invalid prediction data: predictions array missing');
+                return;
+            }
+            
+            // Remove existing overlay first
+            removePredictionOverlay();
+            
+            const predictions = predictionData.predictions;
+            
+            // Handle empty predictions
+            if (predictions.length === 0) {
+                log('No predictions to display');
+                // Optionally show a message to user
+                return;
+            }
+            
+            // Get current price with fallback
+            let currentPrice = predictionData.current_price;
+            if (!currentPrice || currentPrice <= 0) {
+                // Try to get from info panel
+                const priceText = document.getElementById('info-price')?.textContent;
+                if (priceText) {
+                    currentPrice = parseFloat(priceText.replace(/[^0-9.]/g, ''));
+                }
+            }
+            
+            if (!currentPrice || currentPrice <= 0) {
+                logError('Cannot determine current price for predictions');
+                return;
+            }
+            
+            const now = Math.floor(Date.now() / 1000);
+            
+            // Constants for prediction bounds
+            const MAX_PREDICTION_HORIZON_MINUTES = 1440; // 24 hours max
+            const MAX_PRICE_MULTIPLIER = 10; // Don't show predictions >10x current price
+            const MIN_PRICE_MULTIPLIER = 0.1; // Don't show predictions <0.1x current price
+            
+            // Helper functions for confidence bounds and opacity (must be defined before use)
+            function getOpacityForHorizon(horizonMinutes) {
+                if (horizonMinutes <= 5) return 0.4;
+                if (horizonMinutes <= 15) return 0.3;
+                if (horizonMinutes <= 30) return 0.2;
+                return 0.1; // 30min+
+            }
+            
+            function calculateConfidenceBounds(predictedPrice, confidence, currentPrice) {
+                const uncertaintyFactor = 0.6; // Adjustable scale factor
+                const confidenceRange = 1 - confidence; // Lower confidence = wider band
+                // Use percentage of predicted price for band width
+                const priceRange = predictedPrice * confidenceRange * uncertaintyFactor;
+                const upperBound = predictedPrice + priceRange;
+                const lowerBound = Math.max(0.01, predictedPrice - priceRange); // Ensure positive
+                
+                // Ensure bounds respect price validation limits
+                const maxPrice = currentPrice * MAX_PRICE_MULTIPLIER;
+                const minPrice = currentPrice * MIN_PRICE_MULTIPLIER;
+                
+                return {
+                    upper: Math.min(upperBound, maxPrice),
+                    lower: Math.max(lowerBound, minPrice),
+                    center: predictedPrice
+                };
+            }
+            
+            // Group predictions by time horizon for opacity segments
+            const predictionSegments = {
+                short: [], // 0-5min
+                medium: [], // 5-15min
+                long: [], // 15-30min
+                veryLong: [] // 30min+
+            };
+            
+            // #region agent log - Debug prediction bounds
+            fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:addPredictionOverlay',message:'Prediction bounds check',data:{currentPrice,predictionsCount:predictions.length,maxHorizon:MAX_PREDICTION_HORIZON_MINUTES,maxPrice:currentPrice*MAX_PRICE_MULTIPLIER,minPrice:currentPrice*MIN_PRICE_MULTIPLIER},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
+            // #endregion
+            
+            // Add prediction points for each time horizon
+            let maxHorizon = 0;
+            let filteredCount = 0;
+            predictions.forEach((pred, index) => {
+                try {
+                    // Validate time horizon - cap at maximum
+                    let horizonMinutes = pred.time_horizon_minutes || 0;
+                    if (horizonMinutes > MAX_PREDICTION_HORIZON_MINUTES) {
+                        // #region agent log - Debug prediction bounds
+                        fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:addPredictionOverlay',message:'Prediction horizon capped',data:{index,originalHorizon:horizonMinutes,cappedHorizon:MAX_PREDICTION_HORIZON_MINUTES},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
+                        // #endregion
+                        horizonMinutes = MAX_PREDICTION_HORIZON_MINUTES;
+                        filteredCount++;
+                    }
+                    
+                    // Validate predicted price - filter out extreme values
+                    let predictedPrice = pred.predicted_price;
+                    if (!predictedPrice || predictedPrice <= 0 || !isFinite(predictedPrice)) {
+                        // #region agent log - Debug prediction bounds
+                        fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:addPredictionOverlay',message:'Prediction price invalid',data:{index,predictedPrice},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
+                        // #endregion
+                        return; // Skip this prediction
+                    }
+                    
+                    // Check if price is within reasonable bounds
+                    const priceRatio = predictedPrice / currentPrice;
+                    if (priceRatio > MAX_PRICE_MULTIPLIER || priceRatio < MIN_PRICE_MULTIPLIER) {
+                        // #region agent log - Debug prediction bounds
+                        fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:addPredictionOverlay',message:'Prediction price out of bounds',data:{index,predictedPrice,currentPrice,priceRatio,maxRatio:MAX_PRICE_MULTIPLIER,minRatio:MIN_PRICE_MULTIPLIER},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
+                        // #endregion
+                        filteredCount++;
+                        return; // Skip extreme predictions
+                    }
+                    
+                    // Parse timestamp
+                    let futureTime = new Date(pred.timestamp);
+                    if (isNaN(futureTime.getTime())) {
+                        // Fallback: calculate from time_horizon_minutes (using capped value)
+                        const futureTimeSeconds = now + (horizonMinutes * 60);
+                        futureTime = new Date(futureTimeSeconds * 1000);
+                    } else {
+                        // Validate timestamp isn't too far in the future
+                        const maxFutureTime = now + (MAX_PREDICTION_HORIZON_MINUTES * 60);
+                        const futureTimeSeconds = Math.floor(futureTime.getTime() / 1000);
+                        if (futureTimeSeconds > maxFutureTime) {
+                            // Cap the timestamp
+                            futureTime = new Date(maxFutureTime * 1000);
+                            filteredCount++;
+                        }
+                    }
+                    
+                    const futureTimeSeconds = Math.floor(futureTime.getTime() / 1000);
+                    maxHorizon = Math.max(maxHorizon, horizonMinutes);
+                    
+                    // Calculate confidence bounds
+                    const bounds = calculateConfidenceBounds(predictedPrice, pred.confidence, currentPrice);
+                    
+                    // Store prediction with bounds and time
+                    const predictionPoint = {
+                        time: futureTimeSeconds,
+                        horizonMinutes: horizonMinutes,
+                        predictedPrice: predictedPrice,
+                        confidence: pred.confidence,
+                        direction: pred.direction,
+                        bounds: bounds,
+                        opacity: getOpacityForHorizon(horizonMinutes)
+                    };
+                    
+                    // Group by time horizon for opacity segments
+                    if (horizonMinutes <= 5) {
+                        predictionSegments.short.push(predictionPoint);
+                    } else if (horizonMinutes <= 15) {
+                        predictionSegments.medium.push(predictionPoint);
+                    } else if (horizonMinutes <= 30) {
+                        predictionSegments.long.push(predictionPoint);
+                    } else {
+                        predictionSegments.veryLong.push(predictionPoint);
+                    }
+                } catch (error) {
+                    logError(`Error processing prediction ${index}`, error);
+                }
+            });
+            
+            // #region agent log - Debug prediction bounds
+            if (filteredCount > 0) {
+                const remainingCount = predictionSegments.short.length + 
+                                      predictionSegments.medium.length + 
+                                      predictionSegments.long.length + 
+                                      predictionSegments.veryLong.length;
+                fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:addPredictionOverlay',message:'Predictions filtered',data:{filteredCount,totalCount:predictions.length,remainingCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
+            }
+            // #endregion
+            
+            // Create area series for confidence bands with fading opacity
+            const allPredictions = [
+                ...predictionSegments.short,
+                ...predictionSegments.medium,
+                ...predictionSegments.long,
+                ...predictionSegments.veryLong
+            ].sort((a, b) => a.time - b.time);
+            
+            if (allPredictions.length === 0) {
+                log('No valid predictions to display after filtering');
+                return;
+            }
+            
+            // Create area series for each opacity segment
+            // Strategy: Create upper and lower line series, then use area series to fill between them
+            // Since Lightweight Charts area series fills to zero, we'll create the band by:
+            // 1. Upper area series (fills down from upper bound)
+            // 2. Lower area series (fills up from lower bound, using inverted approach)
+            // The visual overlap creates the confidence band
+            
+            const segments = [
+                { name: 'short', predictions: predictionSegments.short, opacity: 0.4 },
+                { name: 'medium', predictions: predictionSegments.medium, opacity: 0.3 },
+                { name: 'long', predictions: predictionSegments.long, opacity: 0.2 },
+                { name: 'veryLong', predictions: predictionSegments.veryLong, opacity: 0.1 }
+            ];
+            
+            segments.forEach(segment => {
+                if (segment.predictions.length === 0) return;
+                
+                // Build upper and lower bound lines
+                const upperLineData = [{ time: now, value: currentPrice }];
+                const lowerLineData = [{ time: now, value: currentPrice }];
+                
+                segment.predictions.forEach(pred => {
+                    upperLineData.push({ time: pred.time, value: pred.bounds.upper });
+                    lowerLineData.push({ time: pred.time, value: pred.bounds.lower });
+                });
+                
+                // Create upper area series (fills down from upper bound)
+                try {
+                    const upperAreaSeries = chart.addAreaSeries({
+                        lineColor: `rgba(168, 85, 247, ${segment.opacity * 0.6})`,
+                        topColor: `rgba(168, 85, 247, ${segment.opacity})`,
+                        bottomColor: `rgba(168, 85, 247, ${segment.opacity * 0.3})`,
+                        priceScaleId: 'right',
+                        title: `ML Predictions Upper (${segment.name})`,
+                        visible: true,
+                    });
+                    
+                    upperAreaSeries.setData(upperLineData);
+                    
+                    // Create lower area series (we'll use it to create the bottom of the band)
+                    // Actually, to create a proper band, we need the area between upper and lower
+                    // Let's create a second area series that represents the lower bound
+                    // and use line series for the boundaries
+                    const lowerAreaSeries = chart.addAreaSeries({
+                        lineColor: `rgba(168, 85, 247, ${segment.opacity * 0.6})`,
+                        topColor: `rgba(168, 85, 247, ${segment.opacity * 0.3})`,
+                        bottomColor: `rgba(168, 85, 247, 0)`,
+                        priceScaleId: 'right',
+                        title: `ML Predictions Lower (${segment.name})`,
+                        visible: true,
+                    });
+                    
+                    lowerAreaSeries.setData(lowerLineData);
+                    
+                    // Store both series
+                    predictionAreaSeries.push({
+                        upperSeries: upperAreaSeries,
+                        lowerSeries: lowerAreaSeries,
+                        opacity: segment.opacity
+                    });
+                } catch (error) {
+                    logError(`Failed to create area series for ${segment.name}`, error);
+                }
+            });
+            
+            // Extend chart timeline to show future (but cap at 24 hours)
+            if (maxHorizon > 0) {
+                try {
+                    const timeScale = chart.timeScale();
+                    const visibleRange = timeScale.getVisibleRange();
+                    if (visibleRange) {
+                        // Cap maxHorizon to prevent extending too far
+                        const cappedHorizon = Math.min(maxHorizon, MAX_PREDICTION_HORIZON_MINUTES);
+                        const futureTime = now + (cappedHorizon * 60);
+                        const extendedTo = Math.max(visibleRange.to, futureTime);
+                        
+                        // #region agent log - Debug prediction bounds
+                        fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:extendTimeline',message:'Extending timeline',data:{maxHorizon,cappedHorizon,futureTime,extendedTo,now,currentRange:visibleRange.to-visibleRange.from},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
+                        // #endregion
+                        
+                        timeScale.setVisibleRange({
+                            from: visibleRange.from,
+                            to: extendedTo
+                        });
+                    }
+                } catch (error) {
+                    logError('Failed to extend timeline', error);
+                }
+            }
+            
+            // Add "NOW" marker line
+            try {
+                const nowLine = candlestickSeries.createPriceLine({
+                    price: currentPrice,
+                    color: '#a855f7',
+                    lineWidth: 2,
+                    lineStyle: LightweightCharts.LineStyle.Solid,
+                    axisLabelVisible: true,
+                    title: 'NOW',
+                });
+                predictionMarkers.push(nowLine);
+            } catch (error) {
+                logError('Failed to create NOW marker', error);
+            }
+            
+            log(`✅ Added prediction overlay with ${predictions.length} predictions`);
+        }
+        
+        function removePredictionOverlay() {
+            if (!chart || !candlestickSeries) return;
+            
+            // Remove prediction series
+            if (predictionSeries) {
+                chart.removeSeries(predictionSeries);
+                predictionSeries = null;
+            }
+            
+            // Remove prediction markers
+            predictionMarkers.forEach(marker => {
+                try {
+                    candlestickSeries.removePriceLine(marker);
+                } catch (e) {
+                    // Marker may already be removed
+                }
+            });
+            predictionMarkers = [];
+        }
+        
+        function handleParameterUpdate(param, value) {
+            log(`Parameter update: ${param} = ${value}`);
+            
+            // Update the parameter in state (in case it wasn't already)
+            if (controlDeckState.parameters.hasOwnProperty(param)) {
+                controlDeckState.parameters[param] = value;
+            }
+            
+            switch(param) {
+                case 'smoothingLevel':
+                    // Signal Fidelity - affects signal processing and smoothing
+                    // Could smooth the candlestick data here
+                    // For now, we'll update the chart's visual smoothing
+                    if (chart) {
+                        chart.applyOptions({
+                            layout: {
+                                fontSize: Math.max(10, 12 - value * 2), // Adjust font size based on smoothing
+                            }
+                        });
+                    }
+                    log(`Signal fidelity (smoothing) updated to ${value}`);
+                    // Note: This could trigger signal recalculation if needed
+                    break;
+                case 'masterSensitivity':
+                    // Master sensitivity - affects signal aggregation
+                    // Store the value but don't reset view unnecessarily
+                    log(`Master sensitivity updated to ${value}`);
+                    // Could trigger signal recalculation here
+                    // Don't adjust chart view as it's disruptive
+                    break;
+                case 'friction':
+                case 'elasticity':
+                    // Physics parameters - update simulation lines if visible
+                    log(`Physics parameter ${param} updated to ${value}`);
+                    if (controlDeckState.layers.sim && simulationLines.length > 0) {
+                        // Recreate simulation lines with new parameters
+                        toggleSimulationLines(false);
+                        setTimeout(() => toggleSimulationLines(true), 100);
+                    }
+                    break;
+                case 'drift':
+                case 'volatility':
+                    // Update simulation lines if they're visible
+                    log(`Physics parameter ${param} updated to ${value}`);
+                    if (controlDeckState.layers.sim && simulationLines.length > 0) {
+                        // Remove old lines and recreate with new values
+                        toggleSimulationLines(false);
+                        setTimeout(() => toggleSimulationLines(true), 100);
+                    }
+                    break;
+                default:
+                    log(`Parameter ${param} updated to ${value} (no specific handler)`);
+            }
+        }
+        
+        // ========================================================================
+        // INITIALIZATION
+        // ========================================================================
+        async function init() {
+            log('🚀 Trading Chart View - Initializing...');
+            
+            // Check for URL parameters (from opportunities/prophecy views)
+            const urlParams = new URLSearchParams(window.location.search);
+            const symbolParam = urlParams.get('symbol');
+            const showPredictionsParam = urlParams.get('showPredictions');
+            const showProphecyParam = urlParams.get('showProphecy');
+            const highlightTimeParam = urlParams.get('highlightTime');
+            const highlightPriceParam = urlParams.get('highlightPrice');
+            
+            if (symbolParam) {
+                // Normalize symbol to uppercase for consistency
+                currentSymbol = symbolParam.toUpperCase();
+                // Update selector
+                const selector = document.getElementById('symbol-selector');
+                if (selector) selector.value = currentSymbol;
+            }
+            
+            // Enable predictions layer if showPredictions parameter is set
+            if (showPredictionsParam === 'true' || showPredictionsParam === '1') {
+                controlDeckState.layers.predictions = true;
+            }
+            
+            // Enable PROPHECY layer if showProphecy parameter is set
+            if (showProphecyParam === 'true' || showProphecyParam === '1') {
+                controlDeckState.layers.prophecy = true;
+            }
+            
+            // Add highlighting for specific time/price if provided
+            if (highlightTimeParam || highlightPriceParam) {
+                // Store highlight parameters for use after chart initialization
+                window.highlightParams = {
+                    time: highlightTimeParam,
+                    price: highlightPriceParam ? parseFloat(highlightPriceParam) : null
+                };
+                log('Highlight parameters received:', window.highlightParams);
+            }
+            
+            // Initialize Control Deck
+            initControlDeck();
+            
+            // Add highlight markers if parameters provided
+            if (window.highlightParams) {
+                setTimeout(() => {
+                    addHighlightMarkers(window.highlightParams);
+                }, 2000); // Wait for chart to be fully initialized
+            }
+            
+            // Setup Control Deck event listeners
+            document.addEventListener('controldeck:toggle-layer', (e) => {
+                if (!e.detail || !e.detail.layer) {
+                    logError('Invalid toggle-layer event', e);
+                    return;
+                }
+                
+                const { layer, enabled } = e.detail;
+                log(`Toggle layer event received: ${layer} = ${enabled}`);
+                
+                // Temporarily disable bounds checking during toggle
+                userInteracting = true;
+                setTimeout(() => { userInteracting = false; }, 2000);
+                
+                // Store visible range before toggle
+                try {
+                    const currentRange = chart?.timeScale()?.getVisibleRange();
+                    if (currentRange) {
+                        lastVisibleRange = currentRange;
+                    }
+                } catch (error) {
+                    // Ignore
+                }
+                
+                handleLayerToggle(layer, enabled);
+            });
+            
+            document.addEventListener('controldeck:update-parameter', (e) => {
+                if (!e.detail || !e.detail.param) {
+                    logError('Invalid update-parameter event', e);
+                    return;
+                }
+                
+                const { param, value } = e.detail;
+                log(`Parameter update event received: ${param} = ${value}`);
+                
+                // Temporarily disable bounds checking
+                userInteracting = true;
+                setTimeout(() => { userInteracting = false; }, 1000);
+                
+                handleParameterUpdate(param, value);
+            });
+            
+            // Check backend
+            await checkBackend();
+            setInterval(checkBackend, 5000);
+            
+            // #region agent log - Debug navigation links
+            // Instrument navigation links to debug why they don't work
+            function instrumentNavLinks() {
+                const navLinks = document.querySelectorAll('.nav a');
+                fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:instrumentNavLinks',message:'Nav links found',data:{count:navLinks.length,links:Array.from(navLinks).map(a=>({href:a.href,target:a.target,display:window.getComputedStyle(a).display,visibility:window.getComputedStyle(a).visibility,pointerEvents:window.getComputedStyle(a).pointerEvents,zIndex:window.getComputedStyle(a).zIndex,position:window.getComputedStyle(a).position}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                
+                navLinks.forEach((link, index) => {
+                    // Check for overlaying elements
+                    const rect = link.getBoundingClientRect();
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+                    const elementAtPoint = document.elementFromPoint(centerX, centerY);
+                    const navContainer = link.closest('.nav');
+                    const navZIndex = navContainer ? window.getComputedStyle(navContainer).zIndex : 'none';
+                    fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:elementAtPoint',message:'Element at point check',data:{index,linkHref:link.href,elementAtPoint:elementAtPoint?elementAtPoint.tagName:null,elementAtPointId:elementAtPoint?.id||null,elementAtPointClass:elementAtPoint?.className||null,elementAtPointZIndex:elementAtPoint?window.getComputedStyle(elementAtPoint).zIndex:'none',isLink:elementAtPoint===link,navZIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+                    
+                    // Add click listener (both capture and bubble)
+                    link.addEventListener('click', (e) => {
+                        fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:nav-click',message:'Nav link clicked capture',data:{href:link.href,target:link.target,defaultPrevented:e.defaultPrevented,isTrusted:e.isTrusted,phase:'capture'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                    }, true);
+                    
+                    link.addEventListener('click', (e) => {
+                        fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:nav-click',message:'Nav link clicked bubble',data:{href:link.href,defaultPrevented:e.defaultPrevented,phase:'bubble'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                    }, false);
+                });
+            }
+            
+            // Instrument immediately
+            instrumentNavLinks();
+            
+            // Also check after chart initialization (chart might overlay)
+            setTimeout(() => {
+                fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chartview/index.html:post-chart-check',message:'Re-checking nav links after chart init',data:{chartExists:!!document.getElementById('chart'),chartZIndex:document.getElementById('chart')?window.getComputedStyle(document.getElementById('chart')).zIndex:'none'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+                instrumentNavLinks();
+            }, 2000);
+            // #endregion
+            
+            // Initialize chart (wait for library to load)
+            initChart();
+            
+            // Wait for chart to initialize and layout to settle
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Force a resize after initialization to ensure proper sizing
+            if (chart) {
+                setTimeout(() => {
+                    const chartContainer = document.getElementById('chart');
+                    if (chartContainer && chart) {
+                        const width = chartContainer.clientWidth || window.innerWidth;
+                        const height = chartContainer.clientHeight || (window.innerHeight - 100);
+                        if (width > 0 && height > 0) {
+                            chart.applyOptions({
+                                width: Math.floor(width),
+                                height: Math.floor(height),
+                            });
+                            log(`Post-init chart resize to ${Math.floor(width)}x${Math.floor(height)}`);
+                        }
+                    }
+                }, 300);
+            }
+            
+            // Load initial candlestick data
+            await updateChartData(currentSymbol);
+            
+            // Fetch market data for info panel
+            await fetchMarketData();
+            
+            // Fetch initial physics and performance data
+            await fetchPhysicsState(currentSymbol);
+            await fetchPerformanceMetrics();
+            updatePhysicsFactorsDisplay();
+            updatePerformanceDisplay();
+            
+            // Auto-refresh chart every 60 seconds (candlesticks don't need frequent updates)
+            updateInterval = setInterval(async () => {
+                await updateChartData(currentSymbol);
+                await fetchMarketData();
+            }, 60000);
+            
+            // Real-time price updates every 5 seconds (updates latest candle)
+            // Note: This is controlled by the 'live' layer toggle
+            if (controlDeckState.layers.live) {
+                realTimeUpdateInterval = setInterval(updateRealTimePrice, 5000);
+            }
+            
+            // Update position markers every 10 seconds
+            setInterval(updatePositionMarkers, 10000);
+            
+            // Update predictions if enabled
+            if (controlDeckState.layers.predictions) {
+                // Wait a bit for chart to be ready
+                setTimeout(async () => {
+                    await togglePredictions(true);
+                    // Update Control Deck button state
+                    const predictionsBtn = document.querySelector('[data-layer="predictions"]');
+                    if (predictionsBtn) {
+                        predictionsBtn.classList.add('active');
+                    }
+                }, 1000);
+                
+                // Auto-refresh predictions every 30 seconds
+                setInterval(async () => {
+                    if (controlDeckState.layers.predictions) {
+                        await togglePredictions(false);
+                        await togglePredictions(true);
+                    }
+                }, 30000);
+            }
+            
+            // Update trades if enabled by default
+            if (controlDeckState.layers.trades) {
+                setTimeout(async () => {
+                    await toggleTradeMarkers(true);
+                    const tradesBtn = document.querySelector('[data-layer="trades"]');
+                    if (tradesBtn) {
+                        tradesBtn.classList.add('active');
+                    }
+                }, 1000);
+            }
+            
+            log('✅ Trading Chart View initialized');
+        }
+        
+        // Start
+        init().catch(error => {
+            logError('Initialization failed', error);
+        });
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,17 @@
+# Requirements for frontend live audit scripts
+# Install with: pip3 install -r scripts/requirements-audit.txt
+
+# Playwright (recommended, more modern)
+playwright>=1.40.0
+
+# Pyppeteer (alternative, older but still functional)
+pyppeteer>=1.0.0
+
+# Note: After installing playwright, you must also run:
+#   playwright install chromium
+#
+# Pyppeteer will auto-download Chromium on first run.
+
+
+
+

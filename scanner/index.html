@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Market Scanner - Multi-Symbol Command Center</title>
+    
+    <link rel="stylesheet" href="shared.css">
+    <script src="navigation.js"></script>
+    <script src="../help-system.js" defer></script>
+    <script src="../ws-client.js" defer></script>
+    
+    <style>
+        /* View-specific styles - using shared.css for base styles */
+        .header h1::before {
+            content: '📊';
+            font-size: 36px;
+        }
+        
+        table {
+            min-width: 1200px;
+        }
+        
+        tbody tr:hover {
+            background: rgba(74, 222, 128, 0.05);
+        }
+        
+        tbody tr.has-prophecy {
+            background: rgba(251, 191, 36, 0.05);
+        }
+        
+        tbody tr.has-prophecy:hover {
+            background: rgba(251, 191, 36, 0.1);
+        }
+        
+        .symbol {
+            font-weight: bold;
+            color: #fff;
+            font-size: 16px;
+        }
+        
+        .price {
+            color: #fff;
+            font-weight: 600;
+        }
+        
+        .signal-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .signal-strong-buy {
+            background: rgba(74, 222, 128, 0.3);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.5);
+        }
+        
+        .signal-buy {
+            background: rgba(134, 239, 172, 0.2);
+            color: #86efac;
+            border: 1px solid rgba(134, 239, 172, 0.4);
+        }
+        
+        .signal-neutral {
+            background: rgba(156, 163, 175, 0.2);
+            color: #9ca3af;
+            border: 1px solid rgba(156, 163, 175, 0.4);
+        }
+        
+        .signal-sell {
+            background: rgba(252, 165, 165, 0.2);
+            color: #fca5a5;
+            border: 1px solid rgba(252, 165, 165, 0.4);
+        }
+        
+        .signal-strong-sell {
+            background: rgba(248, 113, 113, 0.3);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.5);
+        }
+        
+        .change {
+            font-weight: 600;
+        }
+        
+        .change.positive {
+            color: #4ade80;
+        }
+        
+        .change.negative {
+            color: #f87171;
+        }
+        
+        .volume {
+            color: #888;
+            font-size: 13px;
+        }
+        
+        .count-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            background: rgba(156, 163, 175, 0.2);
+            color: #9ca3af;
+            border: 1px solid rgba(156, 163, 175, 0.4);
+        }
+        
+        .count-badge.prophecy {
+            background: rgba(251, 191, 36, 0.3);
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.5);
+        }
+        
+        .count-badge.opportunities {
+            background: rgba(74, 222, 128, 0.3);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.5);
+        }
+        
+        .position-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .position-badge.long {
+            background: rgba(74, 222, 128, 0.3);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.5);
+        }
+        
+        .position-badge.short {
+            background: rgba(248, 113, 113, 0.3);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.5);
+        }
+        
+        .position-badge.none {
+            background: rgba(156, 163, 175, 0.2);
+            color: #9ca3af;
+            border: 1px solid rgba(156, 163, 175, 0.4);
+        }
+        
+        .pnl {
+            font-weight: 600;
+        }
+        
+        .pnl.positive {
+            color: #4ade80;
+        }
+        
+        .pnl.negative {
+            color: #f87171;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 6px;
+        }
+        
+        .btn-action {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.4);
+        }
+        
+        .btn-action:hover {
+            background: rgba(74, 222, 128, 0.3);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #888;
+        }
+        
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+        
+        .help-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(74, 222, 128, 0.2);
+            border: 2px solid rgba(74, 222, 128, 0.4);
+            color: #4ade80;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: all 0.2s;
+        }
+        
+        .help-btn:hover {
+            background: rgba(74, 222, 128, 0.3);
+            transform: scale(1.1);
+        }
+        
+        .nav {
+            margin-bottom: 20px;
+        }
+        
+        .nav a {
+            margin-right: 15px;
+            color: #4ade80;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        
+        .nav a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Market Scanner</h1>
+            <p>
+                Multi-Symbol Command Center - Comprehensive Market Overview
+                <span class="status-badge disconnected" id="status">Disconnected</span>
+            </p>
+            <div class="nav" style="z-index: 10000; pointer-events: auto;">
+                <a href="http://localhost:1420/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">Dashboard</a>
+                <a href="http://localhost:1423/chartview/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">Chartview</a>
+                <a href="http://localhost:1427/opportunities/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">Opportunities</a>
+                <a href="http://localhost:1428/prophecy/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">PROPHECY</a>
+                <a href="http://localhost:1424/analytics/index.html" target="_blank" style="pointer-events: auto; position: relative; z-index: 10001;">Analytics</a>
+            </div>
+        </div>
+        
+        <div class="summary-cards">
+            <div class="summary-card">
+                <div class="summary-card-label">Total Symbols</div>
+                <div class="summary-card-value" id="total-symbols">0</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-label">With PROPHECY</div>
+                <div class="summary-card-value" id="symbols-prophecy">0</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-label">With Opportunities</div>
+                <div class="summary-card-value" id="symbols-opportunities">0</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-label">Open Positions</div>
+                <div class="summary-card-value" id="symbols-positions">0</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-label">Avg Signal</div>
+                <div class="summary-card-value" id="avg-signal">0.00</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label class="control-label">Signal:</label>
+                <select id="filter-signal">
+                    <option value="all">All</option>
+                    <option value="BUY">BUY</option>
+                    <option value="SELL">SELL</option>
+                    <option value="NEUTRAL">NEUTRAL</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label class="control-label">PROPHECY:</label>
+                <select id="filter-prophecy">
+                    <option value="all">All</option>
+                    <option value="has">Has PROPHECY</option>
+                    <option value="none">No PROPHECY</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Opportunities:</label>
+                <select id="filter-opportunities">
+                    <option value="all">All</option>
+                    <option value="has">Has Opportunities</option>
+                    <option value="none">No Opportunities</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Position:</label>
+                <select id="filter-position">
+                    <option value="all">All</option>
+                    <option value="has">Has Position</option>
+                    <option value="none">No Position</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Symbol:</label>
+                <input type="text" id="filter-symbol" placeholder="Search symbol...">
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <table id="scanner-table">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-sort="symbol">Symbol</th>
+                        <th class="sortable" data-sort="price">Price</th>
+                        <th class="sortable" data-sort="signal">Signal</th>
+                        <th class="sortable" data-sort="change24h">24h Change</th>
+                        <th class="sortable" data-sort="volume">Volume</th>
+                        <th class="sortable" data-sort="signals">Signals</th>
+                        <th class="sortable" data-sort="prophecy">PROPHECY</th>
+                        <th class="sortable" data-sort="opportunities">Opportunities</th>
+                        <th class="sortable" data-sort="position">Position</th>
+                        <th class="sortable" data-sort="pnl">P&L</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <tr>
+                        <td colspan="11" class="empty-state">
+                            <div class="empty-state-icon">📊</div>
+                            <div>Loading market data...</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <button class="help-btn" id="help-btn" aria-label="Show help">?</button>
+    
+    <script>
+        const API_BASE = 'http://localhost:8000/api';
+        
+        let aggregatedData = [];
+        let filteredData = [];
+        let sortColumn = 'symbol';
+        let sortDirection = 'asc';
+        
+        // Request controllers for deduplication
+        let marketDataController = null;
+        let signalsController = null;
+        let opportunitiesController = null;
+        let positionsController = null;
+        let pendingMarketData = null;
+        let pendingSignals = null;
+        let pendingOpportunities = null;
+        let pendingPositions = null;
+        
+        // Cache
+        let marketDataCache = null;
+        let signalsCache = null;
+        let opportunitiesCache = null;
+        let positionsCache = null;
+        let cacheTimestamp = {};
+        const CACHE_DURATION = 30000; // 30 seconds
+        
+        // ========================================================================
+        // DATA FETCHING
+        // ========================================================================
+        
+        async function fetchMarketData() {
+            const cacheKey = 'market-data';
+            const now = Date.now();
+            
+            // Return cached data if available and fresh
+            if (marketDataCache && cacheTimestamp[cacheKey] && (now - cacheTimestamp[cacheKey]) < CACHE_DURATION) {
+                return marketDataCache;
+            }
+            
+            // Request deduplication
+            if (pendingMarketData) {
+                return await pendingMarketData.promise;
+            }
+            
+            // Cancel any in-flight request
+            if (marketDataController) {
+                marketDataController.abort();
+            }
+            
+            const controller = new AbortController();
+            marketDataController = controller;
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            const fetchPromise = fetch(`${API_BASE}/dashboard/market-data`, {
+                signal: controller.signal,
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const fullPromise = fetchPromise.then(async response => {
+                clearTimeout(timeoutId);
+                pendingMarketData = null;
+                marketDataController = null;
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                if (!Array.isArray(data)) {
+                    throw new Error('Invalid response format');
+                }
+                
+                // Cache the data
+                marketDataCache = data;
+                cacheTimestamp[cacheKey] = Date.now();
+                
+                return data;
+            }).catch(error => {
+                clearTimeout(timeoutId);
+                pendingMarketData = null;
+                marketDataController = null;
+                throw error;
+            });
+            
+            pendingMarketData = { promise: fullPromise };
+            return await fullPromise;
+        }
+        
+        async function fetchSignals() {
+            const cacheKey = 'signals';
+            const now = Date.now();
+            
+            if (signalsCache && cacheTimestamp[cacheKey] && (now - cacheTimestamp[cacheKey]) < CACHE_DURATION) {
+                return signalsCache;
+            }
+            
+            if (pendingSignals) {
+                return await pendingSignals.promise;
+            }
+            
+            if (signalsController) {
+                signalsController.abort();
+            }
+            
+            const controller = new AbortController();
+            signalsController = controller;
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            const fetchPromise = fetch(`${API_BASE}/dashboard/signals`, {
+                signal: controller.signal,
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const fullPromise = fetchPromise.then(async response => {
+                clearTimeout(timeoutId);
+                pendingSignals = null;
+                signalsController = null;
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                if (!Array.isArray(data)) {
+                    throw new Error('Invalid response format');
+                }
+                
+                signalsCache = data;
+                cacheTimestamp[cacheKey] = Date.now();
+                
+                return data;
+            }).catch(error => {
+                clearTimeout(timeoutId);
+                pendingSignals = null;
+                signalsController = null;
+                throw error;
+            });
+            
+            pendingSignals = { promise: fullPromise };
+            return await fullPromise;
+        }
+        
+        async function fetchOpportunities() {
+            const cacheKey = 'opportunities';
+            const now = Date.now();
+            
+            if (opportunitiesCache && cacheTimestamp[cacheKey] && (now - cacheTimestamp[cacheKey]) < CACHE_DURATION) {
+                return opportunitiesCache;
+            }
+            
+            if (pendingOpportunities) {
+                return await pendingOpportunities.promise;
+            }
+            
+            if (opportunitiesController) {
+                opportunitiesController.abort();
+            }
+            
+            const controller = new AbortController();
+            opportunitiesController = controller;
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            const fetchPromise = fetch(`${API_BASE}/opportunities`, {
+                signal: controller.signal,
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const fullPromise = fetchPromise.then(async response => {
+                clearTimeout(timeoutId);
+                pendingOpportunities = null;
+                opportunitiesController = null;
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                if (!Array.isArray(data)) {
+                    throw new Error('Invalid response format');
+                }
+                
+                opportunitiesCache = data;
+                cacheTimestamp[cacheKey] = Date.now();
+                
+                return data;
+            }).catch(error => {
+                clearTimeout(timeoutId);
+                pendingOpportunities = null;
+                opportunitiesController = null;
+                throw error;
+            });
+            
+            pendingOpportunities = { promise: fullPromise };
+            return await fullPromise;
+        }
+        
+        async function fetchPositions() {
+            const cacheKey = 'positions';
+            const now = Date.now();
+            
+            if (positionsCache && cacheTimestamp[cacheKey] && (now - cacheTimestamp[cacheKey]) < CACHE_DURATION) {
+                return positionsCache;
+            }
+            
+            if (pendingPositions) {
+                return await pendingPositions.promise;
+            }
+            
+            if (positionsController) {
+                positionsController.abort();
+            }
+            
+            const controller = new AbortController();
+            positionsController = controller;
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            const fetchPromise = fetch(`${API_BASE}/dashboard/positions`, {
+                signal: controller.signal,
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const fullPromise = fetchPromise.then(async response => {
+                clearTimeout(timeoutId);
+                pendingPositions = null;
+                positionsController = null;
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                if (!Array.isArray(data)) {
+                    throw new Error('Invalid response format');
+                }
+                
+                positionsCache = data;
+                cacheTimestamp[cacheKey] = Date.now();
+                
+                return data;
+            }).catch(error => {
+                clearTimeout(timeoutId);
+                pendingPositions = null;
+                positionsController = null;
+                throw error;
+            });
+            
+            pendingPositions = { promise: fullPromise };
+            return await fullPromise;
+        }
+        
+        async function fetchAllData() {
+            try {
+                const [marketData, signals, opportunities, positions] = await Promise.all([
+                    fetchMarketData().catch(e => { logError('Market data fetch failed', e); return []; }),
+                    fetchSignals().catch(e => { logError('Signals fetch failed', e); return []; }),
+                    fetchOpportunities().catch(e => { logError('Opportunities fetch failed', e); return []; }),
+                    fetchPositions().catch(e => { logError('Positions fetch failed', e); return []; })
+                ]);
+                
+                return { marketData, signals, opportunities, positions };
+            } catch (error) {
+                logError('Error fetching all data', error);
+                return { marketData: [], signals: [], opportunities: [], positions: [] };
+            }
+        }
+        
+        // ========================================================================
+        // DATA AGGREGATION
+        // ========================================================================
+        
+        function aggregateBySymbol(marketData, signals, opportunities, positions) {
+            const symbolMap = new Map();
+            
+            // Initialize with market data
+            marketData.forEach(item => {
+                const symbol = item.symbol;
+                symbolMap.set(symbol, {
+                    symbol: symbol,
+                    price: item.price || 0,
+                    signal: item.signal || 0,
+                    signalStrength: item.signal_strength || 'NEUTRAL',
+                    volume: item.volume || 0,
+                    change24h: item.change_24h || 0,
+                    signalsCount: 0,
+                    prophecyCount: 0,
+                    opportunitiesCount: 0,
+                    bestOpportunityConfidence: 0,
+                    position: null,
+                    pnl: 0
+                });
+            });
+            
+            // Count signals and PROPHECY
+            signals.forEach(signal => {
+                const symbol = signal.symbol;
+                if (symbolMap.has(symbol)) {
+                    const data = symbolMap.get(symbol);
+                    data.signalsCount++;
+                    if (signal.is_prophecy === true) {
+                        data.prophecyCount++;
+                    }
+                }
+            });
+            
+            // Count opportunities
+            opportunities.forEach(opp => {
+                const symbol = opp.symbol;
+                if (symbolMap.has(symbol)) {
+                    const data = symbolMap.get(symbol);
+                    data.opportunitiesCount++;
+                    if (opp.confidence > data.bestOpportunityConfidence) {
+                        data.bestOpportunityConfidence = opp.confidence;
+                    }
+                }
+            });
+            
+            // Add positions
+            positions.forEach(position => {
+                const symbol = position.symbol;
+                if (symbolMap.has(symbol)) {
+                    const data = symbolMap.get(symbol);
+                    data.position = position.side || 'NONE';
+                    data.pnl = position.unrealized_pnl || 0;
+                }
+            });
+            
+            return Array.from(symbolMap.values());
+        }
+        
+        // ========================================================================
+        // FILTERING
+        // ========================================================================
+        
+        function applyFilters() {
+            const signalFilterEl = document.getElementById('filter-signal');
+            const prophecyFilterEl = document.getElementById('filter-prophecy');
+            const opportunitiesFilterEl = document.getElementById('filter-opportunities');
+            const positionFilterEl = document.getElementById('filter-position');
+            const symbolSearchEl = document.getElementById('filter-symbol');
+            
+            // Return early if filter elements don't exist yet
+            if (!signalFilterEl || !prophecyFilterEl || !opportunitiesFilterEl || !positionFilterEl || !symbolSearchEl) {
+                return;
+            }
+            
+            const signalFilter = signalFilterEl.value;
+            const prophecyFilter = prophecyFilterEl.value;
+            const opportunitiesFilter = opportunitiesFilterEl.value;
+            const positionFilter = positionFilterEl.value;
+            const symbolSearch = symbolSearchEl.value.toUpperCase();
+            
+            filteredData = aggregatedData.filter(item => {
+                // Signal filter
+                if (signalFilter !== 'all') {
+                    const signalUpper = item.signalStrength.toUpperCase();
+                    if (signalFilter === 'BUY' && !signalUpper.includes('BUY')) return false;
+                    if (signalFilter === 'SELL' && !signalUpper.includes('SELL')) return false;
+                    if (signalFilter === 'NEUTRAL' && (signalUpper.includes('BUY') || signalUpper.includes('SELL'))) return false;
+                }
+                
+                // PROPHECY filter
+                if (prophecyFilter === 'has' && item.prophecyCount === 0) return false;
+                if (prophecyFilter === 'none' && item.prophecyCount > 0) return false;
+                
+                // Opportunities filter
+                if (opportunitiesFilter === 'has' && item.opportunitiesCount === 0) return false;
+                if (opportunitiesFilter === 'none' && item.opportunitiesCount > 0) return false;
+                
+                // Position filter
+                if (positionFilter === 'has' && !item.position) return false;
+                if (positionFilter === 'none' && item.position) return false;
+                
+                // Symbol search
+                if (symbolSearch && !item.symbol.includes(symbolSearch)) return false;
+                
+                return true;
+            });
+            
+            applySorting();
+            renderTable();
+            updateSummary();
+        }
+        
+        // ========================================================================
+        // SORTING
+        // ========================================================================
+        
+        function applySorting() {
+            filteredData.sort((a, b) => {
+                let aVal, bVal;
+                
+                switch (sortColumn) {
+                    case 'symbol':
+                        aVal = a.symbol;
+                        bVal = b.symbol;
+                        break;
+                    case 'price':
+                        aVal = a.price;
+                        bVal = b.price;
+                        break;
+                    case 'signal':
+                        // Sort by signal strength string
+                        aVal = a.signalStrength;
+                        bVal = b.signalStrength;
+                        break;
+                    case 'change24h':
+                        aVal = a.change24h;
+                        bVal = b.change24h;
+                        break;
+                    case 'volume':
+                        aVal = a.volume;
+                        bVal = b.volume;
+                        break;
+                    case 'signals':
+                        aVal = a.signalsCount;
+                        bVal = b.signalsCount;
+                        break;
+                    case 'prophecy':
+                        aVal = a.prophecyCount;
+                        bVal = b.prophecyCount;
+                        break;
+                    case 'opportunities':
+                        aVal = a.opportunitiesCount;
+                        bVal = b.opportunitiesCount;
+                        break;
+                    case 'position':
+                        aVal = a.position || 'NONE';
+                        bVal = b.position || 'NONE';
+                        break;
+                    case 'pnl':
+                        aVal = a.pnl;
+                        bVal = b.pnl;
+                        break;
+                    default:
+                        return 0;
+                }
+                
+                // Handle string comparison
+                if (typeof aVal === 'string' && typeof bVal === 'string') {
+                    return sortDirection === 'asc' 
+                        ? aVal.localeCompare(bVal)
+                        : bVal.localeCompare(aVal);
+                }
+                
+                // Handle numeric comparison
+                return sortDirection === 'asc' 
+                    ? (aVal - bVal)
+                    : (bVal - aVal);
+            });
+        }
+        
+        function handleSort(column) {
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+            
+            updateSortIndicators();
+            applySorting();
+            renderTable();
+        }
+        
+        function updateSortIndicators() {
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+                if (th.dataset.sort === sortColumn) {
+                    th.classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+                }
+            });
+        }
+        
+        // ========================================================================
+        // TABLE RENDERING
+        // ========================================================================
+        
+        function formatPrice(price) {
+            if (typeof price !== 'number' || isNaN(price)) return '$0.00';
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(price);
+        }
+        
+        function formatVolume(volume) {
+            if (typeof volume !== 'number' || isNaN(volume)) return '0';
+            if (volume >= 1000000) {
+                return (volume / 1000000).toFixed(2) + 'M';
+            } else if (volume >= 1000) {
+                return (volume / 1000).toFixed(2) + 'K';
+            }
+            return volume.toFixed(2);
+        }
+        
+        function getSignalClass(signalStrength) {
+            const upper = (signalStrength || '').toUpperCase();
+            if (upper.includes('STRONG BUY')) return 'signal-strong-buy';
+            if (upper.includes('BUY')) return 'signal-buy';
+            if (upper.includes('STRONG SELL')) return 'signal-strong-sell';
+            if (upper.includes('SELL')) return 'signal-sell';
+            return 'signal-neutral';
+        }
+        
+        function renderTable() {
+            const tbody = document.getElementById('table-body');
+            if (!tbody) return;
+            
+            if (filteredData.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="11" class="empty-state">
+                            <div class="empty-state-icon">📊</div>
+                            <div>No symbols match your filters</div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = filteredData.map(item => {
+                const hasProphecy = item.prophecyCount > 0;
+                const rowClass = hasProphecy ? 'has-prophecy' : '';
+                
+                return `
+                    <tr class="${rowClass}">
+                        <td class="symbol">${item.symbol}</td>
+                        <td class="price">${formatPrice(item.price)}</td>
+                        <td>
+                            <span class="signal-badge ${getSignalClass(item.signalStrength)}">
+                                ${item.signalStrength || 'NEUTRAL'}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="change ${item.change24h >= 0 ? 'positive' : 'negative'}">
+                                ${item.change24h >= 0 ? '+' : ''}${item.change24h.toFixed(2)}%
+                            </span>
+                        </td>
+                        <td class="volume">${formatVolume(item.volume)}</td>
+                        <td>
+                            <span class="count-badge">${item.signalsCount}</span>
+                        </td>
+                        <td>
+                            ${item.prophecyCount > 0 
+                                ? `<span class="count-badge prophecy">${item.prophecyCount}</span>`
+                                : '<span class="count-badge">0</span>'
+                            }
+                        </td>
+                        <td>
+                            ${item.opportunitiesCount > 0 
+                                ? `<span class="count-badge opportunities">${item.opportunitiesCount}</span>`
+                                : '<span class="count-badge">0</span>'
+                            }
+                        </td>
+                        <td>
+                            <span class="position-badge ${(item.position || 'none').toLowerCase()}">
+                                ${item.position || 'NONE'}
+                            </span>
+                        </td>
+                        <td>
+                            ${item.position 
+                                ? `<span class="pnl ${item.pnl >= 0 ? 'positive' : 'negative'}">${formatPrice(item.pnl)}</span>`
+                                : '<span class="pnl">-</span>'
+                            }
+                        </td>
+                        <td class="actions">
+                            <button class="btn-action" onclick="viewChart('${item.symbol}')">Chart</button>
+                            <button class="btn-action" onclick="viewOpportunities('${item.symbol}')">Opps</button>
+                            <button class="btn-action" onclick="viewProphecy('${item.symbol}')">PROPHECY</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        // ========================================================================
+        // SUMMARY STATISTICS
+        // ========================================================================
+        
+        function updateSummary() {
+            const total = aggregatedData.length;
+            const withProphecy = aggregatedData.filter(s => s.prophecyCount > 0).length;
+            const withOpportunities = aggregatedData.filter(s => s.opportunitiesCount > 0).length;
+            const withPositions = aggregatedData.filter(s => s.position).length;
+            
+            const avgSignal = aggregatedData.length > 0
+                ? (aggregatedData.reduce((sum, s) => sum + Math.abs(s.signal || 0), 0) / aggregatedData.length).toFixed(2)
+                : '0.00';
+            
+            document.getElementById('total-symbols').textContent = total;
+            document.getElementById('symbols-prophecy').textContent = withProphecy;
+            document.getElementById('symbols-opportunities').textContent = withOpportunities;
+            document.getElementById('symbols-positions').textContent = withPositions;
+            document.getElementById('avg-signal').textContent = avgSignal;
+        }
+        
+        // ========================================================================
+        // QUICK ACTIONS
+        // ========================================================================
+        
+        function viewChart(symbol) {
+            if (typeof navigateToChart === 'function') {
+                navigateToChart(symbol);
+            } else {
+                console.error('[Scanner] navigateToChart not available. navigation.js may not be loaded.');
+                // Fallback: direct navigation
+                window.open(`http://localhost:1423/chartview/index.html?symbol=${symbol}`, '_blank');
+            }
+        }
+        
+        function viewOpportunities(symbol) {
+            if (typeof navigateToOpportunities === 'function') {
+                navigateToOpportunities(symbol);
+            } else {
+                console.error('[Scanner] navigateToOpportunities not available. navigation.js may not be loaded.');
+                // Fallback: direct navigation
+                window.open(`http://localhost:1427/opportunities/index.html?symbol=${symbol}`, '_blank');
+            }
+        }
+        
+        function viewProphecy(symbol) {
+            if (typeof navigateToProphecy === 'function') {
+                navigateToProphecy(symbol);
+            } else {
+                console.error('[Scanner] navigateToProphecy not available. navigation.js may not be loaded.');
+                // Fallback: direct navigation
+                window.open(`http://localhost:1428/prophecy/index.html?symbol=${symbol}`, '_blank');
+            }
+        }
+        
+        // ========================================================================
+        // INITIALIZATION
+        // ========================================================================
+        
+        async function init() {
+            log('Initializing Market Scanner...');
+            
+            // Verify navigation.js is loaded
+            if (typeof navigateToChart === 'undefined') {
+                console.error('[Scanner] navigation.js not loaded! Navigation functions will not work.');
+            } else {
+                log('✅ Navigation helper loaded');
+            }
+            
+            // #region agent log - Debug navigation links
+            // Instrument navigation links to debug why they don't work
+            // Use MutationObserver to catch links even if they're added later
+            const navContainer = document.querySelector('.nav');
+            if (navContainer) {
+                const observer = new MutationObserver((mutations) => {
+                    fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'scanner/index.html:mutation',message:'Nav container mutated',data:{mutationsCount:mutations.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+                    // Re-instrument links if they were replaced
+                    instrumentNavLinks();
+                });
+                observer.observe(navContainer, { childList: true, subtree: true });
+            }
+            
+            function instrumentNavLinks() {
+                const navLinks = document.querySelectorAll('.nav a');
+                fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'scanner/index.html:instrumentNavLinks',message:'Nav links found',data:{count:navLinks.length,links:Array.from(navLinks).map(a=>({href:a.href,target:a.target,display:window.getComputedStyle(a).display,visibility:window.getComputedStyle(a).visibility,pointerEvents:window.getComputedStyle(a).pointerEvents,zIndex:window.getComputedStyle(a).zIndex}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            }
+            
+            instrumentNavLinks();
+            // #endregion
+            
+            const navLinks = document.querySelectorAll('.nav a');
+            navLinks.forEach((link, index) => {
+                // #region agent log - Debug navigation links
+                // Check if link exists and is clickable
+                const linkInfo = {
+                    href: link.href,
+                    target: link.target,
+                    display: window.getComputedStyle(link).display,
+                    visibility: window.getComputedStyle(link).visibility,
+                    pointerEvents: window.getComputedStyle(link).pointerEvents,
+                    zIndex: window.getComputedStyle(link).zIndex,
+                    position: window.getComputedStyle(link).position
+                };
+                fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'scanner/index.html:init',message:'Nav link styles',data:{index,linkInfo},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+                
+                // Check for overlaying elements
+                const rect = link.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const elementAtPoint = document.elementFromPoint(centerX, centerY);
+                fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'scanner/index.html:init',message:'Element at point',data:{index,linkHref:link.href,elementAtPoint:elementAtPoint?elementAtPoint.tagName:null,elementAtPointId:elementAtPoint?.id||null,elementAtPointClass:elementAtPoint?.className||null,isLink:elementAtPoint===link},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+                // #endregion
+                
+                // Add click listener to debug (both capture and bubble phases)
+                link.addEventListener('click', (e) => {
+                    // #region agent log - Debug navigation links
+                    fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'scanner/index.html:nav-click',message:'Nav link clicked',data:{href:link.href,target:link.target,defaultPrevented:e.defaultPrevented,isTrusted:e.isTrusted,button:e.button,phase:'capture'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                    // #endregion
+                    
+                    // Check if something is preventing navigation
+                    if (e.defaultPrevented) {
+                        // #region agent log - Debug navigation links
+                        fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'scanner/index.html:nav-click',message:'Navigation prevented',data:{href:link.href},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+                        // #endregion
+                        return;
+                    }
+                    
+                    // #region agent log - Debug navigation links
+                    fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'scanner/index.html:nav-click',message:'Navigation allowed',data:{href:link.href,willNavigate:true},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+                    // #endregion
+                }, true); // Use capture phase to catch early
+                
+                // Also add bubble phase listener
+                link.addEventListener('click', (e) => {
+                    // #region agent log - Debug navigation links
+                    fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'scanner/index.html:nav-click',message:'Nav link clicked bubble',data:{href:link.href,defaultPrevented:e.defaultPrevented,phase:'bubble'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                    // #endregion
+                }, false);
+                
+                // Check if links still exist after a delay
+                setTimeout(() => {
+                    // #region agent log - Debug navigation links
+                    const stillExists = document.contains(link);
+                    const stillInNav = link.closest('.nav') !== null;
+                    fetch('http://127.0.0.1:7243/ingest/ea1b814b-bb8a-463b-a11f-4c4b4858de01',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'scanner/index.html:delayed-check',message:'Link still exists',data:{index,href:link.href,stillExists,stillInNav},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+                    // #endregion
+                }, 2000);
+            });
+            // #endregion
+            
+            // Setup sort handlers
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.addEventListener('click', () => handleSort(th.dataset.sort));
+            });
+            
+            // Setup filter handlers
+            document.getElementById('filter-signal').addEventListener('change', applyFilters);
+            document.getElementById('filter-prophecy').addEventListener('change', applyFilters);
+            document.getElementById('filter-opportunities').addEventListener('change', applyFilters);
+            document.getElementById('filter-position').addEventListener('change', applyFilters);
+            document.getElementById('filter-symbol').addEventListener('input', applyFilters);
+            
+            // Initial data fetch
+            await refreshData();
+            
+            // Auto-refresh every 10 seconds
+            setInterval(async () => {
+                await refreshData();
+            }, 10000);
+            
+            log('✅ Market Scanner initialized');
+        }
+        
+        async function refreshData() {
+            try {
+                const { marketData, signals, opportunities, positions } = await fetchAllData();
+                
+                aggregatedData = aggregateBySymbol(marketData, signals, opportunities, positions);
+                
+                const statusEl = document.getElementById('status');
+                if (aggregatedData.length > 0) {
+                    statusEl.textContent = `Connected (${aggregatedData.length} symbols)`;
+                    statusEl.className = 'status-badge connected';
+                } else {
+                    statusEl.textContent = 'Connected (No data)';
+                    statusEl.className = 'status-badge connected';
+                }
+                
+                applyFilters();
+                
+            } catch (error) {
+                logError('Error refreshing data', error);
+                const statusEl = document.getElementById('status');
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'status-badge disconnected';
+            }
+        }
+        
+        // ========================================================================
+        // LOGGING
+        // ========================================================================
+        
+        function log(message, data = {}) {
+            console.log(`[Scanner] ${message}`, data);
+        }
+        
+        function logError(message, error = null) {
+            console.error(`[Scanner ERROR] ${message}`, error || '');
+        }
+        
+        // Start on load
+        init();
+    </script>
+</body>
+</html>
+

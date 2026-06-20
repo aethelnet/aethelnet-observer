@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Market Connections Network v2 - Port 1422</title>
+    <link rel="icon" href="data:,">
+    
+    <!-- Three.js for 3D visualization -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.module.js"
+        }
+    }
+    </script>
+    
+    <!-- Chart.js for time series -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- GSAP for smooth animations -->
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        #app {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+        }
+        
+        /* Left Sidebar - Controls and Info */
+        #sidebar {
+            width: min(400px, 25vw);  /* Responsive: max 400px, or 25% of viewport on large screens */
+            min-width: 300px;         /* Minimum width for readability */
+            background: rgba(20, 20, 30, 0.95);
+            border-right: 1px solid rgba(74, 222, 128, 0.2);
+            padding: clamp(15px, 1.5vw, 25px);  /* Responsive padding: 15-25px based on viewport */
+            overflow-y: auto;
+            z-index: 100;
+            /* Better scrolling on high DPI */
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(74, 222, 128, 0.3) transparent;
+        }
+        
+        #sidebar::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        #sidebar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        #sidebar::-webkit-scrollbar-thumb {
+            background: rgba(74, 222, 128, 0.3);
+            border-radius: 4px;
+        }
+        
+        #sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(74, 222, 128, 0.5);
+        }
+        
+        #sidebar h1 {
+            font-size: clamp(1.2rem, 1.5vw, 1.8rem);  /* Responsive: 1.2-1.8rem */
+            color: #4ade80;
+            margin-bottom: clamp(5px, 0.5vw, 10px);
+        }
+        
+        #sidebar .subtitle {
+            font-size: clamp(0.75rem, 0.9vw, 0.95rem);  /* Responsive: 0.75-0.95rem */
+            color: #aaa;
+            margin-bottom: clamp(15px, 1.5vw, 25px);
+        }
+        
+        .section {
+            margin-bottom: clamp(15px, 1.5vw, 25px);  /* Responsive spacing */
+            padding: clamp(10px, 1.2vw, 16px);  /* Responsive padding */
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: clamp(4px, 0.5vw, 8px);
+            border: 1px solid rgba(74, 222, 128, 0.1);
+        }
+        
+        .section-title {
+            font-size: clamp(0.85rem, 1vw, 1rem);  /* Responsive: 0.85-1rem */
+            font-weight: bold;
+            color: #4ade80;
+            margin-bottom: clamp(8px, 1vw, 12px);
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+        
+        .status-badge.connected {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.4);
+        }
+        
+        .status-badge.disconnected {
+            background: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.4);
+        }
+        
+        /* Main 3D Canvas Area */
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+            min-width: 0;  /* Allow flex shrinking on small screens */
+        }
+        
+        #canvas {
+            width: 100%;
+            height: 100%;
+            display: block;  /* Remove inline spacing */
+        }
+        
+        /* Time Series Chart Overlay */
+        #chart-overlay {
+            position: absolute;
+            bottom: clamp(15px, 1.5vw, 25px);
+            left: clamp(15px, 1.5vw, 25px);
+            right: clamp(15px, 1.5vw, 25px);
+            height: clamp(180px, 20vh, 250px);  /* Responsive height: 180-250px based on viewport */
+            max-width: calc(100% - clamp(30px, 3vw, 50px));  /* Account for padding */
+            background: rgba(20, 20, 30, 0.95);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: clamp(6px, 0.8vw, 10px);
+            padding: clamp(12px, 1.5vw, 20px);
+            z-index: 50;
+            display: none;
+            backdrop-filter: blur(10px);  /* Better visual separation on high DPI */
+        }
+        
+        #chart-overlay.show {
+            display: block;
+        }
+        
+        #chart-overlay .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        #chart-overlay .chart-title {
+            font-size: 0.9rem;
+            color: #4ade80;
+            font-weight: bold;
+        }
+        
+        #chart-overlay .close-btn {
+            background: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.4);
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        
+        #chart-overlay .close-btn:hover {
+            background: rgba(248, 113, 113, 0.3);
+        }
+        
+        /* Controls at Bottom */
+        #controls {
+            position: absolute;
+            bottom: clamp(15px, 1.5vw, 25px);
+            right: clamp(15px, 1.5vw, 25px);
+            display: flex;
+            gap: clamp(8px, 1vw, 12px);
+            z-index: 60;
+            flex-wrap: wrap;  /* Wrap on small screens */
+        }
+        
+        .control-btn {
+            padding: clamp(8px, 1vw, 12px) clamp(12px, 1.5vw, 18px);
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.4);
+            border-radius: clamp(4px, 0.5vw, 8px);
+            cursor: pointer;
+            font-size: clamp(0.75rem, 0.9vw, 0.9rem);
+            transition: all 0.2s;
+            white-space: nowrap;  /* Prevent text wrapping */
+        }
+        
+        .control-btn:hover {
+            background: rgba(74, 222, 128, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .control-btn.active {
+            background: rgba(74, 222, 128, 0.4);
+        }
+        
+        /* Node List */
+        .node-item {
+            padding: clamp(6px, 0.8vw, 10px);
+            margin: clamp(4px, 0.5vw, 6px) 0;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: clamp(3px, 0.4vw, 6px);
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        
+        .node-item:hover {
+            background: rgba(74, 222, 128, 0.1);
+            border-color: rgba(74, 222, 128, 0.3);
+        }
+        
+        .node-item.selected {
+            background: rgba(74, 222, 128, 0.2);
+            border-color: rgba(74, 222, 128, 0.5);
+        }
+        
+        .node-symbol {
+            font-weight: bold;
+            color: #fff;
+            font-size: clamp(0.9rem, 1.1vw, 1rem);
+        }
+        
+        .node-price {
+            font-size: clamp(0.7rem, 0.85vw, 0.85rem);
+            color: #aaa;
+        }
+        
+        .node-signal {
+            font-size: clamp(0.7rem, 0.8vw, 0.8rem);
+            margin-top: clamp(3px, 0.4vw, 5px);
+        }
+        
+        .node-signal.buy {
+            color: #4ade80;
+        }
+        
+        .node-signal.sell {
+            color: #f87171;
+        }
+        
+        /* Filter Slider */
+        .slider-container {
+            margin: 10px 0;
+        }
+        
+        .slider {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #4ade80;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #4ade80;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .slider-value {
+            text-align: center;
+            margin-top: clamp(4px, 0.5vw, 6px);
+            font-size: clamp(0.75rem, 0.9vw, 0.9rem);
+            color: #4ade80;
+        }
+        
+        /* High DPI optimizations */
+        @media (min-resolution: 192dpi), (-webkit-min-device-pixel-ratio: 2) {
+            /* Better rendering on high DPI displays */
+            #canvas {
+                image-rendering: -webkit-optimize-contrast;
+                image-rendering: crisp-edges;
+            }
+            
+            /* Sharper text on high DPI */
+            #sidebar {
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+            }
+        }
+        
+        /* Large screen optimizations (4K, ultrawide, etc.) */
+        @media (min-width: 2560px) {
+            #sidebar {
+                width: min(450px, 20vw);  /* Slightly wider on very large screens */
+            }
+            
+            .section {
+                padding: clamp(16px, 1.5vw, 24px);
+            }
+        }
+        
+        /* Medium screen adjustments */
+        @media (max-width: 1440px) {
+            #sidebar {
+                width: min(350px, 28vw);
+            }
+        }
+        
+        /* Small screen adjustments */
+        @media (max-width: 1024px) {
+            #sidebar {
+                width: min(320px, 35vw);
+                min-width: 280px;
+            }
+        }
+        
+        /* Debug Panel */
+        #debug-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 350px;
+            max-height: 80vh;
+            background: rgba(20, 20, 30, 0.98);
+            border: 2px solid rgba(74, 222, 128, 0.5);
+            border-radius: 8px;
+            padding: 15px;
+            z-index: 200;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        .debug-header {
+            color: #4ade80;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(74, 222, 128, 0.3);
+        }
+        
+        #debug-content {
+            color: #aaa;
+        }
+        
+        #debug-content strong {
+            color: #fff;
+        }
+        
+        #debug-node-positions {
+            margin-top: 5px;
+            padding: 5px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Left Sidebar -->
+        <div id="sidebar">
+            <h1>Market Connections v2</h1>
+            <div class="subtitle">Enhanced Network Visualization</div>
+            
+            <!-- Connection Status -->
+            <div class="section">
+                <div class="section-title">Backend Connection</div>
+                <div id="status" class="status-badge disconnected">Disconnected</div>
+            </div>
+            
+            <!-- Filter -->
+            <div class="section">
+                <div class="section-title">Filter by Correlation</div>
+                <div class="slider-container">
+                    <input type="range" id="correlation-slider" class="slider" min="0" max="100" value="30">
+                    <div class="slider-value">Show connections above: <span id="correlation-value">30%</span></div>
+                </div>
+            </div>
+            
+            <!-- Node List -->
+            <div class="section">
+                <div class="section-title">Markets</div>
+                <div id="node-list"></div>
+            </div>
+            
+            <!-- Selected Node Info -->
+            <div class="section" id="node-info" style="display: none;">
+                <div class="section-title">Selected Node</div>
+                <div id="node-details"></div>
+            </div>
+        </div>
+        
+        <!-- Main 3D Canvas -->
+        <div id="canvas-container">
+            <canvas id="canvas"></canvas>
+            
+            <!-- Time Series Chart Overlay -->
+            <div id="chart-overlay">
+                <div class="chart-header">
+                    <div class="chart-title" id="chart-title">Price History</div>
+                    <button class="close-btn" id="close-chart">Close</button>
+                </div>
+                <canvas id="price-chart"></canvas>
+            </div>
+            
+            <!-- Controls -->
+            <div id="controls">
+                <button class="control-btn" id="toggle-chart" 
+                        title="Toggle price history chart overlay"
+                        aria-label="Toggle price chart overlay"
+                        data-help="Chart: Shows/hides the price history chart overlay. Click to see detailed price movements for the selected market.">📊 Chart</button>
+                <button class="control-btn" id="reset-view" 
+                        title="Reset 3D view to default position"
+                        aria-label="Reset 3D camera view"
+                        data-help="Reset: Returns the 3D camera to its default position and angle. Useful when you've navigated too far.">🔄 Reset</button>
+                <button class="control-btn" id="toggle-debug" 
+                        title="Toggle debug information panel"
+                        aria-label="Toggle debug panel"
+                        data-help="Debug: Shows/hides the debug panel with technical information about the visualization.">🐛 Debug</button>
+                <button class="control-btn" id="help-btn" 
+                        style="margin-top: 8px; width: 100%;"
+                        title="Show help (F1 or ?)"
+                        aria-label="Show help and documentation">? Help</button>
+            </div>
+            
+            <!-- Debug Panel -->
+            <div id="debug-panel" style="display: none;">
+                <div class="debug-header">
+                    <strong>🐛 Debug Info</strong>
+                    <button id="close-debug" style="float: right; background: rgba(248, 113, 113, 0.2); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.4); padding: 4px 10px; border-radius: 4px; cursor: pointer;">✕</button>
+                </div>
+                <div id="debug-content" style="font-size: 0.75rem; line-height: 1.6; max-height: 400px; overflow-y: auto;">
+                    <div><strong>Scene:</strong> <span id="debug-scene">-</span></div>
+                    <div><strong>Camera:</strong> <span id="debug-camera">-</span></div>
+                    <div><strong>Nodes:</strong> <span id="debug-nodes">-</span></div>
+                    <div><strong>Connections:</strong> <span id="debug-connections">-</span></div>
+                    <div><strong>Renderer:</strong> <span id="debug-renderer">-</span></div>
+                    <div><strong>Correlation Threshold:</strong> <span id="debug-threshold">-</span></div>
+                    <div style="margin-top: 10px;"><strong>Node Positions:</strong></div>
+                    <div id="debug-node-positions" style="font-family: monospace; font-size: 0.7rem; max-height: 200px; overflow-y: auto;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        // ========================================================================
+        // IMPORTS AND INITIALIZATION
+        // ========================================================================
+        import * as ThreeJS from 'three';
+        
+        // Global state
+        let scene, camera, renderer, controls;
+        let nodes = new Map();  // symbol -> { mesh, data, connections }
+        let connections = [];   // Array of connection lines
+        let selectedNode = null;
+        let correlationThreshold = 30;
+        let chartVisible = false;
+        let priceChart = null;
+        
+        // API base URL
+        const API_BASE = 'http://localhost:8000/api';
+        
+        // ========================================================================
+        // LOGGING
+        // ========================================================================
+        function log(message, data = {}) {
+            const timestamp = new Date().toISOString();
+            console.log(`[Creative2] [${timestamp}] ${message}`, data);
+        }
+        
+        function logError(message, error = null) {
+            const timestamp = new Date().toISOString();
+            console.error(`[ERROR] [Creative2] [${timestamp}] ${message}`, error || '');
+        }
+        
+        // ========================================================================
+        // BACKEND CONNECTION
+        // ========================================================================
+        async function checkBackend() {
+            try {
+                const response = await fetch(`${API_BASE}/dashboard/metrics`);
+                const statusEl = document.getElementById('status');
+                if (response.ok) {
+                    statusEl.textContent = 'Connected';
+                    statusEl.className = 'status-badge connected';
+                    return true;
+                } else {
+                    statusEl.textContent = 'Disconnected';
+                    statusEl.className = 'status-badge disconnected';
+                    return false;
+                }
+            } catch (error) {
+                document.getElementById('status').textContent = 'Disconnected';
+                document.getElementById('status').className = 'status-badge disconnected';
+                return false;
+            }
+        }
+        
+        // ========================================================================
+        // THREE.JS INITIALIZATION
+        // ========================================================================
+        async function initThreeJS() {
+            const { Scene, PerspectiveCamera, WebGLRenderer, Color, AmbientLight, 
+                    DirectionalLight, PointLight, Group, Vector2 } = ThreeJS;
+            
+            // Scene
+            scene = new Scene();
+            scene.background = new Color(0x000000);
+            
+            // Camera
+            camera = new PerspectiveCamera(
+                75,                                    // Field of view
+                window.innerWidth / window.innerHeight, // Aspect ratio
+                0.1,                                   // Near clipping plane
+                10000                                  // Far clipping plane
+            );
+            camera.position.set(0, 30, 60);
+            
+            // Renderer
+            const canvas = document.getElementById('canvas');
+            renderer = new WebGLRenderer({ canvas, antialias: true });
+            const sidebarWidth = parseInt(getComputedStyle(document.getElementById('sidebar')).width) || 350;
+            renderer.setSize(window.innerWidth - sidebarWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            
+            // Manual mouse controls (simpler than OrbitControls, no external dependency)
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+            let cameraDistance = 60;
+            let cameraAngleX = 0.5; // Vertical angle
+            let cameraAngleY = 0;   // Horizontal angle
+            
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            
+            renderer.domElement.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    const deltaX = e.clientX - previousMousePosition.x;
+                    const deltaY = e.clientY - previousMousePosition.y;
+                    
+                    cameraAngleY -= deltaX * 0.01;
+                    cameraAngleX += deltaY * 0.01;
+                    cameraAngleX = Math.max(0.1, Math.min(Math.PI - 0.1, cameraAngleX));
+                    
+                    camera.position.x = cameraDistance * Math.sin(cameraAngleX) * Math.cos(cameraAngleY);
+                    camera.position.y = cameraDistance * Math.cos(cameraAngleX);
+                    camera.position.z = cameraDistance * Math.sin(cameraAngleX) * Math.sin(cameraAngleY);
+                    camera.lookAt(0, 0, 0);
+                    
+                    previousMousePosition = { x: e.clientX, y: e.clientY };
+                }
+            });
+            
+            renderer.domElement.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+            
+            renderer.domElement.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY * 0.01;
+                cameraDistance = Math.max(20, Math.min(200, cameraDistance * (1 + delta)));
+                camera.position.x = cameraDistance * Math.sin(cameraAngleX) * Math.cos(cameraAngleY);
+                camera.position.y = cameraDistance * Math.cos(cameraAngleX);
+                camera.position.z = cameraDistance * Math.sin(cameraAngleX) * Math.sin(cameraAngleY);
+                camera.lookAt(0, 0, 0);
+            });
+            
+            controls = { update: () => {} }; // Placeholder for compatibility
+            
+            // Lighting
+            const ambientLight = new AmbientLight(0xffffff, 1.2);
+            scene.add(ambientLight);
+            
+            const directionalLight = new DirectionalLight(0xffffff, 2.5);
+            directionalLight.position.set(50, 50, 50);
+            scene.add(directionalLight);
+            
+            const directionalLight2 = new DirectionalLight(0xffffff, 2.0);
+            directionalLight2.position.set(-50, -50, -50);
+            scene.add(directionalLight2);
+            
+            const pointLight = new PointLight(0xffffff, 2.0, 500);
+            pointLight.position.set(0, 0, 0);
+            scene.add(pointLight);
+            
+            log('✅ Three.js initialized');
+        }
+        
+        // ========================================================================
+        // FETCH MARKET DATA
+        // ========================================================================
+        async function fetchMarketData() {
+            try {
+                const response = await fetch(`${API_BASE}/dashboard/market-data`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                log('Market data received', { count: data.length });
+                return data;
+            } catch (error) {
+                logError('Failed to fetch market data', error);
+                return [];
+            }
+        }
+        
+        // ========================================================================
+        // CALCULATE CORRELATION
+        // ========================================================================
+        function calculateCorrelation(data1, data2) {
+            // Price movement similarity (50% weight)
+            const priceChange1 = Math.abs(data1.change_24h || 0);
+            const priceChange2 = Math.abs(data2.change_24h || 0);
+            const priceDiff = Math.abs(priceChange1 - priceChange2);
+            const priceSimilarity = Math.max(0, 1 - priceDiff / 50); // Normalize: 0-50% diff = 0-1 similarity
+            
+            // Signal alignment (30% weight) - Use signal (number), not signal_strength (string)
+            const signal1 = data1.signal || 0; // signal is a number (Z-score, typically -3 to +3)
+            const signal2 = data2.signal || 0;
+            // If both signals are same direction (both positive or both negative), they're similar
+            const sameDirection = (signal1 >= 0 && signal2 >= 0) || (signal1 < 0 && signal2 < 0);
+            const signalDiff = Math.abs(signal1 - signal2);
+            // Higher similarity if same direction and close values
+            const signalSimilarity = sameDirection ? Math.max(0, 1 - signalDiff / 6) : Math.max(0, 0.5 - signalDiff / 6);
+            
+            // Volume similarity (20% weight)
+            const vol1 = Math.log10((data1.volume || 0) + 1);
+            const vol2 = Math.log10((data2.volume || 0) + 1);
+            const volDiff = Math.abs(vol1 - vol2);
+            const volSimilarity = Math.max(0, 1 - volDiff / 5); // Normalize log volume difference
+            
+            const correlation = (priceSimilarity * 0.5 + signalSimilarity * 0.3 + volSimilarity * 0.2) * 100;
+            return Math.max(0, Math.min(100, correlation));
+        }
+        
+        // ========================================================================
+        // CREATE NODE
+        // ========================================================================
+        function createNode(symbol, data, index, total) {
+            const { SphereGeometry, MeshStandardMaterial, Mesh, Group } = ThreeJS;
+            
+            // Calculate position (spiral distribution)
+            const radius = 20 + (index * 4);
+            const theta = (index / total) * Math.PI * 2;
+            const phi = Math.acos((index * 2.0) / total - 1.0);
+            const x = radius * Math.sin(phi) * Math.cos(theta);
+            const y = radius * Math.sin(phi) * Math.sin(theta);
+            const z = radius * Math.cos(phi);
+            
+            // Size based on volume
+            const volume = data.volume || 0;
+            const size = Math.max(5, Math.min(12, Math.log10(volume + 1) / 2 + 4));
+            
+            // Color based on signal_strength (string), not signal (number)
+            const signalStr = data.signal_strength || '';
+            let color = '#888888'; // Gray (neutral)
+            if (signalStr.includes('BUY')) {
+                color = '#4ade80'; // Green
+            } else if (signalStr.includes('SELL')) {
+                color = '#f87171'; // Red
+            }
+            
+            // Create sphere
+            const geometry = new SphereGeometry(size, 32, 32);
+            const material = new MeshStandardMaterial({
+                color: color,
+                emissive: color,
+                emissiveIntensity: 1.0,
+                metalness: 0.1,
+                roughness: 0.2
+            });
+            
+            const planet = new Mesh(geometry, material);
+            planet.position.set(x, y, z);
+            planet.userData.symbol = symbol;
+            planet.userData.isNode = true;
+            
+            // Group
+            const group = new Group();
+            group.add(planet);
+            
+            // Store node data
+            nodes.set(symbol, {
+                mesh: planet,
+                group: group,
+                data: data,
+                position: { x, y, z },
+                material: material,
+                baseSize: size
+            });
+            
+            scene.add(group);
+            log(`✅ Node ${symbol} created`, { 
+                position: `(${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)})`, 
+                size: size.toFixed(2),
+                color: color,
+                signal: data.signal_strength || 'N/A',
+                volume: data.volume?.toFixed(2) || '0',
+                signalValue: data.signal?.toFixed(2) || '0'
+            });
+        }
+        
+        // ========================================================================
+        // CREATE CONNECTIONS
+        // ========================================================================
+        function createConnections() {
+            // Clear existing connections
+            connections.forEach(conn => scene.remove(conn));
+            connections = [];
+            
+            const nodeArray = Array.from(nodes.entries());
+            
+            for (let i = 0; i < nodeArray.length; i++) {
+                for (let j = i + 1; j < nodeArray.length; j++) {
+                    const [symbol1, node1] = nodeArray[i];
+                    const [symbol2, node2] = nodeArray[j];
+                    
+                    const correlation = calculateCorrelation(node1.data, node2.data);
+                    
+                    // Debug: Log first few correlations
+                    if (i === 0 && j === 1) {
+                        log(`Sample correlation: ${symbol1} ↔ ${symbol2} = ${correlation.toFixed(1)}%`, {
+                            price1: node1.data.change_24h,
+                            price2: node2.data.change_24h,
+                            signal1: node1.data.signal,
+                            signal2: node2.data.signal,
+                            vol1: node1.data.volume,
+                            vol2: node2.data.volume
+                        });
+                    }
+                    
+                    if (correlation >= correlationThreshold) {
+                        const { BufferGeometry, Float32BufferAttribute, LineBasicMaterial, Line } = ThreeJS;
+                        
+                        const geometry = new BufferGeometry();
+                        const positions = new Float32Array([
+                            node1.position.x, node1.position.y, node1.position.z,
+                            node2.position.x, node2.position.y, node2.position.z
+                        ]);
+                        geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+                        
+                        // Color based on correlation strength
+                        let lineColor = '#888888'; // Gray (weak)
+                        if (correlation >= 70) {
+                            lineColor = '#4ade80'; // Green (strong)
+                        } else if (correlation >= 50) {
+                            lineColor = '#fbbf24'; // Yellow (medium)
+                        }
+                        
+                        const material = new LineBasicMaterial({ 
+                            color: lineColor,
+                            opacity: 0.6,
+                            transparent: true
+                        });
+                        
+                        const line = new Line(geometry, material);
+                        line.userData.correlation = correlation;
+                        line.userData.node1 = symbol1;
+                        line.userData.node2 = symbol2;
+                        
+                        scene.add(line);
+                        connections.push(line);
+                    }
+                }
+            }
+            
+            log(`✅ Created ${connections.length} connections`);
+        }
+        
+        // ========================================================================
+        // UPDATE NODE LIST
+        // ========================================================================
+        function updateNodeList() {
+            const listEl = document.getElementById('node-list');
+            listEl.innerHTML = '';
+            
+            nodes.forEach((node, symbol) => {
+                const item = document.createElement('div');
+                item.className = 'node-item';
+                item.dataset.symbol = symbol;
+                
+                // signal_strength is the string (e.g., "STRONG BUY"), signal is a number
+                const signalStr = node.data.signal_strength || '';
+                const signalClass = signalStr.includes('BUY') ? 'buy' : 
+                                   signalStr.includes('SELL') ? 'sell' : '';
+                
+                item.innerHTML = `
+                    <div class="node-symbol">${symbol}</div>
+                    <div class="node-price">$${node.data.price?.toFixed(2) || 'N/A'}</div>
+                    <div class="node-signal ${signalClass}">${node.data.signal_strength || 'NEUTRAL'}</div>
+                `;
+                
+                item.addEventListener('click', () => selectNode(symbol));
+                listEl.appendChild(item);
+            });
+        }
+        
+        // ========================================================================
+        // SELECT NODE
+        // ========================================================================
+        function selectNode(symbol) {
+            // Deselect previous
+            if (selectedNode) {
+                const prevNode = nodes.get(selectedNode);
+                if (prevNode) {
+                    prevNode.material.emissiveIntensity = 1.0;
+                }
+            }
+            
+            selectedNode = symbol;
+            const node = nodes.get(symbol);
+            
+            if (node) {
+                // Highlight selected
+                node.material.emissiveIntensity = 2.0;
+                
+                // Update UI
+                document.querySelectorAll('.node-item').forEach(item => {
+                    item.classList.toggle('selected', item.dataset.symbol === symbol);
+                });
+                
+                // Show node info
+                const infoEl = document.getElementById('node-info');
+                const detailsEl = document.getElementById('node-details');
+                infoEl.style.display = 'block';
+                detailsEl.innerHTML = `
+                    <div><strong>Symbol:</strong> ${symbol}</div>
+                    <div><strong>Price:</strong> $${node.data.price?.toFixed(2) || 'N/A'}</div>
+                    <div><strong>Signal:</strong> ${node.data.signal_strength || 'NEUTRAL'}</div>
+                    <div><strong>Signal Value:</strong> ${node.data.signal?.toFixed(2) || 'N/A'}</div>
+                    <div><strong>Volume:</strong> ${node.data.volume?.toFixed(2) || 'N/A'}</div>
+                    <div><strong>24h Change:</strong> ${node.data.change_24h?.toFixed(2) || 'N/A'}%</div>
+                    <div style="margin-top: 10px;"><strong>Connections:</strong> ${connections.filter(c => c.userData.node1 === symbol || c.userData.node2 === symbol).length}</div>
+                `;
+                
+                // Show price chart
+                showPriceChart(symbol, node.data);
+            }
+        }
+        
+        // ========================================================================
+        // PRICE CHART (Chart.js)
+        // ========================================================================
+        function showPriceChart(symbol, data) {
+            const overlay = document.getElementById('chart-overlay');
+            const chartTitle = document.getElementById('chart-title');
+            chartTitle.textContent = `${symbol} Price History`;
+            
+            // For now, show current price as a simple chart
+            // In a real implementation, you'd fetch historical data
+            const ctx = document.getElementById('price-chart').getContext('2d');
+            
+            if (priceChart) {
+                priceChart.destroy();
+            }
+            
+            // Simulate price history (in real app, fetch from API)
+            const labels = Array.from({ length: 20 }, (_, i) => `T-${20-i}`);
+            const prices = Array.from({ length: 20 }, () => data.price + (Math.random() - 0.5) * data.price * 0.1);
+            
+            priceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Price',
+                        data: prices,
+                        borderColor: '#4ade80',
+                        backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: { color: '#aaa' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        x: {
+                            ticks: { color: '#aaa' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+            
+            overlay.classList.add('show');
+            chartVisible = true;
+        }
+        
+        // ========================================================================
+        // ANIMATION LOOP
+        // ========================================================================
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (controls) {
+                controls.update();
+            }
+            
+            // Animate nodes (pulsing effect)
+            const time = Date.now() * 0.001;
+            nodes.forEach((node, symbol) => {
+                if (node.mesh) {
+                    const pulse = 1 + Math.sin(time * 2 + symbol.charCodeAt(0)) * 0.1;
+                    node.mesh.scale.setScalar(node.baseSize * pulse);
+                }
+            });
+            
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+        }
+        
+        // ========================================================================
+        // EVENT HANDLERS
+        // ========================================================================
+        document.getElementById('correlation-slider').addEventListener('input', (e) => {
+            correlationThreshold = parseInt(e.target.value);
+            document.getElementById('correlation-value').textContent = `${correlationThreshold}%`;
+            createConnections();
+        });
+        
+        // Setup help system
+        if (window.helpSystem) {
+            // Add tooltips to buttons
+            document.querySelectorAll('[data-help]').forEach(btn => {
+                window.helpSystem.addTooltip(btn, btn.dataset.help);
+            });
+            
+            // Setup help button
+            const helpBtn = document.getElementById('help-btn');
+            if (helpBtn) {
+                helpBtn.addEventListener('click', () => {
+                    window.helpSystem.showHelpModal(`
+                        <h3 style="color: #4ade80; margin-bottom: 15px;">Market Connections v2 Help</h3>
+                        <div style="line-height: 1.8;">
+                            <h4 style="color: #4ade80; margin-top: 20px; margin-bottom: 10px;">Controls</h4>
+                            <ul style="margin-left: 20px; margin-top: 10px;">
+                                <li><strong>Chart:</strong> Toggle price history chart overlay for selected market</li>
+                                <li><strong>Reset:</strong> Return 3D camera to default position</li>
+                                <li><strong>Labels:</strong> Show/hide market name labels on nodes</li>
+                                <li><strong>Debug:</strong> Show/hide technical debug information panel</li>
+                            </ul>
+                            
+                            <h4 style="color: #4ade80; margin-top: 20px; margin-bottom: 10px;">Interaction</h4>
+                            <ul style="margin-left: 20px; margin-top: 10px;">
+                                <li><strong>Click node:</strong> Select a market to see its price chart</li>
+                                <li><strong>Drag:</strong> Rotate the 3D view</li>
+                                <li><strong>Scroll:</strong> Zoom in/out</li>
+                                <li><strong>Click market in list:</strong> Select and focus on that market</li>
+                            </ul>
+                            
+                            <h4 style="color: #4ade80; margin-top: 20px; margin-bottom: 10px;">About This View</h4>
+                            <p>This enhanced visualization shows market connections with interactive price charts. Select any market node to see its detailed price history.</p>
+                        </div>
+                    `);
+                });
+            }
+        }
+        
+        document.getElementById('toggle-chart').addEventListener('click', () => {
+            const overlay = document.getElementById('chart-overlay');
+            chartVisible = !chartVisible;
+            if (chartVisible && selectedNode) {
+                overlay.classList.add('show');
+            } else {
+                overlay.classList.remove('show');
+            }
+        });
+        
+        document.getElementById('close-chart').addEventListener('click', () => {
+            document.getElementById('chart-overlay').classList.remove('show');
+            chartVisible = false;
+        });
+        
+        document.getElementById('reset-view').addEventListener('click', () => {
+            if (camera) {
+                camera.position.set(0, 30, 60);
+                camera.lookAt(0, 0, 0);
+                updateDebugInfo();
+            }
+        });
+        
+        // Debug panel toggle
+        let debugVisible = false;
+        document.getElementById('toggle-debug').addEventListener('click', () => {
+            debugVisible = !debugVisible;
+            document.getElementById('debug-panel').style.display = debugVisible ? 'block' : 'none';
+            if (debugVisible) {
+                updateDebugInfo();
+                // Update debug info every second
+                const debugInterval = setInterval(() => {
+                    if (debugVisible) {
+                        updateDebugInfo();
+                    } else {
+                        clearInterval(debugInterval);
+                    }
+                }, 1000);
+            }
+        });
+        
+        document.getElementById('close-debug').addEventListener('click', () => {
+            debugVisible = false;
+            document.getElementById('debug-panel').style.display = 'none';
+        });
+        
+        // Debug info update function
+        function updateDebugInfo() {
+            if (!debugVisible) return;
+            
+            // Scene info
+            document.getElementById('debug-scene').textContent = 
+                scene ? `✅ ${scene.children.length} objects` : '❌ Not initialized';
+            
+            // Camera info
+            if (camera) {
+                const pos = camera.position;
+                document.getElementById('debug-camera').textContent = 
+                    `(${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)})`;
+            } else {
+                document.getElementById('debug-camera').textContent = '❌ Not initialized';
+            }
+            
+            // Nodes info
+            document.getElementById('debug-nodes').textContent = 
+                `${nodes.size} nodes in map`;
+            
+            // Connections info
+            document.getElementById('debug-connections').textContent = 
+                `${connections.length} connections (threshold: ${correlationThreshold}%)`;
+            
+            // Renderer info
+            if (renderer) {
+                const size = renderer.getSize(new (ThreeJS.Vector2 || Vector2)());
+                document.getElementById('debug-renderer').textContent = 
+                    `✅ ${size.width}x${size.height}`;
+            } else {
+                document.getElementById('debug-renderer').textContent = '❌ Not initialized';
+            }
+            
+            // Threshold
+            document.getElementById('debug-threshold').textContent = `${correlationThreshold}%`;
+            
+            // Node positions
+            const positionsHtml = Array.from(nodes.entries())
+                .map(([symbol, node]) => {
+                    const pos = node.position;
+                    return `${symbol}: (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)})`;
+                })
+                .join('<br>');
+            document.getElementById('debug-node-positions').innerHTML = 
+                positionsHtml || 'No nodes';
+        }
+        
+        // Click handler for nodes (will be added after renderer is initialized)
+        // For now, use sidebar list for node selection
+        
+        // ========================================================================
+        // INITIALIZATION
+        // ========================================================================
+        async function init() {
+            log('🚀 Market Connections v2 - Initializing...');
+            
+            // Check backend
+            await checkBackend();
+            setInterval(checkBackend, 5000);
+            
+            // Initialize Three.js
+            await initThreeJS();
+            
+            // Fetch and create nodes
+            const marketData = await fetchMarketData();
+            marketData.forEach((data, index) => {
+                createNode(data.symbol, data, index, marketData.length);
+            });
+            
+            // Create connections
+            createConnections();
+            
+            // Update UI
+            updateNodeList();
+            
+            // Initial debug info
+            setTimeout(() => {
+                if (debugVisible) updateDebugInfo();
+            }, 500);
+            
+            // Start animation
+            animate();
+            
+            // Handle window resize (responsive to sidebar width changes)
+            window.addEventListener('resize', () => {
+                if (camera && renderer) {
+                    const sidebar = document.getElementById('sidebar');
+                    const sidebarWidth = sidebar ? parseInt(getComputedStyle(sidebar).width) : 350;
+                    const canvasWidth = window.innerWidth - sidebarWidth;
+                    const canvasHeight = window.innerHeight;
+                    
+                    camera.aspect = canvasWidth / canvasHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(canvasWidth, canvasHeight);
+                }
+            });
+            
+            log('✅ Market Connections v2 initialized');
+        }
+        
+        // Start initialization
+        init().catch(error => {
+            logError('Initialization failed', error);
+        });
+    </script>
+</body>
+</html>

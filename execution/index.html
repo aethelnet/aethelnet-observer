@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Trade Execution Monitor - Port 1426</title>
+    
+    <!-- Chart.js for trade timeline -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="../help-system.js"></script>
+    
+    <!-- Favicon to silence 404 -->
+    <link rel="icon" href="data:,">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Monaco', monospace;
+            background: #000;
+            color: #fff;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        
+        /* Header */
+        .header {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(96, 165, 250, 0.3);
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            color: #60a5fa;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            color: #888;
+            font-size: 14px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 12px;
+        }
+        
+        .status-badge.connected {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.4);
+        }
+        
+        .status-badge.disconnected {
+            background: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.4);
+        }
+        
+        .help-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(96, 165, 250, 0.2);
+            border: 2px solid rgba(96, 165, 250, 0.4);
+            color: #60a5fa;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: all 0.2s;
+        }
+        
+        .help-btn:hover {
+            background: rgba(96, 165, 250, 0.3);
+            transform: scale(1.1);
+        }
+        
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+        
+        .metric-card {
+            background: rgba(20, 20, 30, 0.8);
+            border: 1px solid rgba(96, 165, 250, 0.2);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        
+        .metric-label {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .metric-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #fff;
+        }
+        
+        .metric-value.positive {
+            color: #4ade80;
+        }
+        
+        .metric-value.negative {
+            color: #f87171;
+        }
+        
+        /* Main Content Grid */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        @media (max-width: 1200px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Trade Feed */
+        .trade-feed {
+            background: rgba(20, 20, 30, 0.8);
+            border: 1px solid rgba(96, 165, 250, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .feed-header {
+            font-size: 16px;
+            color: #60a5fa;
+            margin-bottom: 16px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .trade-item {
+            background: rgba(30, 30, 40, 0.6);
+            border: 1px solid rgba(96, 165, 250, 0.1);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+            transition: all 0.2s;
+        }
+        
+        .trade-item:hover {
+            border-color: rgba(96, 165, 250, 0.4);
+            background: rgba(30, 30, 40, 0.8);
+        }
+        
+        .trade-item.new {
+            animation: slideIn 0.3s ease-out;
+            border-color: rgba(96, 165, 250, 0.5);
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .trade-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .trade-symbol {
+            font-weight: 600;
+            font-size: 16px;
+            color: #fff;
+        }
+        
+        .trade-side {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .trade-side.long {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+        
+        .trade-side.short {
+            background: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+        }
+        
+        .trade-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            font-size: 13px;
+            color: #aaa;
+        }
+        
+        .trade-detail {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .trade-detail-label {
+            color: #888;
+        }
+        
+        .trade-detail-value {
+            color: #fff;
+            font-weight: 500;
+        }
+        
+        .trade-detail-value.positive {
+            color: #4ade80;
+        }
+        
+        .trade-detail-value.negative {
+            color: #f87171;
+        }
+        
+        .trade-time {
+            font-size: 11px;
+            color: #666;
+            margin-top: 8px;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .panel {
+            background: rgba(20, 20, 30, 0.8);
+            border: 1px solid rgba(96, 165, 250, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        
+        .panel-title {
+            font-size: 16px;
+            color: #60a5fa;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+        
+        .symbol-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .symbol-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(30, 30, 40, 0.6);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .symbol-item:hover {
+            background: rgba(30, 30, 40, 0.9);
+        }
+        
+        .symbol-item.selected {
+            background: rgba(96, 165, 250, 0.2);
+            border: 1px solid rgba(96, 165, 250, 0.4);
+        }
+        
+        .symbol-name {
+            font-weight: 600;
+            color: #fff;
+        }
+        
+        .symbol-stats {
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+        }
+        
+        .symbol-stat {
+            color: #888;
+        }
+        
+        .symbol-stat-value {
+            color: #fff;
+            font-weight: 500;
+        }
+        
+        .symbol-stat-value.positive {
+            color: #4ade80;
+        }
+        
+        .symbol-stat-value.negative {
+            color: #f87171;
+        }
+        
+        /* Chart Container */
+        .chart-container {
+            background: rgba(20, 20, 30, 0.8);
+            border: 1px solid rgba(96, 165, 250, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-title {
+            font-size: 16px;
+            color: #60a5fa;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            height: 300px;
+        }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        /* Footer */
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(96, 165, 250, 0.2);
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>
+                ⚡ Trade Execution Monitor
+                <span class="status-badge disconnected" id="backend-status">Disconnected</span>
+            </h1>
+            <p>Live trade feed, execution quality, and symbol performance analysis</p>
+        </div>
+        
+        <!-- Metrics Cards -->
+        <div class="metrics-grid" id="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Total Trades (24h)</div>
+                <div class="metric-value" id="total-trades">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Win Rate</div>
+                <div class="metric-value" id="win-rate">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Total P&L (24h)</div>
+                <div class="metric-value" id="total-pnl">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Avg Hold Time</div>
+                <div class="metric-value" id="avg-hold-time">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Best Trade</div>
+                <div class="metric-value positive" id="best-trade">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Worst Trade</div>
+                <div class="metric-value negative" id="worst-trade">-</div>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="content-grid">
+            <!-- Trade Feed -->
+            <div class="trade-feed">
+                <div class="feed-header">
+                    <span>Live Trade Feed</span>
+                    <span style="font-size: 12px; color: #888;" id="feed-count">0 trades</span>
+                </div>
+                <div id="trade-feed-content">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📊</div>
+                        <div>No trades yet</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Symbol Performance -->
+                <div class="panel">
+                    <div class="panel-title">Symbol Performance</div>
+                    <div class="symbol-list" id="symbol-list">
+                        <!-- Symbol items will be dynamically inserted here -->
+                    </div>
+                </div>
+                
+                <!-- Execution Quality -->
+                <div class="panel">
+                    <div class="panel-title">Execution Quality</div>
+                    <div id="execution-quality">
+                        <div style="color: #888; font-size: 13px; line-height: 1.8;">
+                            <div>Avg Slippage: <span id="avg-slippage" style="color: #fff;">-</span></div>
+                            <div>Avg Fill Time: <span id="avg-fill-time" style="color: #fff;">-</span></div>
+                            <div>Success Rate: <span id="success-rate" style="color: #fff;">-</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Trade Timeline Chart -->
+        <div class="chart-container">
+            <div class="chart-title">Trade Timeline (P&L Over Time)</div>
+            <div class="chart-wrapper">
+                <canvas id="timeline-chart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p>Trade Execution Monitor - Port 1426 | Updates every 5 seconds</p>
+        </div>
+    </div>
+    
+    <script>
+        // ========================================================================
+        // CONFIGURATION
+        // ========================================================================
+        const API_BASE = 'http://localhost:8000/api';
+        const UPDATE_INTERVAL = 5000; // 5 seconds
+        const MAX_TRADES_DISPLAY = 50; // Show last 50 trades in feed
+        
+        // Chart.js default config
+        Chart.defaults.color = '#888';
+        Chart.defaults.borderColor = 'rgba(96, 165, 250, 0.2)';
+        Chart.defaults.backgroundColor = 'rgba(96, 165, 250, 0.1)';
+        
+        // ========================================================================
+        // STATE
+        // ========================================================================
+        let apiConnected = false;
+        let trades = [];
+        let tradeHistory = []; // For timeline chart
+        let selectedSymbol = null;
+        let lastTradeTimestamp = null; // Track new trades
+        
+        // Chart instance
+        let timelineChart = null;
+        
+        // ========================================================================
+        // LOGGING
+        // ========================================================================
+        function log(message, data = {}) {
+            console.log(`[Execution] ${message}`, data);
+        }
+        
+        function logError(message, error) {
+            console.error(`[ERROR] [Execution] ${message}`, error);
+        }
+        
+        // ========================================================================
+        // DATA FETCHING
+        // ========================================================================
+        async function fetchTrades() {
+            try {
+                const response = await fetch(`${API_BASE}/dashboard/recent-trades`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                log('Trades received', { count: data.length });
+                
+                // Check for new trades
+                if (lastTradeTimestamp && data.length > 0) {
+                    const newTrades = data.filter(t => {
+                        const tradeTime = new Date(t.timestamp).getTime();
+                        return tradeTime > lastTradeTimestamp;
+                    });
+                    if (newTrades.length > 0) {
+                        log(`New trades detected: ${newTrades.length}`);
+                    }
+                }
+                
+                // Update last timestamp
+                if (data.length > 0) {
+                    const latestTrade = data[data.length - 1];
+                    lastTradeTimestamp = new Date(latestTrade.timestamp).getTime();
+                }
+                
+                trades = data;
+                tradeHistory = data.slice(-100); // Keep last 100 for timeline
+                
+                apiConnected = true;
+                updateBackendStatus();
+                updateDashboard();
+                
+                return data;
+            } catch (error) {
+                logError('Failed to fetch trades', error);
+                apiConnected = false;
+                updateBackendStatus();
+                return [];
+            }
+        }
+        
+        // ========================================================================
+        // UI UPDATES
+        // ========================================================================
+        function updateMetrics() {
+            if (trades.length === 0) {
+                document.getElementById('total-trades').textContent = '0';
+                document.getElementById('win-rate').textContent = '-';
+                document.getElementById('total-pnl').textContent = '-';
+                document.getElementById('avg-hold-time').textContent = '-';
+                document.getElementById('best-trade').textContent = '-';
+                document.getElementById('worst-trade').textContent = '-';
+                return;
+            }
+            
+            // Calculate metrics
+            const totalTrades = trades.length;
+            const winningTrades = trades.filter(t => (t.pnl || 0) > 0).length;
+            const winRate = (winningTrades / totalTrades) * 100;
+            const totalPnL = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+            const avgHoldTime = trades.reduce((sum, t) => sum + (t.hold_time_seconds || 0), 0) / totalTrades;
+            const bestTrade = Math.max(...trades.map(t => t.pnl || 0));
+            const worstTrade = Math.min(...trades.map(t => t.pnl || 0));
+            
+            // Update UI
+            document.getElementById('total-trades').textContent = totalTrades;
+            document.getElementById('win-rate').textContent = `${winRate.toFixed(1)}%`;
+            
+            const pnlEl = document.getElementById('total-pnl');
+            pnlEl.textContent = `$${totalPnL.toFixed(2)}`;
+            pnlEl.className = `metric-value ${totalPnL >= 0 ? 'positive' : 'negative'}`;
+            
+            document.getElementById('avg-hold-time').textContent = formatDuration(avgHoldTime);
+            
+            const bestEl = document.getElementById('best-trade');
+            bestEl.textContent = `$${bestTrade.toFixed(2)}`;
+            bestEl.className = 'metric-value positive';
+            
+            const worstEl = document.getElementById('worst-trade');
+            worstEl.textContent = `$${worstTrade.toFixed(2)}`;
+            worstEl.className = 'metric-value negative';
+        }
+        
+        function formatDuration(seconds) {
+            if (seconds < 60) return `${Math.round(seconds)}s`;
+            if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+            return `${Math.round(seconds / 3600)}h`;
+        }
+        
+        function updateTradeFeed() {
+            const container = document.getElementById('trade-feed-content');
+            const countEl = document.getElementById('feed-count');
+            
+            if (trades.length === 0) {
+                container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><div>No trades yet</div></div>';
+                countEl.textContent = '0 trades';
+                return;
+            }
+            
+            countEl.textContent = `${trades.length} trades`;
+            
+            // Show most recent trades first (reverse order)
+            const displayTrades = trades.slice(-MAX_TRADES_DISPLAY).reverse();
+            
+            container.innerHTML = '';
+            
+            displayTrades.forEach((trade, index) => {
+                const tradeEl = document.createElement('div');
+                tradeEl.className = 'trade-item';
+                
+                const pnl = trade.pnl || 0;
+                const pnlClass = pnl >= 0 ? 'positive' : 'negative';
+                const sideClass = trade.side === 'LONG' ? 'long' : 'short';
+                
+                const entryPrice = trade.entry_price || 0;
+                const exitPrice = trade.exit_price || 0;
+                const quantity = trade.quantity || 0;
+                const holdTime = formatDuration(trade.hold_time_seconds || 0);
+                
+                // Calculate execution metrics (estimated)
+                const priceDiff = Math.abs(exitPrice - entryPrice);
+                const slippage = priceDiff > 0 ? ((priceDiff / entryPrice) * 100).toFixed(3) : '0.000';
+                
+                tradeEl.innerHTML = `
+                    <div class="trade-header">
+                        <span class="trade-symbol">${trade.symbol}</span>
+                        <span class="trade-side ${sideClass}">${trade.side}</span>
+                    </div>
+                    <div class="trade-details">
+                        <div class="trade-detail">
+                            <span class="trade-detail-label">Entry:</span>
+                            <span class="trade-detail-value">$${entryPrice.toFixed(2)}</span>
+                        </div>
+                        <div class="trade-detail">
+                            <span class="trade-detail-label">Exit:</span>
+                            <span class="trade-detail-value">$${exitPrice.toFixed(2)}</span>
+                        </div>
+                        <div class="trade-detail">
+                            <span class="trade-detail-label">Quantity:</span>
+                            <span class="trade-detail-value">${quantity.toFixed(4)}</span>
+                        </div>
+                        <div class="trade-detail">
+                            <span class="trade-detail-label">P&L:</span>
+                            <span class="trade-detail-value ${pnlClass}">$${pnl.toFixed(2)}</span>
+                        </div>
+                        <div class="trade-detail">
+                            <span class="trade-detail-label">Hold Time:</span>
+                            <span class="trade-detail-value">${holdTime}</span>
+                        </div>
+                        <div class="trade-detail">
+                            <span class="trade-detail-label">Slippage:</span>
+                            <span class="trade-detail-value">${slippage}%</span>
+                        </div>
+                    </div>
+                    <div class="trade-time">${formatTimestamp(trade.timestamp)}</div>
+                `;
+                
+                container.appendChild(tradeEl);
+            });
+        }
+        
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
+            return date.toLocaleString();
+        }
+        
+        function updateSymbolList() {
+            const container = document.getElementById('symbol-list');
+            container.innerHTML = '';
+            
+            if (trades.length === 0) {
+                container.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">No trades yet</div>';
+                return;
+            }
+            
+            // Group trades by symbol
+            const symbolStats = {};
+            trades.forEach(trade => {
+                const symbol = trade.symbol;
+                if (!symbolStats[symbol]) {
+                    symbolStats[symbol] = {
+                        symbol: symbol,
+                        count: 0,
+                        totalPnl: 0,
+                        wins: 0
+                    };
+                }
+                symbolStats[symbol].count++;
+                symbolStats[symbol].totalPnl += (trade.pnl || 0);
+                if ((trade.pnl || 0) > 0) symbolStats[symbol].wins++;
+            });
+            
+            // Sort by total P&L
+            const sortedSymbols = Object.values(symbolStats).sort((a, b) => b.totalPnl - a.totalPnl);
+            
+            sortedSymbols.forEach(stat => {
+                const item = document.createElement('div');
+                item.className = `symbol-item ${selectedSymbol === stat.symbol ? 'selected' : ''}`;
+                item.addEventListener('click', () => {
+                    selectedSymbol = stat.symbol;
+                    updateSymbolList();
+                    updateTradeFeed();
+                });
+                
+                const winRate = (stat.wins / stat.count) * 100;
+                const pnlClass = stat.totalPnl >= 0 ? 'positive' : 'negative';
+                
+                item.innerHTML = `
+                    <div>
+                        <div class="symbol-name">${stat.symbol}</div>
+                        <div class="symbol-stats">
+                            <span class="symbol-stat">${stat.count} trades</span>
+                            <span class="symbol-stat">${winRate.toFixed(0)}% win</span>
+                        </div>
+                    </div>
+                    <div class="symbol-stat-value ${pnlClass}">
+                        $${stat.totalPnl.toFixed(2)}
+                    </div>
+                `;
+                
+                container.appendChild(item);
+            });
+        }
+        
+        function updateExecutionQuality() {
+            if (trades.length === 0) {
+                document.getElementById('avg-slippage').textContent = '-';
+                document.getElementById('avg-fill-time').textContent = '-';
+                document.getElementById('success-rate').textContent = '-';
+                return;
+            }
+            
+            // Calculate average slippage (estimated from price difference)
+            let totalSlippage = 0;
+            let slippageCount = 0;
+            
+            trades.forEach(trade => {
+                const entryPrice = trade.entry_price || 0;
+                const exitPrice = trade.exit_price || 0;
+                if (entryPrice > 0) {
+                    const priceDiff = Math.abs(exitPrice - entryPrice);
+                    const slippage = (priceDiff / entryPrice) * 100;
+                    totalSlippage += slippage;
+                    slippageCount++;
+                }
+            });
+            
+            const avgSlippage = slippageCount > 0 ? (totalSlippage / slippageCount) : 0;
+            
+            // Estimate fill time from hold time (simplified)
+            const avgFillTime = trades.reduce((sum, t) => sum + (t.hold_time_seconds || 0), 0) / trades.length;
+            
+            // Success rate = trades with positive P&L
+            const successRate = (trades.filter(t => (t.pnl || 0) > 0).length / trades.length) * 100;
+            
+            document.getElementById('avg-slippage').textContent = `${avgSlippage.toFixed(3)}%`;
+            document.getElementById('avg-fill-time').textContent = formatDuration(avgFillTime);
+            document.getElementById('success-rate').textContent = `${successRate.toFixed(1)}%`;
+        }
+        
+        function updateBackendStatus() {
+            const el = document.getElementById('backend-status');
+            el.className = `status-badge ${apiConnected ? 'connected' : 'disconnected'}`;
+            el.textContent = apiConnected ? 'Connected' : 'Disconnected';
+        }
+        
+        // ========================================================================
+        // CHART INITIALIZATION
+        // ========================================================================
+        function initCharts() {
+            const ctx = document.getElementById('timeline-chart').getContext('2d');
+            timelineChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Cumulative P&L',
+                        data: [],
+                        borderColor: '#60a5fa',
+                        backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 300
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            enabled: true,
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            grid: { color: 'rgba(96, 165, 250, 0.1)' },
+                            ticks: {
+                                color: '#888',
+                                callback: function(value) {
+                                    return '$' + value.toFixed(2);
+                                }
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                color: '#888',
+                                maxRotation: 45,
+                                minRotation: 0
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateTimelineChart() {
+            if (!timelineChart) {
+                return;
+            }
+            
+            if (tradeHistory.length === 0) {
+                timelineChart.data.labels = [];
+                timelineChart.data.datasets[0].data = [];
+                timelineChart.update();
+                return;
+            }
+            
+            // Sort by timestamp
+            const sorted = [...tradeHistory].sort((a, b) => {
+                return new Date(a.timestamp) - new Date(b.timestamp);
+            });
+            
+            // Calculate cumulative P&L
+            let cumulativePnL = 0;
+            const labels = [];
+            const data = [];
+            
+            // Check if all trades are within the same minute to decide time format
+            const firstTime = new Date(sorted[0].timestamp);
+            const lastTime = new Date(sorted[sorted.length - 1].timestamp);
+            const timeSpan = lastTime - firstTime;
+            const showSeconds = timeSpan < 60000; // If all trades within 1 minute, show seconds
+            
+            sorted.forEach((trade, index) => {
+                cumulativePnL += (trade.pnl || 0);
+                const date = new Date(trade.timestamp);
+                
+                // Format time label based on time span
+                let timeLabel;
+                if (showSeconds) {
+                    // Show seconds when trades happen quickly
+                    timeLabel = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')}`;
+                } else if (timeSpan < 3600000) {
+                    // Show minutes if within 1 hour
+                    timeLabel = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+                } else {
+                    // Show hours:minutes for longer spans
+                    timeLabel = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+                }
+                
+                // For very dense data, show every Nth label to avoid crowding
+                if (sorted.length > 50 && index % Math.ceil(sorted.length / 30) !== 0) {
+                    timeLabel = ''; // Empty label for intermediate points
+                }
+                
+                labels.push(timeLabel);
+                data.push(cumulativePnL);
+            });
+            
+            timelineChart.data.labels = labels;
+            timelineChart.data.datasets[0].data = data;
+            
+            // Update chart with animation for better visibility
+            timelineChart.update('active');
+        }
+        
+        // ========================================================================
+        // DASHBOARD UPDATE
+        // ========================================================================
+        function updateDashboard() {
+            updateMetrics();
+            updateTradeFeed();
+            updateSymbolList();
+            updateExecutionQuality();
+            updateTimelineChart();
+        }
+        
+        // Setup help system
+        if (window.helpSystem) {
+            const helpBtn = document.getElementById('help-btn');
+            if (helpBtn) {
+                helpBtn.addEventListener('click', () => {
+                    window.helpSystem.showHelpModal(`
+                        <h3 style="color: #60a5fa; margin-bottom: 15px;">Trade Execution Monitor Help</h3>
+                        <div style="line-height: 1.8;">
+                            <h4 style="color: #60a5fa; margin-top: 20px; margin-bottom: 10px;">Overview</h4>
+                            <p>This dashboard shows real-time trade execution data, including live trade feed, execution metrics, and trade timeline.</p>
+                            
+                            <h4 style="color: #60a5fa; margin-top: 20px; margin-bottom: 10px;">Live Trade Feed</h4>
+                            <p>The feed shows trades as they execute in real-time, including:</p>
+                            <ul style="margin-left: 20px; margin-top: 10px;">
+                                <li>Entry and exit prices</li>
+                                <li>Trade direction (LONG/SHORT)</li>
+                                <li>P&L for each trade</li>
+                                <li>Hold time and slippage</li>
+                            </ul>
+                            
+                            <h4 style="color: #60a5fa; margin-top: 20px; margin-bottom: 10px;">Execution Metrics</h4>
+                            <ul style="margin-left: 20px; margin-top: 10px;">
+                                <li><strong>Total Trades:</strong> Number of executed trades</li>
+                                <li><strong>Success Rate:</strong> Percentage of profitable trades</li>
+                                <li><strong>Avg Slippage:</strong> Average price slippage on execution</li>
+                                <li><strong>Avg Hold Time:</strong> Average time positions are held</li>
+                            </ul>
+                            
+                            <h4 style="color: #60a5fa; margin-top: 20px; margin-bottom: 10px;">Trade Timeline</h4>
+                            <p>The chart shows a timeline of all trades, helping you visualize trading activity over time.</p>
+                            
+                            <h4 style="color: #60a5fa; margin-top: 20px; margin-bottom: 10px;">Data Updates</h4>
+                            <p>Trade feed and metrics update automatically in real-time via WebSocket connection.</p>
+                        </div>
+                    `);
+                });
+            }
+        }
+        
+        // ========================================================================
+        // INITIALIZATION
+        // ========================================================================
+        async function init() {
+            log('🚀 Trade Execution Monitor - Initializing...');
+            
+            // Initialize charts
+            initCharts();
+            
+            // Initial data fetch
+            await fetchTrades();
+            
+            // Auto-refresh
+            setInterval(fetchTrades, UPDATE_INTERVAL);
+            
+            log('✅ Trade Execution Monitor initialized');
+        }
+        
+        // Start when page loads
+        init();
+    </script>
+</body>
+</html>
+
+
