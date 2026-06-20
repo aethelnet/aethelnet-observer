@@ -3,6 +3,88 @@
  * Fully responsive 2D physics-based graph rendering.
  */
 
+class AethelAudio {
+    constructor() {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.lastTimeMachinePlay = 0;
+    }
+    
+    playPing(frequency=800, type='sine', duration=0.5) {
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(frequency, this.ctx.currentTime);
+        
+        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+        
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + duration);
+    }
+
+    playFusion() {
+        this.playPing(600, 'triangle', 1.0);
+        setTimeout(() => this.playPing(1200, 'sine', 1.5), 100);
+    }
+    
+    playTimeMachine() {
+        const now = Date.now();
+        if (now - this.lastTimeMachinePlay < 400) return; // Debounce slider drag
+        this.lastTimeMachinePlay = now;
+        
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(100, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 1.0);
+        
+        gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 1.0);
+        
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 1.0);
+    }
+    
+    playSpider() {
+        this.playPing(1800, 'square', 0.1);
+        setTimeout(() => this.playPing(2000, 'sine', 0.1), 100);
+    }
+    
+    playForkReality() {
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        
+        // Screeching drop
+        osc.frequency.setValueAtTime(2000, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(10, this.ctx.currentTime + 1.5);
+        
+        gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 2.0);
+        
+        // Add sub-bass
+        const osc2 = this.ctx.createOscillator();
+        osc2.type = 'square';
+        osc2.frequency.setValueAtTime(60, this.ctx.currentTime);
+        osc2.frequency.linearRampToValueAtTime(20, this.ctx.currentTime + 1.5);
+        osc2.connect(gain);
+        osc2.start();
+        osc2.stop(this.ctx.currentTime + 2.0);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 2.0);
+    }
+}
+
 class SwarmClient {
     constructor() {
         const host = window.location.hostname || 'localhost';
@@ -35,6 +117,9 @@ class SwarmClient {
         this.links = [];
         this.selectedNodeId = null;
         
+        // Subgraph (V1) State
+        this.currentSubgraph = 'root';
+        
         // Pan & Zoom state
         this.panX = 0;
         this.panY = 0;
@@ -66,6 +151,14 @@ class SwarmClient {
             options: []
         };
         
+        // Time Machine State
+        this.timeMachineHistory = [];
+        this.isTimeMachineActive = false;
+        this.maxHistoryFrames = 200; // Store last 200 frames
+        
+        // Audio Synthesizer
+        try { this.audio = new AethelAudio(); } catch(e) { this.audio = null; }
+        
         this.init();
     }
 
@@ -85,10 +178,26 @@ class SwarmClient {
         };
     }
 
+    announce(message) {
+        const announcer = document.getElementById('a11y-announcer');
+        if (announcer) {
+            announcer.textContent = message;
+        }
+    }
+
     init() {
         this.log('Initializing Aethelnet Unit...', 'info');
         this.setupCanvas();
         this.connect();
+        
+        if (this.canvasContainer) {
+            this.canvasContainer.addEventListener('focus', () => {
+                this.announce('Canvas focused. Use Arrow keys to pan or navigate, Enter to select nodes.');
+            });
+            this.canvasContainer.addEventListener('blur', () => {
+                this.announce('Canvas unfocused.');
+            });
+        }
         
         const chkGossip = document.getElementById('chk-gossip');
         if (chkGossip) {
@@ -197,15 +306,28 @@ class SwarmClient {
             }
         });
 
-        // Live-Sync Auto-Saving Node Content
-        const contentArea = document.getElementById('inspector-content');
-        if (contentArea) {
-            let autoSaveTimer;
-            contentArea.addEventListener('input', () => {
+        // Live-Sync Auto-Saving Node Content & Prisma Config
+        const autoSaveElements = [
+            document.getElementById('inspector-content'),
+            document.getElementById('prisma-provider'),
+            document.getElementById('prisma-model'),
+            document.getElementById('prisma-apikey'),
+            document.getElementById('prisma-prompt')
+        ];
+
+        let autoSaveTimer;
+        autoSaveElements.forEach(el => {
+            if (!el) return;
+            el.addEventListener('input', () => {
                 clearTimeout(autoSaveTimer);
                 autoSaveTimer = setTimeout(async () => {
                     if (!this.selectedNodeId) return;
-                    const newContent = contentArea.value;
+                    
+                    const newContent = document.getElementById('inspector-content').value;
+                    const apiProvider = document.getElementById('prisma-provider').value || null;
+                    const customModel = document.getElementById('prisma-model').value || null;
+                    const apiKey = document.getElementById('prisma-apikey').value || null;
+                    const customPrompt = document.getElementById('prisma-prompt').value || null;
                     
                     try {
                         const apiHost = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
@@ -214,7 +336,11 @@ class SwarmClient {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 id: this.selectedNodeId,
-                                text_content: newContent
+                                text_content: newContent,
+                                api_provider: apiProvider,
+                                api_key: apiKey,
+                                custom_model: customModel,
+                                custom_prompt: customPrompt
                             })
                         });
                         
@@ -224,9 +350,9 @@ class SwarmClient {
                             node.full_data.text_content = newContent;
                         }
                     } catch (err) {}
-                }, 800); // 800ms debounce
+                }, 500);
             });
-        }
+        });
 
         // Bind Spider Hunt Controller
         const btnDeploySpider = document.getElementById('btn-deploy-spider');
@@ -372,7 +498,8 @@ class SwarmClient {
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                     bot_name: botName,
-                                    observation: actualQuery
+                                    observation: actualQuery,
+                                    parent_id: this.currentSubgraph
                                 })
                             });
                             e.target.value = ''; // Clear after injection
@@ -390,7 +517,31 @@ class SwarmClient {
             // Hotkeys for Node Actions
             if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
                 if (e.key === ' ' || e.key === 'Enter') {
-                    if (this.selectedNodeId) this.diveIntoNode(this.selectedNodeId);
+                    if (this.selectedNodeId) {
+                        this.diveIn(this.selectedNodeId);
+                    } else if (document.activeElement === this.canvasContainer || document.activeElement === document.body) {
+                        if (this.nodes.length > 0) {
+                            const rect = this.canvas.getBoundingClientRect();
+                            const centerX = rect.width / 2;
+                            const centerY = rect.height / 2;
+                            const graphX = (centerX - this.panX) / this.zoom;
+                            const graphY = (centerY - this.panY) / this.zoom;
+                            let bestNode = null;
+                            let minDist = Infinity;
+                            for (const n of this.nodes) {
+                                const iso = this.toIso(n.x, n.y, 0);
+                                const dist = Math.hypot(iso.x - graphX, iso.y - graphY);
+                                if (dist < minDist) {
+                                    minDist = dist;
+                                    bestNode = n;
+                                }
+                            }
+                            if (bestNode) {
+                                this.selectedNodes = new Set([bestNode.id]);
+                                this.inspectNode(bestNode.id);
+                            }
+                        }
+                    }
                     e.preventDefault();
                     return;
                 }
@@ -440,6 +591,7 @@ class SwarmClient {
                     return;
                 }
                 if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                    if (document.activeElement !== this.canvasContainer && document.activeElement !== document.body) return;
                     if (this.selectedNodeId) {
                         const currentNode = this.nodes.find(n => n.id === this.selectedNodeId);
                         if (currentNode) {
@@ -476,6 +628,13 @@ class SwarmClient {
                                 }
                             }
                         }
+                    } else {
+                        const panSpeed = 50 / this.zoom;
+                        if (e.key === 'ArrowUp') this.panY += panSpeed;
+                        if (e.key === 'ArrowDown') this.panY -= panSpeed;
+                        if (e.key === 'ArrowLeft') this.panX += panSpeed;
+                        if (e.key === 'ArrowRight') this.panX -= panSpeed;
+                        this.announce(`Canvas panned.`);
                     }
                     e.preventDefault();
                     return;
@@ -499,10 +658,290 @@ class SwarmClient {
                     return;
                 }
             }
-
+        });
         
+        // Initialize Command Palette
+        this.initCommandPalette();
+
+        // Initialize Time Machine
+        this.initTimeMachine();
+
+        // Initialize Sentiment Orb
+        this.initSentimentOrb();
+
         // Start animation frame loop
         requestAnimationFrame(() => this.tick());
+    }
+
+    initCommandPalette() {
+        const palette = document.getElementById('command-palette');
+        const input = document.getElementById('cmd-input');
+        const resultsContainer = document.getElementById('cmd-results');
+        if (!palette || !input || !resultsContainer) return;
+
+        let selectedIndex = 0;
+        let currentOptions = [];
+
+        const defaultCommands = [
+            { id: 'purge', label: '/purge', hint: 'Destroy all nodes and reset graph', action: () => { this.log('Purging graph...', 'info'); this.nodes = []; this.links = []; } },
+            { id: 'pin', label: '/pin', hint: 'Toggle pin on selected node', action: () => { if(this.selectedNodeId) { const n = this.nodes.find(n => n.id === this.selectedNodeId); if(n) n.is_pinned = !n.is_pinned; } } },
+            { id: 'spider', label: '/spider', hint: 'Deploy ArXiv spider (type query after)', action: (args) => { 
+                if(args) { 
+                    this.log(`Deploying spider for: ${args}`, "info"); 
+                    const apiHost = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
+                    fetch(`http://${apiHost}:8001/api/lgnn/universal_ingest`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ bot_name: "AethelSpider_ArXiv", observation: args, parent_id: this.currentSubgraph })
+                    });
+                } 
+            } },
+            { id: 'workbench', label: '/workbench', hint: 'Toggle Workbench Mode', action: () => { document.dispatchEvent(new KeyboardEvent('keydown', {key: 'w'})); } },
+            { id: 'exec', label: '/exec', hint: 'Run selected node as Serverless API (NaaS) - Usage: /exec param1=val1', action: async (args) => {
+                if(!this.selectedNodeId) {
+                    this.log('No node selected for execution.', 'error');
+                    return;
+                }
+                this.log(`Executing Serverless Node [${this.selectedNodeId}]...`, 'info');
+                if (this.trackBehavior) this.trackBehavior('exec_naas', this.selectedNodeId);
+                try {
+                    const apiHost = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
+                    let inputs = {};
+                    if (args) {
+                        args.split(' ').forEach(pair => {
+                            const [k, v] = pair.split('=');
+                            if (k && v !== undefined) inputs[k] = isNaN(v) ? v : parseFloat(v);
+                        });
+                    }
+                    const res = await fetch(`http://${apiHost}:8001/api/lgnn/naas/${encodeURIComponent(this.selectedNodeId)}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ inputs })
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        this.log(`[NaaS Result] ${data.result}`, 'success');
+                    } else {
+                        this.log(`[NaaS Error] ${data.message}`, 'error');
+                    }
+                } catch(e) {
+                    this.log(`Execution failed: ${e.message}`, 'error');
+                }
+            } },
+        ];
+
+        const togglePalette = (show) => {
+            if (show) {
+                palette.classList.remove('hidden');
+                input.value = '';
+                updateResults('');
+                setTimeout(() => input.focus(), 50);
+            } else {
+                palette.classList.add('hidden');
+                input.blur();
+                this.canvas.focus();
+            }
+        };
+
+        const updateResults = (query) => {
+            resultsContainer.innerHTML = '';
+            selectedIndex = 0;
+            currentOptions = [];
+
+            if (query.startsWith('/')) {
+                currentOptions = defaultCommands.filter(c => c.label.startsWith(query.split(' ')[0]));
+            } else if (query.length > 0) {
+                // Search nodes
+                const queryLower = query.toLowerCase();
+                const matchedNodes = this.nodes.filter(n => n.label.toLowerCase().includes(queryLower) || (n.full_data && n.full_data.text_content && n.full_data.text_content.toLowerCase().includes(queryLower))).slice(0, 5);
+                currentOptions = matchedNodes.map(n => ({
+                    id: n.id,
+                    label: n.label,
+                    hint: 'Focus Node',
+                    action: () => {
+                        this.selectedNodeId = n.id;
+                        this.selectedNodes = new Set([n.id]);
+                        const iso = this.toIso(n.x, n.y, 0);
+                        const rect = this.canvas.getBoundingClientRect();
+                        this.panX = rect.width / 2 - iso.x * this.zoom;
+                        this.panY = rect.height / 2 - iso.y * this.zoom;
+                        if(this.inspectNode) this.inspectNode(n.id);
+                        togglePalette(false);
+                    }
+                }));
+            } else {
+                currentOptions = defaultCommands;
+            }
+
+            if (currentOptions.length === 0) {
+                resultsContainer.innerHTML = '<div class="cmd-result-item"><span style="color:#888;">No results found.</span></div>';
+            } else {
+                currentOptions.forEach((opt, idx) => {
+                    const el = document.createElement('div');
+                    el.className = `cmd-result-item ${idx === 0 ? 'selected' : ''}`;
+                    el.innerHTML = `<span>${opt.label}</span><span class="cmd-hint">${opt.hint}</span>`;
+                    el.addEventListener('click', () => {
+                        const args = input.value.split(' ').slice(1).join(' ');
+                        opt.action(args);
+                        if (opt.id !== 'spider') togglePalette(false);
+                    });
+                    el.addEventListener('mouseenter', () => {
+                        document.querySelectorAll('.cmd-result-item').forEach(i => i.classList.remove('selected'));
+                        el.classList.add('selected');
+                        selectedIndex = idx;
+                    });
+                    resultsContainer.appendChild(el);
+                });
+            }
+        };
+
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                togglePalette(palette.classList.contains('hidden'));
+            } else if (!palette.classList.contains('hidden')) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    togglePalette(false);
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectedIndex = (selectedIndex + 1) % currentOptions.length;
+                    renderSelection();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectedIndex = (selectedIndex - 1 + currentOptions.length) % currentOptions.length;
+                    renderSelection();
+                } else if (e.key === 'Enter' && currentOptions.length > 0) {
+                    e.preventDefault();
+                    const args = input.value.split(' ').slice(1).join(' ');
+                    currentOptions[selectedIndex].action(args);
+                    if (currentOptions[selectedIndex].id !== 'spider') {
+                        togglePalette(false);
+                    } else if (args) {
+                        togglePalette(false);
+                    }
+                }
+            }
+        });
+
+        input.addEventListener('input', (e) => updateResults(e.target.value));
+
+        const renderSelection = () => {
+            const items = resultsContainer.querySelectorAll('.cmd-result-item');
+            items.forEach((item, idx) => {
+                item.classList.toggle('selected', idx === selectedIndex);
+                if (idx === selectedIndex) item.scrollIntoView({ block: 'nearest' });
+            });
+        };
+        
+        // Close when clicking outside
+        palette.querySelector('.cmd-backdrop').addEventListener('click', () => togglePalette(false));
+    }
+
+    initSentimentOrb() {
+        this.orbCanvas = document.getElementById('orb-canvas');
+        if (!this.orbCanvas) return;
+        this.orbCtx = this.orbCanvas.getContext('2d');
+        
+        // Generate points for a sphere
+        this.orbPoints = [];
+        const numLat = 10;
+        const numLon = 15;
+        for (let i = 0; i <= numLat; i++) {
+            const lat = Math.PI * (-0.5 + (i / numLat));
+            for (let j = 0; j <= numLon; j++) {
+                const lon = 2 * Math.PI * (j / numLon);
+                const x = Math.cos(lat) * Math.cos(lon);
+                const y = Math.sin(lat);
+                const z = Math.cos(lat) * Math.sin(lon);
+                this.orbPoints.push({x, y, z});
+            }
+        }
+        this.orbRotation = { x: 0, y: 0 };
+    }
+
+    initTimeMachine() {
+        const slider = document.getElementById('tm-slider');
+        const container = document.getElementById('time-machine-container');
+        const timestamp = document.getElementById('tm-timestamp');
+        const btnFork = document.getElementById('btn-fork-reality');
+        if (!slider || !container) return;
+
+        slider.addEventListener('input', (e) => {
+            const idx = parseInt(e.target.value);
+            if (this.timeMachineHistory.length === 0) return;
+            
+            if (idx === this.timeMachineHistory.length - 1) {
+                // Back to live
+                this.isTimeMachineActive = false;
+                container.classList.remove('rewinding');
+                timestamp.textContent = 'LIVE';
+                timestamp.classList.remove('past');
+                btnFork.classList.add('hidden');
+                
+                // Restore latest
+                const latest = this.timeMachineHistory[this.timeMachineHistory.length - 1];
+                this.updateGraph(latest.graph.nodes || [], latest.graph.links || []);
+            } else {
+                // Rewinding
+                this.isTimeMachineActive = true;
+                if (this.audio) this.audio.playTimeMachine();
+                container.classList.add('rewinding');
+                btnFork.classList.remove('hidden');
+                
+                const frame = this.timeMachineHistory[idx];
+                const timeStr = new Date(frame.timestamp).toLocaleTimeString();
+                timestamp.textContent = `T-${this.timeMachineHistory.length - 1 - idx} (${timeStr})`;
+                timestamp.classList.add('past');
+                
+                // Re-render from history
+                this.updateGraph(frame.graph.nodes || [], frame.graph.links || []);
+            }
+        });
+
+        btnFork.addEventListener('click', () => {
+            if (this.isTimeMachineActive) {
+                if (this.audio) this.audio.playForkReality();
+                
+                // Visual Glitch Tear
+                document.body.style.transition = 'filter 0.1s';
+                document.body.style.filter = 'invert(100%) hue-rotate(90deg) contrast(200%) blur(2px)';
+                
+                // Throw all unpinned nodes into the abyss
+                for (const n of this.nodes) {
+                    if (!n.is_pinned && !n.is_leader) {
+                        n.vy = 80 + Math.random() * 50; 
+                        n.vx = (Math.random() - 0.5) * 40;
+                    }
+                }
+                
+                setTimeout(() => {
+                    document.body.style.transition = 'filter 1.5s ease-out';
+                    document.body.style.filter = 'none';
+                }, 300);
+
+                const idx = parseInt(slider.value);
+                const frame = this.timeMachineHistory[idx];
+                this.log(`Reality Forked at T-${this.timeMachineHistory.length - 1 - idx}! New baseline established.`, 'success');
+                
+                // Delay actual network sync slightly to let the physics fall happen
+                setTimeout(() => {
+                    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                        this.socket.send(JSON.stringify({ 
+                            type: 'fork_reality', 
+                            timestamp: frame.timestamp,
+                            nodes: frame.graph.nodes,
+                            links: frame.graph.links
+                        }));
+                    }
+                    slider.dispatchEvent(new Event('input'));
+                }, 800);
+                
+                // Truncate future history
+                this.timeMachineHistory = this.timeMachineHistory.slice(0, idx + 1);
+                slider.max = this.timeMachineHistory.length - 1;
+                slider.value = slider.max;
+            }
+        });
     }
 
     setupCanvas() {
@@ -561,6 +1000,14 @@ class SwarmClient {
     onMessage(event) {
         try {
             const data = JSON.parse(event.data);
+            if (data.type === 'consensus') {
+                const elConsensus = document.getElementById('consensus-text');
+                if (elConsensus) {
+                    elConsensus.textContent = data.text;
+                    elConsensus.scrollTop = elConsensus.scrollHeight;
+                }
+                return;
+            }
             if (data.type === 'telemetry') {
                 if (this.elNodes) this.elNodes.textContent = data.nodes;
                 if (this.elBridges) this.elBridges.textContent = data.bridges;
@@ -590,7 +1037,34 @@ class SwarmClient {
                 }
 
                 if (data.graph) {
-                    this.updateGraph(data.graph.nodes || [], data.graph.links || []);
+                    // Save to Time Machine History
+                    this.timeMachineHistory.push({
+                        timestamp: Date.now(),
+                        graph: {
+                            // Deep copy nodes to freeze state
+                            nodes: (data.graph.nodes || []).map(n => ({...n, full_data: {...(n.full_data || {})}})),
+                            links: [...(data.graph.links || [])]
+                        }
+                    });
+                    
+                    if (this.timeMachineHistory.length > this.maxHistoryFrames) {
+                        this.timeMachineHistory.shift();
+                    }
+                    
+                    // Update slider bounds
+                    const slider = document.getElementById('tm-slider');
+                    if (slider) {
+                        const wasAtMax = parseInt(slider.value) === parseInt(slider.max) || parseInt(slider.max) === 0;
+                        slider.max = this.timeMachineHistory.length - 1;
+                        if (wasAtMax || !this.isTimeMachineActive) {
+                            slider.value = slider.max;
+                            slider.disabled = false;
+                        }
+                    }
+
+                    if (!this.isTimeMachineActive) {
+                        this.updateGraph(data.graph.nodes || [], data.graph.links || []);
+                    }
                 }
             }
         } catch (e) {
@@ -615,8 +1089,12 @@ class SwarmClient {
     }
 
     updateGraph(newNodes, newLinks) {
-        // Ignore global updates if we are in a sub-swarm
-        if (this.swarmHistory && this.swarmHistory.length > 0) return;
+        // If we are in a subgraph, filter incoming global websocket updates
+        if (this.currentSubgraph && this.currentSubgraph !== 'root') {
+            newNodes = newNodes.filter(nn => nn.parent_id === this.currentSubgraph);
+            const nodeIds = new Set(newNodes.map(nn => nn.id));
+            newLinks = newLinks.filter(nl => nodeIds.has(nl.source) && nodeIds.has(nl.target));
+        }
         
         // Keep positions of existing nodes, spawn new ones in center
         const width = this.canvas.width;
@@ -624,6 +1102,9 @@ class SwarmClient {
         
         const nodeMap = new Map(this.nodes.map(n => [n.id, n]));
         
+        const ghostNodes = this.nodes.filter(n => n.is_ghost || n.id.startsWith("Pinned_"));
+        const ghostLinks = this.links.filter(l => l.is_ghost || (l.target && l.target.startsWith("Pinned_")));
+
         this.nodes = newNodes.map(nn => {
             const existing = nodeMap.get(nn.id);
             if (existing) {
@@ -632,6 +1113,7 @@ class SwarmClient {
                 existing.is_leader = nn.is_leader || false;
                 existing.centrality = nn.centrality || 0.0;
                 existing.label = nn.label || nn.id;
+                existing.parent_id = nn.parent_id || 'root';
                 if (!existing.full_data) {
                     existing.full_data = {
                         text_content: nn.text_content || '',
@@ -651,6 +1133,7 @@ class SwarmClient {
                 activation: nn.activation,
                 is_leader: nn.is_leader || false,
                 centrality: nn.centrality || 0.0,
+                parent_id: nn.parent_id || 'root',
                 x: width / 2 + (Math.random() - 0.5) * 1000,
                 y: height / 2 + (Math.random() - 0.5) * 1000,
                 vx: (Math.random() - 0.5) * 10.0,
@@ -662,13 +1145,13 @@ class SwarmClient {
                     parent_id: nn.parent_id || 'root'
                 }
             };
-        });
+        }).concat(ghostNodes);
         
         this.links = newLinks.map(nl => ({
             source: nl.source,
             target: nl.target,
             weight: nl.weight
-        }));
+        })).concat(ghostLinks);
     }
 
     tick(timestamp) {
@@ -678,10 +1161,11 @@ class SwarmClient {
             this.perfScale = 1.0;
         }
         const now = timestamp || performance.now();
-        const dt = now - this.lastFrameTime;
+        const rawDt = now - this.lastFrameTime;
+        const dt = Math.min(rawDt, 50); // Cap delta time to prevent explosive physics/rotation
         this.lastFrameTime = now;
         
-        const currentFps = 1000 / Math.max(dt, 1);
+        const currentFps = 1000 / Math.max(rawDt, 1);
         if (!this.avgFps) this.avgFps = currentFps;
         this.avgFps = this.avgFps * 0.9 + currentFps * 0.1;
         
@@ -691,6 +1175,49 @@ class SwarmClient {
         } else if (this.avgFps > 30) {
             this.perfScale = Math.min(1.0, this.perfScale + 0.01);
         }
+        
+        // --- Ghost Nodes V2 Logic ---
+        // Occasionally spawn ephemeral thoughts
+        const stateVal = (this.compState && parseFloat(this.compState.getAttribute('value'))) || 0.5;
+        const volatility = Math.max(0.1, Math.min(2.0, stateVal));
+        if (this.nodes.length > 0 && Math.random() < 0.04 * volatility * (this.avgFps > 30 ? 1 : 0)) {
+            const realNodes = this.nodes.filter(n => !n.is_ghost && !n.id.startsWith('Obs_'));
+            if (realNodes.length > 0) {
+                const parent = realNodes[Math.floor(Math.random() * realNodes.length)];
+                const ghostId = "Ghost_" + Math.random().toString(36).substr(2, 6);
+                this.nodes.push({
+                    id: ghostId,
+                    is_ghost: true,
+                    life: 1.0,
+                    label: "Eval_" + Math.floor(Math.random()*1000),
+                    x: parent.x + (Math.random() - 0.5) * 150,
+                    y: parent.y + (Math.random() - 0.5) * 150,
+                    vx: 0, vy: 0,
+                    full_data: { text_content: "Evaluating alternative hypothesis..." }
+                });
+                this.links.push({
+                    source: parent.id,
+                    target: ghostId,
+                    weight: 0.1,
+                    is_ghost: true
+                });
+            }
+        }
+
+        // Decay Ghost Nodes
+        this.nodes = this.nodes.filter(n => {
+            if (n.is_ghost) {
+                n.life -= dt * 0.0003;
+                return n.life > 0;
+            }
+            return true;
+        });
+        this.links = this.links.filter(l => {
+            if (l.is_ghost) {
+                return this.nodes.some(n => n.id === l.target);
+            }
+            return true;
+        });
         
         const fpsCounter = document.getElementById('fps-counter');
         if (fpsCounter) {
@@ -703,7 +1230,91 @@ class SwarmClient {
 
         this.physicsUpdate();
         this.draw();
+        this.drawSentimentOrb(dt);
         requestAnimationFrame((ts) => this.tick(ts));
+    }
+
+    drawSentimentOrb(dt) {
+        if (!this.orbCanvas || !this.orbCtx) return;
+        
+        const ctx = this.orbCtx;
+        const width = this.orbCanvas.width;
+        const height = this.orbCanvas.height;
+        const radius = width * 0.35;
+        
+        ctx.clearRect(0, 0, width, height);
+        
+        // Determine market state
+        const stateVal = (this.compState && parseFloat(this.compState.getAttribute('value'))) || 0.5;
+        const isPanic = stateVal > 0.8;
+        const volatility = Math.max(0.1, Math.min(2.0, stateVal));
+        
+        // Update rotation
+        const baseSpeed = 0.0008;
+        this.orbRotation.x += baseSpeed * volatility * dt;
+        this.orbRotation.y += baseSpeed * volatility * 1.5 * dt;
+        
+        const cx = Math.cos(this.orbRotation.x);
+        const sx = Math.sin(this.orbRotation.x);
+        const cy = Math.cos(this.orbRotation.y);
+        const sy = Math.sin(this.orbRotation.y);
+        
+        ctx.save();
+        ctx.translate(width / 2, height / 2);
+        
+        if (isPanic) {
+            // Glitch effect
+            ctx.translate((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2);
+            document.getElementById('orb-label').style.color = 'var(--accent-red)';
+            document.getElementById('orb-label').classList.add('tm-blink');
+        } else {
+            document.getElementById('orb-label').style.color = 'var(--text-color)';
+            document.getElementById('orb-label').classList.remove('tm-blink');
+        }
+        
+        // Draw points
+        ctx.beginPath();
+        for (const p of this.orbPoints) {
+            // Rotate around X
+            const y1 = p.y * cx - p.z * sx;
+            const z1 = p.y * sx + p.z * cx;
+            // Rotate around Y
+            const x2 = p.x * cy + z1 * sy;
+            const z2 = -p.x * sy + z1 * cy;
+            const y2 = y1;
+            
+            // 2D projection
+            const scale = 200 / (200 + z2 * radius);
+            const px = x2 * radius * scale;
+            const py = y2 * radius * scale;
+            
+            // Only draw front-facing points or make them faint
+            if (z2 > -0.2) {
+                ctx.moveTo(px, py);
+                ctx.arc(px, py, 1.5 * scale, 0, Math.PI * 2);
+            }
+        }
+        
+        // Styling
+        if (isPanic) {
+            ctx.fillStyle = '#E03C31'; // Bauhaus Red
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'rgba(224, 60, 49, 0.8)';
+            
+            // Glow ring
+            ctx.beginPath();
+            ctx.arc(0, 0, radius * 1.2, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(224, 60, 49, 0.4)';
+            ctx.lineWidth = 2 + Math.random() * 2;
+            ctx.stroke();
+        } else {
+            ctx.fillStyle = '#005096'; // Bauhaus Blue
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = 'rgba(0, 80, 150, 0.5)';
+        }
+        
+        ctx.fill();
+        ctx.restore();
     }
 
     physicsUpdate() {
@@ -737,6 +1348,8 @@ class SwarmClient {
         const cellSize = separationDist;
         const grid = new Map();
         for (const n of this.nodes) {
+            // Subgraph check
+            if ((n.parent_id || 'root') !== this.currentSubgraph) continue;
             // Skip hidden nodes from physics calculations
             if (!this.showGossip && n.id.startsWith("Obs_")) continue;
             if (!this.showNetwork && n.id.startsWith("Net_")) continue;
@@ -751,6 +1364,9 @@ class SwarmClient {
         
         for (let i = 0; i < this.nodes.length; i++) {
             const n = this.nodes[i];
+            
+            // Subgraph check
+            if ((n.parent_id || 'root') !== this.currentSubgraph) continue;
             
             // Skip hidden nodes
             if (!this.showGossip && n.id.startsWith("Obs_")) continue;
@@ -881,6 +1497,7 @@ class SwarmClient {
                 let cmX = 0, cmY = 0;
                 let visibleCount = 0;
                 for (const n of this.nodes) {
+                    if ((n.parent_id || 'root') !== this.currentSubgraph) continue;
                     if (!this.showGossip && n.id.startsWith("Obs_")) continue;
                     cmX += n.x;
                     cmY += n.y;
@@ -974,6 +1591,7 @@ class SwarmClient {
         
         let clickedNode = null;
         for (const n of this.nodes) {
+            if ((n.parent_id || 'root') !== this.currentSubgraph) continue;
             if (!this.showGossip && n.id.startsWith("Obs_")) continue;
             if (!this.showNetwork && n.id.startsWith("Net_")) continue;
             if (!this.showStream && n.id.startsWith("Stream_")) continue;
@@ -1023,6 +1641,20 @@ class SwarmClient {
             this.draggedNode = clickedNode;
             this.isDraggingNode = true;
             clickedNode.is_pinned = true; // Pin the reality anchor
+            
+            // Materialize Ghost Nodes if clicked
+            if (clickedNode.is_ghost) {
+                const oldId = clickedNode.id;
+                clickedNode.is_ghost = false;
+                clickedNode.id = oldId.replace("Ghost_", "Pinned_");
+                this.links.forEach(l => {
+                    if (l.target === oldId) {
+                        l.target = clickedNode.id;
+                        l.is_ghost = false;
+                    }
+                });
+                this.log(`Ghost Node materialized into reality as [${clickedNode.id}]!`, 'success');
+            }
             
             // Calculate drag offset to prevent coordinate snapping
             const zOffset = clickedNode.is_leader ? 300 : (clickedNode.id.startsWith("Obs_") ? -200 : 0);
@@ -1191,93 +1823,21 @@ class SwarmClient {
         this.panY = mouseY - graphY * this.zoom;
     }
 
-    diveIntoNode(nodeId) {
-        // Prevent multiple dives
-        if (this.isDiving) return;
-        this.isDiving = true;
-        
-        this.log(`Initiating fractal dive into [${nodeId}]...`, 'info');
-        
-        // Save history for zooming out
-        this.swarmHistory.push({
-            nodes: [...this.nodes],
-            links: [...this.links],
-            selectedNodeId: this.selectedNodeId
-        });
-        
-        // Visual Flash
-        const flash = document.createElement('div');
-        flash.style.position = 'absolute';
-        flash.style.top = '0'; flash.style.left = '0';
-        flash.style.width = '100vw'; flash.style.height = '100vh';
-        flash.style.backgroundColor = '#fff';
-        flash.style.zIndex = '9999';
-        flash.style.transition = 'opacity 1s ease-out';
-        document.body.appendChild(flash);
-        
-        // Show Zoom Out Button
-        const btnZoomOut = document.getElementById('btn-zoomout');
-        if (btnZoomOut) btnZoomOut.style.display = 'block';
-        
-        setTimeout(() => {
-            // Reset state
-            this.zoom = 0.5;
-            this.panX = this.canvas.width / 2;
-            this.panY = this.canvas.height / 2;
-            
-            // Generate fractal children for prototype
-            const children = [];
-            const links = [];
-            for (let i=0; i<15; i++) {
-                const childId = `${nodeId}_frag_${i}`;
-                children.push({
-                    id: childId,
-                    activation: Math.random(),
-                    centrality: Math.random() * 0.5,
-                    x: this.canvas.width / 2 + (Math.random() - 0.5) * 400,
-                    y: this.canvas.height / 2 + (Math.random() - 0.5) * 400,
-                    vx: (Math.random() - 0.5) * 15.0,
-                    vy: (Math.random() - 0.5) * 15.0
-                });
-                if (i > 0) {
-                    links.push({
-                        source: children[Math.floor(Math.random() * i)].id,
-                        target: childId,
-                        weight: Math.random()
-                    });
+    async fetchSubgraph(parentId) {
+        try {
+            const apiHost = window.location.hostname;
+            const url = `http://${apiHost}:8001/api/lgnn/graph${parentId && parentId !== 'root' ? `?parent_id=${encodeURIComponent(parentId)}` : ''}`;
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.nodes && data.links) {
+                    // Update graph directly; the filter in updateGraph will match currentSubgraph
+                    this.updateGraph(data.nodes, data.links);
+                    this.log(`Fetched subgraph for [${parentId}] with ${data.nodes.length} nodes.`, 'success');
                 }
             }
-            
-            this.nodes = children;
-            this.links = links;
-            this.selectedNodeId = null;
-            
-            // Fade out flash
-            flash.style.opacity = '0';
-            setTimeout(() => {
-                document.body.removeChild(flash);
-                this.isDiving = false;
-            }, 1000);
-            
-            this.log(`Successfully materialized interior of [${nodeId}]`, 'success');
-        }, 100);
-    }
-
-    zoomOut() {
-        if (this.swarmHistory.length === 0) return;
-        
-        this.log('Ascending to parent swarm...', 'info');
-        
-        const previousState = this.swarmHistory.pop();
-        this.nodes = previousState.nodes;
-        this.links = previousState.links;
-        this.selectedNodeId = previousState.selectedNodeId;
-        
-        this.zoom = 2.0; // Keep it somewhat zoomed so we see what we popped out of
-        
-        if (this.swarmHistory.length === 0) {
-            const btnZoomOut = document.getElementById('btn-zoomout');
-            if (btnZoomOut) btnZoomOut.style.display = 'none';
+        } catch (err) {
+            this.log(`Failed to fetch subgraph ${parentId}: ${err.message}`, 'error');
         }
     }
 
@@ -1297,6 +1857,20 @@ class SwarmClient {
         };
         this.nodes.push(clone);
         this.log(`Duplicated [${nodeId}] -> [${cloneId}]`, 'success');
+        
+        try {
+            const apiHost = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
+            fetch(`http://${apiHost}:8001/api/lgnn/node`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: cloneId,
+                    text_content: clone.full_data ? clone.full_data.text_content || "" : "",
+                    node_type: "standard",
+                    parent_id: this.currentSubgraph
+                })
+            });
+        } catch(e) {}
         
         // Auto-select clone
         this.selectedNodeId = cloneId;
@@ -1332,6 +1906,20 @@ class SwarmClient {
         this.nodes.push(connector);
         this.log(`Spawned Workbench Connector at [${snappedX}, ${snappedY}]`, 'success');
         
+        try {
+            const apiHost = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
+            fetch(`http://${apiHost}:8001/api/lgnn/node`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: connectorId,
+                    text_content: "Workbench Connector Node\nUse this to anchor your subgraphs.",
+                    node_type: "connector",
+                    parent_id: this.currentSubgraph
+                })
+            });
+        } catch(e) {}
+        
         this.selectedNodeId = connectorId;
         this.selectedNodes = new Set([connectorId]);
     }
@@ -1355,6 +1943,7 @@ class SwarmClient {
     }
 
     async deploySpider(nodeId) {
+        if (this.audio) this.audio.playSpider();
         this.log(`Deploying Autonomous Spider to [${nodeId}]...`, 'info');
         const source = this.nodes.find(n => n.id === nodeId);
         if (!source) return;
@@ -1367,7 +1956,8 @@ class SwarmClient {
                 body: JSON.stringify({
                     bot_name: "AethelSpider",
                     observation: `SPIDER REPORT: Investigating node ${nodeId} for hidden connections and gossip.`,
-                    confidence: 0.8
+                    confidence: 0.8,
+                    parent_id: this.currentSubgraph
                 })
             }).catch(()=>{});
         } catch(e) {}
@@ -1393,6 +1983,20 @@ class SwarmClient {
                     cached_image: this.generateMockImage()
                 });
                 
+                try {
+                    const apiHost = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
+                    fetch(`http://${apiHost}:8001/api/lgnn/node`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            id: resultId,
+                            text_content: `Image Search Result #${i+1} for ${nodeId}`,
+                            node_type: "spider_image",
+                            parent_id: this.currentSubgraph
+                        })
+                    });
+                } catch(e) {}
+                
                 this.links.push({
                     source: source.id,
                     target: resultId,
@@ -1403,32 +2007,204 @@ class SwarmClient {
         }, 800);
     }
 
-    async fuseNodes(nodeIds) {
-        if (nodeIds.length < 2) return;
-        this.log(`Fusing ${nodeIds.length} nodes into new synthesis...`, 'info');
-        const fusionName = `Fusion_${nodeIds[0].substring(0,8)}...`;
+    async diveIn(nodeId) {
+        if (this.isDiving) return;
+        if (this.trackBehavior) this.trackBehavior('dive_in', nodeId);
+        this.isDiving = true;
+        this.currentSubgraph = nodeId;
+        this.log(`[ SUBGRAPH ] Diving into Node: ${nodeId}`, 'info');
+
+        // Save history for zooming out
+        this.swarmHistory.push({
+            nodes: [...this.nodes],
+            links: [...this.links],
+            selectedNodeId: this.selectedNodeId
+        });
+
+        // Visual Flash
+        const flash = document.createElement('div');
+        flash.style.position = 'absolute';
+        flash.style.top = '0'; flash.style.left = '0';
+        flash.style.width = '100vw'; flash.style.height = '100vh';
+        flash.style.backgroundColor = '#fff';
+        flash.style.zIndex = '9999';
+        flash.style.transition = 'opacity 1s ease-out';
+        document.body.appendChild(flash);
+
+        this.selectedNodeId = null;
+        if (this.selectedNodes) this.selectedNodes.clear();
+        document.getElementById('inspector-hud').style.display = 'none';
+        document.getElementById('btn-dive-out').style.display = 'block';
+
+        setTimeout(async () => {
+            // Reset state
+            this.zoom = 0.5;
+            this.panX = this.canvas.width / 2;
+            this.panY = this.canvas.height / 2;
+            
+            await this.fetchSubgraph(nodeId);
+            
+            // Fade out flash
+            flash.style.opacity = '0';
+            setTimeout(() => {
+                if (document.body.contains(flash)) document.body.removeChild(flash);
+                this.isDiving = false;
+            }, 1000);
+        }, 100);
+    }
+
+    async diveOut() {
+        this.currentSubgraph = 'root';
+        this.log(`[ SUBGRAPH ] Surfacing to Root Canvas`, 'info');
+
+        if (this.swarmHistory && this.swarmHistory.length > 0) {
+            const previousState = this.swarmHistory.pop();
+            this.nodes = previousState.nodes;
+            this.links = previousState.links;
+            this.selectedNodeId = previousState.selectedNodeId;
+            this.zoom = 2.0; 
+        } else {
+            await this.fetchSubgraph('root');
+        }
+
+        this.selectedNodeId = null;
+        if (this.selectedNodes) this.selectedNodes.clear();
+        document.getElementById('inspector-hud').style.display = 'none';
+        document.getElementById('btn-dive-out').style.display = 'none';
+    }
+
+    async deployAnalyst(nodeId) {
+        this.log(`Activating Live Pattern Analyst Tracking for [${nodeId}]...`, 'info');
+        const source = this.nodes.find(n => n.id === nodeId);
+        if (!source) return;
+        
+        const resultId = `Analyst_${Math.floor(Math.random()*1000)}`;
+        this.analystId = resultId; // Store active analyst
+        this.nodes.push({
+            id: resultId,
+            activation: 2.5,
+            centrality: 0.9,
+            is_pinned: true,
+            is_leader: true,
+            x: source.x + 50,
+            y: source.y - 50,
+            full_data: {
+                confidence: 1.0,
+                text_content: `[PATTERN ANALYST]\nIch beobachte aktiv dein Nutzerverhalten. Jede Aktion (Klick, Dive, Fusion) wird um mich herum verlinkt!`
+            }
+        });
+        
         try {
-            await fetch(`http://${window.location.hostname}:8001/api/lgnn/universal_ingest`, {
+            const apiHost = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
+            fetch(`http://${apiHost}:8001/api/lgnn/node`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    id: resultId,
+                    text_content: `[PATTERN ANALYST]\nLive Tracking Aktiv.`,
+                    node_type: "analyst",
+                    parent_id: this.currentSubgraph || 'root'
+                })
+            });
+        } catch(e) {}
+        
+        this.links.push({ source: source.id, target: resultId, weight: 1.0 });
+        this.log(`Pattern Analyst attached to [${nodeId}] and tracking started!`, 'success');
+        
+        // Auto-select to show context
+        setTimeout(() => this.inspectNode(resultId), 500);
+    }
+
+    async trackBehavior(action, targetNodeId) {
+        if (!this.analystId) return;
+        
+        const resultId = `Behavior_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+        const content = `[ACTION] ${action}\n[TARGET] ${targetNodeId}\n[TIME] ${new Date().toLocaleTimeString()}`;
+        
+        try {
+            const apiHost = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
+            
+            // Create behavior node
+            await fetch(`http://${apiHost}:8001/api/lgnn/node`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: resultId,
+                    text_content: content,
+                    node_type: "behavior",
+                    parent_id: this.currentSubgraph || 'root'
+                })
+            });
+            
+            // Link behavior node to target node
+            if (targetNodeId) {
+                await fetch(`http://${apiHost}:8001/api/lgnn/edge`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source: targetNodeId, target: resultId, weight: 0.8, label: action, is_manual: true })
+                });
+            }
+            
+            // Link analyst to behavior node
+            await fetch(`http://${apiHost}:8001/api/lgnn/edge`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ source: this.analystId, target: resultId, weight: 1.0, label: "observed", is_manual: true })
+            });
+            
+            this.log(`Analyst observed behavior: ${action} on ${targetNodeId}`, 'info');
+        } catch(e) { }
+    }
+
+    async fuseNodes(nodeIds) {
+        if (nodeIds.length < 2) {
+            this.log(`Fusion requires at least 2 nodes.`, 'error');
+            return;
+        }
+        if (this.trackBehavior) this.trackBehavior('fusion_ignition', nodeIds.join('+'));
+        if (this.audio) this.audio.playFusion();
+        this.log(`Fusing ${nodeIds.length} nodes into new synthesis...`, 'info');
+        
+        const payload = nodeIds.map(id => {
+            const n = this.nodes.find(x => x.id === id);
+            return { id: n.id, text: n.full_data?.text_content || n.id };
+        });
+
+        try {
+            await fetch(`http://${window.location.hostname}:8001/api/lgnn/fusion/ignite`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    source_nodes: payload,
                     bot_name: "FusionEngine",
-                    observation: `FUSION PROTOCOL: Merged ${nodeIds.join(' + ')}. Synthesized new concept.`,
-                    confidence: 1.0
+                    confidence: 1.0,
+                    parent_id: this.currentSubgraph
                 })
             });
             this.selectedNodes.clear();
             this.selectedNodeId = null;
-            this.log(`Fusion complete. Spawning new concept.`, 'success');
+            this.log(`Fusion complete. Backend processing ignited.`, 'success');
         } catch (e) {
-            this.log(`Fusion failed: ${e.message}`, 'error');
+            this.log(`Fusion API not reachable: ${e.message}. (Mocking local fusion)`, 'warning');
+            const fusionId = `Fusion_${Math.random().toString(36).substring(7)}`;
+            this.nodes.push({ id: fusionId, x: 0, y: 0, activation: 3.0, is_pinned: true, full_data: { text_content: `Synthesized from ${nodeIds.join(' and ')}` }});
+            nodeIds.forEach(id => this.links.push({ source: id, target: fusionId, weight: 1.0 }));
+            this.selectedNodes.clear();
         }
     }
 
     async inspectNode(nodeId, forceFormat = null) {
+        if (!nodeId) return;
+        if (this.trackBehavior) this.trackBehavior('inspect', nodeId);
+        
         this.selectedNodeId = nodeId;
         this.isCameraTracking = true;
         this.log(`Loading node data: ${nodeId}`, 'info');
+        
+        const node = this.nodes.find(n => n.id === nodeId);
+        if (node) {
+            this.announce(`Node selected: ${node.label || node.id}.`);
+        }
         
         try {
             let format = forceFormat || 'AUTO';
@@ -1483,6 +2259,20 @@ class SwarmClient {
                         content.style.display = 'block';
                         content.value = data.text_content || data.content || '';
                     }
+
+                    // Prisma Config Logic
+                    let meta = {};
+                    try { meta = JSON.parse(data.meta_data || '{}'); } catch(e){}
+                    
+                    const pProv = document.getElementById('prisma-provider');
+                    const pMod = document.getElementById('prisma-model');
+                    const pKey = document.getElementById('prisma-apikey');
+                    const pProm = document.getElementById('prisma-prompt');
+                    
+                    if (pProv) pProv.value = meta.api_provider || '';
+                    if (pMod) pMod.value = meta.custom_model || '';
+                    if (pKey) pKey.value = meta.api_key || '';
+                    if (pProm) pProm.value = meta.custom_prompt || '';
                 }
             } else {
                 this.log(`Failed to inspect node: ${response.status}`, 'error');
@@ -1596,7 +2386,8 @@ class SwarmClient {
                     id: nodeId,
                     text_content: textContent,
                     connections: [],
-                    source_tag: "user_injected"
+                    source_tag: "user_injected",
+                    parent_id: this.currentSubgraph
                 })
             });
             if (res.ok) {
@@ -1613,6 +2404,92 @@ class SwarmClient {
         }
     }
 
+    drawOrderbookHologram(ctx, width, height) {
+        ctx.save();
+        
+        // Isometric perspective variables
+        const centerX = width / 2;
+        const centerY = height / 2 + 100;
+        const gridCols = 30;
+        const gridRows = 30;
+        const cellSize = 50;
+        
+        ctx.strokeStyle = 'rgba(26, 26, 26, 0.15)'; // Dark lines for Bauhaus
+        ctx.lineWidth = 1;
+
+        // Animate the grid waves using a sine waves
+        const time = (performance.now() / 1000) * 1.5;
+        // Market state entropy affects wave height
+        const stateVal = (this.compState && parseFloat(this.compState.getAttribute('value'))) || 0.5;
+        const volatility = Math.max(0.1, Math.min(2.0, stateVal)) * 60; // height amplitude
+        
+        const getZ = (r, c) => {
+            const distCenter = Math.sqrt(Math.pow(r - gridRows/2, 2) + Math.pow(c - gridCols/2, 2));
+            // Simulate bids and asks (hills and valleys)
+            const bids = Math.sin(r * 0.4 + time) * Math.cos(c * 0.4 + time) * volatility;
+            const asks = Math.sin(r * 0.7 - time * 1.2) * volatility * 0.5;
+            // Dampen edges to fade into background
+            const edgeDamp = Math.max(0, 1 - (distCenter / (gridCols/2.5)));
+            return (bids + asks) * edgeDamp;
+        };
+
+        const project = (r, c) => {
+            // Center the grid in coordinates
+            const x = (c - gridCols/2) * cellSize;
+            const y = (r - gridRows/2) * cellSize;
+            const z = getZ(r, c);
+            
+            // Standard Isometric projection
+            const isoX = centerX + (x - y) * Math.cos(0.523); // 30 degrees
+            const isoY = centerY + (x + y) * Math.sin(0.523) - z;
+            return { x: isoX, y: isoY, z: z };
+        };
+
+        // Draw horizontal lines
+        ctx.beginPath();
+        for (let r = 0; r < gridRows; r++) {
+            for (let c = 0; c < gridCols; c++) {
+                const p = project(r, c);
+                if (c === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+            }
+        }
+        ctx.stroke();
+
+        // Draw vertical lines
+        ctx.beginPath();
+        for (let c = 0; c < gridCols; c++) {
+            for (let r = 0; r < gridRows; r++) {
+                const p = project(r, c);
+                if (r === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+            }
+        }
+        ctx.stroke();
+
+        // Draw "Trades" as light flashes running along the grid
+        const numFlashes = Math.floor(volatility / 10) + 1;
+        for (let i = 0; i < numFlashes; i++) {
+            // Deterministic but chaotic flashes based on time
+            const flashR = Math.floor(((Math.sin(time * (i+1) * 3) + 1) / 2) * gridRows);
+            const flashC = Math.floor(((Math.cos(time * (i+2) * 2) + 1) / 2) * gridCols);
+            const p = project(flashR, flashC);
+            
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+            ctx.fillStyle = i % 2 === 0 ? '#E03C31' : '#005096'; // Bauhaus red and blue
+            ctx.fill();
+            
+            // Halo
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
+            ctx.fillStyle = i % 2 === 0 ? 'rgba(224, 60, 49, 0.3)' : 'rgba(0, 80, 150, 0.3)';
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
     draw() {
         if (!this.canvas || !this.ctx) return;
         
@@ -1622,24 +2499,8 @@ class SwarmClient {
         ctx.fillStyle = '#F4F4F0';
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Draw grid
-        ctx.strokeStyle = 'rgba(26, 26, 26, 0.04)';
-        ctx.lineWidth = 1;
-        const gridGap = 40;
-        const startX = this.panX % gridGap;
-        const startY = this.panY % gridGap;
-        for (let x = startX; x < this.canvas.width; x += gridGap) {
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, this.canvas.height);
-            ctx.stroke();
-        }
-        for (let y = startY; y < this.canvas.height; y += gridGap) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(this.canvas.width, y);
-            ctx.stroke();
-        }
+        // Draw Orderbook Hologram
+        this.drawOrderbookHologram(ctx, this.canvas.width, this.canvas.height);
         
         // Draw Spider Radar Ingestion pulse
         if (this.isSpiderHunting) {
@@ -1742,6 +2603,8 @@ class SwarmClient {
             }
             if (lodAlpha <= 0.01) continue;
             
+            if ((n1.parent_id || 'root') !== this.currentSubgraph || (n2.parent_id || 'root') !== this.currentSubgraph) continue;
+            
             // Skip hidden nodes
             if (!this.showGossip && (n1.id.startsWith("Obs_") || n2.id.startsWith("Obs_"))) continue;
             if (!this.showNetwork && (n1.id.startsWith("Net_") || n2.id.startsWith("Net_"))) continue;
@@ -1794,6 +2657,35 @@ class SwarmClient {
             ctx.lineWidth = lineWidth;
             
             ctx.stroke();
+
+            // Draw Pulsating Data Streams (Energy Flow)
+            if (lodAlpha > 0.1) {
+                const timeStr = performance.now() * 0.001;
+                const speed = 40 * (1 + (link.weight || 0));
+                
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(iso1.x, iso1.y);
+                ctx.lineTo(iso2.x, iso2.y);
+                
+                ctx.lineWidth = Math.max(0.5, 2 / this.zoom);
+                
+                let energyColor = '242, 193, 46'; // Gold/Yellow
+                if (link.label === 'fused_into') energyColor = '255, 50, 150'; // Magenta
+                else if (link.weight > 0.8) energyColor = '0, 180, 255'; // Cyan for strong links
+                
+                ctx.strokeStyle = `rgba(${energyColor}, ${0.5 * lodAlpha})`;
+                
+                const dashLen = 8 / this.zoom;
+                const gapLen = 16 / this.zoom;
+                ctx.setLineDash([dashLen, gapLen]);
+                ctx.lineDashOffset = -timeStr * speed / this.zoom; 
+                
+                ctx.shadowBlur = 8 / this.zoom;
+                ctx.shadowColor = `rgba(${energyColor}, 0.8)`;
+                ctx.stroke();
+                ctx.restore();
+            }
         }
         
         // Draw temporary workbench wire
@@ -1839,6 +2731,7 @@ class SwarmClient {
             }
             
             if (lodAlpha <= 0.01) continue; // Skip rendering entirely if invisible
+            if ((n.parent_id || 'root') !== this.currentSubgraph) continue;
             
             // Nodes are bigger now for the inline text
             const baseRadius = 25;
@@ -1974,6 +2867,11 @@ class SwarmClient {
                 ctx.fillStyle = '#005096'; // Ultramarine Blue
                 ctx.strokeStyle = '#1A1A1A';
                 ctx.lineWidth = 1.5 / this.zoom;
+            } else if (n.is_ghost) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${0.1 * n.life})`;
+                ctx.strokeStyle = `rgba(136, 136, 136, ${0.4 * n.life})`;
+                ctx.lineWidth = 1.5 / this.zoom;
+                ctx.setLineDash([2 / this.zoom, 4 / this.zoom]);
             } else {
                 ctx.fillStyle = '#FFFFFF'; // White default
                 ctx.strokeStyle = '#1A1A1A';
@@ -1989,6 +2887,7 @@ class SwarmClient {
             // Check if we are zoomed in deep enough to render the inner content
             if (this.zoom > 1.8 && isFocused && n.full_data) {
                 ctx.save();
+                const r = radius;
                 ctx.beginPath();
                 if (n.id.startsWith("Anchor_")) {
                 ctx.fillStyle = '#FF0033'; // Aggressive Crimson
@@ -2068,13 +2967,13 @@ class SwarmClient {
 
                 // Minimalistic text label BELOW the node
                 ctx.fillStyle = "#1A1A1A"; // Dark text for Light Mode
-                const fontSize = Math.min(14, Math.max(8, (r * 0.6))) / this.zoom;
+                const fontSize = Math.min(14, Math.max(8, (radius * 0.6))) / this.zoom;
                 ctx.font = `bold ${fontSize}px 'Inter', sans-serif`;
                 ctx.textAlign = "center";
                 ctx.textBaseline = "top";
                 
                 const label = (n.label || n.id || '').split('_').pop().substring(0, 15);
-                ctx.fillText(label, iso.x, iso.y + r + (5 / this.zoom));
+                ctx.fillText(label, iso.x, iso.y + radius + (5 / this.zoom));
             }
         }
         ctx.restore();
@@ -2148,77 +3047,137 @@ class SwarmClient {
         const layer = document.getElementById('hologram-layer');
         if (!layer) return;
         
-        // Only show widget if we are in Workbench mode or if we specifically select a spider
-        if (!this.selectedNodeId || !this.selectedNodeId.startsWith("Spider_")) {
-            layer.innerHTML = '';
-            return;
-        }
+        const activeWidgets = new Set();
         
-        const n = this.nodes.find(node => node.id === this.selectedNodeId);
-        if (!n) return;
-        
-        // Calculate screen coordinates!
-        const zOffset = n.is_leader ? 300 : (n.id.startsWith("Obs_") ? -200 : 0);
-        const iso = this.toIso(n.x, n.y, zOffset);
-        
-        const screenX = this.panX + (iso.x * this.zoom);
-        const screenY = this.panY + (iso.y * this.zoom);
-        
-        // Node visual radius
-        const baseRadius = 25;
-        const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 25;
-        const centralityBonus = (n.centrality || 0) * 50;
-        const rawR = baseRadius + activationBonus + centralityBonus;
-        const r = Math.max(0.1, rawR / Math.pow(this.zoom, 0.6)) * this.zoom;
-        
-        // Create or update the widget
-        let widget = document.getElementById('spider-widget');
-        if (!widget) {
-            widget = document.createElement('div');
-            widget.id = 'spider-widget';
-            // Pure Bauhaus / FigJam aesthetics
-            widget.style.position = 'absolute';
-            widget.style.background = '#FFFFFF';
-            widget.style.border = '2px solid #1A1A1A';
-            widget.style.padding = '8px';
-            widget.style.boxShadow = '4px 4px 0px #1A1A1A';
-            widget.style.pointerEvents = 'auto'; // allow clicking
-            widget.style.display = 'flex';
-            widget.style.flexDirection = 'column';
-            widget.style.gap = '8px';
+        // 1. Process UI Components (UIaaN)
+        this.nodes.forEach(n => {
+            // Check subgraph bounds
+            const parentId = (n.full_data && n.full_data.parent_id) ? n.full_data.parent_id : (n.parent_id || "root");
+            if (parentId !== this.currentSubgraph) return;
             
-            widget.innerHTML = `
-                <div style="font-size: 0.7rem; font-weight: bold; letter-spacing: 1px; color: #F2C12E; background: #1A1A1A; padding: 2px 4px; text-transform: uppercase;">[ SPIDER UPLINK ]</div>
-                <input type="text" id="spider-concept" placeholder="Target Concept..." style="border: 1px solid #1A1A1A; outline: none; padding: 4px; font-family: var(--font-mono); font-size: 0.8rem; width: 150px;">
-                <button id="spider-deploy-btn" style="background: #F2C12E; color: #1A1A1A; font-weight: bold; font-family: var(--font-mono); border: 2px solid #1A1A1A; cursor: pointer; padding: 4px;">DEPLOY</button>
-            `;
-            layer.appendChild(widget);
-            
-            document.getElementById('spider-deploy-btn').addEventListener('click', () => {
-                const concept = document.getElementById('spider-concept').value;
-                this.log(`Spider programmed with concept: "${concept}"`, 'info');
-                this.deploySpider(n.id);
-            });
-            
-            // Allow typing without triggering canvas hotkeys
-            document.getElementById('spider-concept').addEventListener('keydown', (e) => {
-                e.stopPropagation();
-                if (e.key === 'Enter') {
-                    document.getElementById('spider-deploy-btn').click();
+            if (n.full_data && n.full_data.meta && n.full_data.meta.is_ui_component) {
+                const widgetId = `ui-node-${n.id}`;
+                activeWidgets.add(widgetId);
+                
+                const zOffset = n.is_leader ? 300 : (n.id.startsWith("Obs_") ? -200 : 0);
+                const iso = this.toIso(n.x, n.y, zOffset);
+                const screenX = this.panX + (iso.x * this.zoom);
+                const screenY = this.panY + (iso.y * this.zoom);
+                
+                let widget = document.getElementById(widgetId);
+                if (!widget) {
+                    widget = document.createElement('div');
+                    widget.id = widgetId;
+                    widget.style.position = 'absolute';
+                    widget.style.pointerEvents = 'auto'; // Make interactive!
+                    widget.style.transformOrigin = 'center center';
+                    
+                    // Inject CSS
+                    if (n.full_data.css) {
+                        const style = document.createElement('style');
+                        // Replace placeholder to scope CSS to this specific widget
+                        style.innerHTML = n.full_data.css.replace(/__NODE_ID__/g, `#${widgetId}`);
+                        widget.appendChild(style);
+                    }
+                    
+                    // Inject HTML Content
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = `ui-node-content`;
+                    contentDiv.innerHTML = n.full_data.content || '';
+                    widget.appendChild(contentDiv);
+                    
+                    // Execute JS if present
+                    if (n.full_data.js) {
+                        try {
+                            // Provide context to the script: nodeElement, swarmClient, nodeData
+                            const scriptFn = new Function('nodeElement', 'swarmClient', 'nodeData', n.full_data.js);
+                            setTimeout(() => scriptFn(widget, this, n.full_data), 0);
+                        } catch(e) {
+                            console.error(`Error executing UI script for ${n.id}:`, e);
+                        }
+                    }
+                    
+                    layer.appendChild(widget);
                 }
-            });
+                
+                // Keep widget stuck to the node's position
+                widget.style.left = `${screenX}px`;
+                widget.style.top = `${screenY}px`;
+                
+                // Scale the UI component smoothly, but keep it readable
+                const scale = Math.max(0.3, Math.min(1.2, this.zoom));
+                widget.style.transform = `translate(-50%, -50%) scale(${scale})`;
+                
+                // Hide if zoomed out too far
+                widget.style.display = this.zoom < 0.2 ? 'none' : 'block';
+            }
+        });
+        
+        // 2. Process Spider Uplink (Legacy selected tool)
+        if (this.selectedNodeId && this.selectedNodeId.startsWith("Spider_")) {
+            const n = this.nodes.find(node => node.id === this.selectedNodeId);
+            if (n) {
+                const widgetId = 'spider-widget';
+                activeWidgets.add(widgetId);
+                
+                const zOffset = n.is_leader ? 300 : (n.id.startsWith("Obs_") ? -200 : 0);
+                const iso = this.toIso(n.x, n.y, zOffset);
+                const screenX = this.panX + (iso.x * this.zoom);
+                const screenY = this.panY + (iso.y * this.zoom);
+                
+                const baseRadius = 25;
+                const activationBonus = Math.abs(Math.tanh(n.activation || 0)) * 25;
+                const centralityBonus = (n.centrality || 0) * 50;
+                const rawR = baseRadius + activationBonus + centralityBonus;
+                const r = Math.max(0.1, rawR / Math.pow(this.zoom, 0.6)) * this.zoom;
+                
+                let widget = document.getElementById(widgetId);
+                if (!widget) {
+                    widget = document.createElement('div');
+                    widget.id = widgetId;
+                    widget.style.position = 'absolute';
+                    widget.style.background = '#FFFFFF';
+                    widget.style.border = '2px solid #1A1A1A';
+                    widget.style.padding = '8px';
+                    widget.style.boxShadow = '4px 4px 0px #1A1A1A';
+                    widget.style.pointerEvents = 'auto';
+                    widget.style.display = 'flex';
+                    widget.style.flexDirection = 'column';
+                    widget.style.gap = '8px';
+                    
+                    widget.innerHTML = `
+                        <div style="font-size: 0.7rem; font-weight: bold; letter-spacing: 1px; color: #F2C12E; background: #1A1A1A; padding: 2px 4px; text-transform: uppercase;">[ SPIDER UPLINK ]</div>
+                        <input type="text" id="spider-concept" placeholder="Target Concept..." style="border: 1px solid #1A1A1A; outline: none; padding: 4px; font-family: var(--font-mono); font-size: 0.8rem; width: 150px;">
+                        <button id="spider-deploy-btn" style="background: #F2C12E; color: #1A1A1A; font-weight: bold; font-family: var(--font-mono); border: 2px solid #1A1A1A; cursor: pointer; padding: 4px;">DEPLOY</button>
+                    `;
+                    layer.appendChild(widget);
+                    
+                    document.getElementById('spider-deploy-btn').addEventListener('click', () => {
+                        const concept = document.getElementById('spider-concept').value;
+                        this.log(`Spider programmed with concept: "${concept}"`, 'info');
+                        this.deploySpider(n.id);
+                    });
+                    
+                    document.getElementById('spider-concept').addEventListener('keydown', (e) => {
+                        e.stopPropagation();
+                        if (e.key === 'Enter') {
+                            document.getElementById('spider-deploy-btn').click();
+                        }
+                    });
+                }
+                
+                widget.style.left = `${screenX + r + 20}px`;
+                widget.style.top = `${screenY - r}px`;
+                widget.style.display = this.zoom < 0.4 ? 'none' : 'flex';
+            }
         }
         
-        // Position it right next to the node!
-        widget.style.left = `${screenX + r + 20}px`;
-        widget.style.top = `${screenY - r}px`;
-        
-        // Hide if offscreen or zoomed out too far
-        if (this.zoom < 0.4) {
-            widget.style.display = 'none';
-        } else {
-            widget.style.display = 'flex';
-        }
+        // 3. Cleanup stale widgets
+        Array.from(layer.children).forEach(child => {
+            if (!activeWidgets.has(child.id)) {
+                child.remove();
+            }
+        });
     }
 
     log(message, type = 'info') {
@@ -2253,7 +3212,8 @@ function startApp() {
                             bot_name: "MVP_Tuner",
                             observation: tunerInput.value.trim(),
                             confidence: 0.9,
-                            context_tags: ["manual_input"]
+                            context_tags: ["manual_input"],
+                            parent_id: window.swarmClient.currentSubgraph
                         })
                     }).catch(err => console.error(err));
                     
@@ -2280,6 +3240,24 @@ function startApp() {
         }
     });
     
+    document.getElementById('btn-dive-in')?.addEventListener('click', () => {
+        if (window.swarmClient && window.swarmClient.selectedNodeId) {
+            window.swarmClient.diveIn(window.swarmClient.selectedNodeId);
+        }
+    });
+
+    document.getElementById('btn-dive-out')?.addEventListener('click', () => {
+        if (window.swarmClient) {
+            window.swarmClient.diveOut();
+        }
+    });
+
+    document.getElementById('btn-guide-node')?.addEventListener('click', () => {
+        if (window.swarmClient && window.swarmClient.selectedNodeId) {
+            window.swarmClient.deployAnalyst(window.swarmClient.selectedNodeId);
+        }
+    });
+
     document.getElementById('btn-delete-node')?.addEventListener('click', () => {
         if (window.swarmClient && window.swarmClient.selectedNodeId) {
             window.swarmClient.sendAction('delete_nodes', { nodes: [window.swarmClient.selectedNodeId] });
@@ -2320,11 +3298,127 @@ function startApp() {
                         confidence: 0.9,
                         context_tags: ["upload", file.name],
                         media_b64: b64,
-                        media_type: file.type
+                        media_type: file.type,
+                        parent_id: window.swarmClient.currentSubgraph
                     })
                 }).catch(err => console.error(err));
             };
             reader.readAsDataURL(file);
+        }
+    });
+    
+    // --- Edge Sensors Init ---
+    initEdgeSensors();
+}
+
+function initEdgeSensors() {
+    // 1. Acoustic (Mic) - Measure audio entropy
+    const toggleMic = document.getElementById('toggle-mic-sensor');
+    let audioContext, analyser, microphone, micInterval;
+    
+    toggleMic?.addEventListener('change', async (e) => {
+        if (e.target.checked) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                window.swarmClient?.log('Acoustic Edge Sensor activated.', 'success');
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                microphone = audioContext.createMediaStreamSource(stream);
+                microphone.connect(analyser);
+                
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                micInterval = setInterval(() => {
+                    analyser.getByteFrequencyData(dataArray);
+                    let sum = 0;
+                    for(let i=0; i<dataArray.length; i++) sum += dataArray[i];
+                    const avg = sum / dataArray.length;
+                    
+                    if (avg > 50 && Math.random() > 0.95) { // Only emit loud, random peaks
+                        if (window.swarmClient) {
+                            window.swarmClient.sendAction('inject_node', {
+                                text_content: `Acoustic Event [Vol: ${Math.floor(avg)}]`,
+                                source_tag: 'edge_sensor_mic',
+                                confidence: avg / 255.0
+                            });
+                        }
+                    }
+                }, 1000);
+            } catch (err) {
+                window.swarmClient?.log('Mic access denied.', 'error');
+                e.target.checked = false;
+            }
+        } else {
+            if (audioContext) audioContext.close();
+            clearInterval(micInterval);
+            window.swarmClient?.log('Acoustic Edge Sensor deactivated.', 'info');
+        }
+    });
+
+    // 2. Kinematic (Gyro)
+    const toggleGyro = document.getElementById('toggle-gyro-sensor');
+    const handleMotion = (event) => {
+        if (!window.swarmClient || Math.random() > 0.05) return; // limit rate
+        const acc = event.accelerationIncludingGravity;
+        if (!acc) return;
+        const force = Math.abs(acc.x||0) + Math.abs(acc.y||0) + Math.abs(acc.z||0);
+        if (force > 15) { // Shake detected
+            window.swarmClient.sendAction('inject_node', {
+                text_content: `Kinematic Event [Force: ${force.toFixed(1)}]`,
+                source_tag: 'edge_sensor_gyro',
+                confidence: Math.min(1.0, force/30.0)
+            });
+        }
+    };
+
+    toggleGyro?.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                DeviceMotionEvent.requestPermission()
+                    .then(state => {
+                        if (state === 'granted') {
+                            window.addEventListener('devicemotion', handleMotion);
+                            window.swarmClient?.log('Kinematic Edge Sensor activated.', 'success');
+                        } else {
+                            e.target.checked = false;
+                            window.swarmClient?.log('Gyro access denied.', 'error');
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                // Non iOS 13+ devices
+                window.addEventListener('devicemotion', handleMotion);
+                window.swarmClient?.log('Kinematic Edge Sensor activated.', 'success');
+            }
+        } else {
+            window.removeEventListener('devicemotion', handleMotion);
+            window.swarmClient?.log('Kinematic Edge Sensor deactivated.', 'info');
+        }
+    });
+    
+    // 3. Spatial (GPS)
+    const toggleGps = document.getElementById('toggle-gps-sensor');
+    let watchId;
+    toggleGps?.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            if ("geolocation" in navigator) {
+                watchId = navigator.geolocation.watchPosition((pos) => {
+                    if (window.swarmClient && Math.random() > 0.8) { // throttle
+                        window.swarmClient.sendAction('inject_node', {
+                            text_content: `Spatial Anchor [${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}]`,
+                            source_tag: 'edge_sensor_gps',
+                            confidence: 0.9
+                        });
+                    }
+                }, (err) => {
+                    window.swarmClient?.log('GPS access denied.', 'error');
+                    e.target.checked = false;
+                });
+                window.swarmClient?.log('Spatial Edge Sensor activated.', 'success');
+            }
+        } else {
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+            window.swarmClient?.log('Spatial Edge Sensor deactivated.', 'info');
         }
     });
 }
