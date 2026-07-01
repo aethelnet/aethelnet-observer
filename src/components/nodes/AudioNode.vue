@@ -1,5 +1,5 @@
 <template>
-  <div class="audio-node" @mousedown.stop @touchstart.stop>
+  <div class="audio-node">
     <div class="header">
       <span class="icon" :class="{ recording: isRecording }"></span> [ AUDIO CORTEX ]
     </div>

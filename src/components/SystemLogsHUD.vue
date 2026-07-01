@@ -27,7 +27,7 @@
               @change="saveBackendUrl" 
               type="text" 
               class="backend-url-input" 
-              placeholder="http://127.0.0.1:8000/api"
+              placeholder="http://127.0.0.1:8001/api"
               title="Press Enter to save and re-bind frontend API client"
             />
           </div>
@@ -302,7 +302,7 @@ function saveBackendUrl() {
 
 onMounted(() => {
   // Load current configured backend URL
-  backendUrlInput.value = localStorage.getItem('SOVEREIGN_BACKEND_URL') || 'http://127.0.0.1:8000/api'
+  backendUrlInput.value = localStorage.getItem('SOVEREIGN_BACKEND_URL') || 'http://127.0.0.1:8001/api'
   
   window.addEventListener('keydown', handleKeydown)
   // If drawer is initialized open, boot polling immediately
@@ -315,6 +315,9 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
   stopPolling()
 })
+defineExpose({
+  toggleOpen
+})
 </script>
 
 <style scoped>
@@ -325,16 +328,16 @@ onBeforeUnmount(() => {
   top: 0;
   bottom: 0;
   width: 480px;
-  background: var(--color-bg-panel, rgba(10, 10, 15, 0.95));
-  border-left: 1px solid rgba(74, 222, 128, 0.25);
-  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+  background: rgba(20, 20, 20, 0.4);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.4);
   z-index: 9999;
   transform: translateX(100%);
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), width 0.3s ease;
   display: flex;
   flex-direction: column;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
 }
 
 .logs-hud.open {
@@ -378,23 +381,23 @@ onBeforeUnmount(() => {
   position: absolute;
   left: -140px;
   bottom: 24px;
-  background: rgba(20, 20, 30, 0.9);
-  border: 1px solid rgba(74, 222, 128, 0.3);
+  background: rgba(20, 20, 20, 0.4);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   border-right: none;
   padding: 10px 16px;
-  border-radius: 8px 0 0 8px;
+  border-radius: 16px 0 0 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--color-accent, #4ade80);
-  font-family: 'JetBrains Mono', monospace;
+  color: var(--color-text-main);
+  font-family: var(--font-family-mono, monospace);
   font-size: 11px;
-  font-weight: bold;
-  letter-spacing: 0.1em;
-  box-shadow: -5px 5px 15px rgba(0, 0, 0, 0.3);
-  transition: all 0.2s ease;
-  backdrop-filter: blur(8px);
+  font-weight: 800;
+  box-shadow: -5px 5px 20px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
 }
 
 .logs-tab:hover {
@@ -426,10 +429,9 @@ onBeforeUnmount(() => {
   font-family: 'JetBrains Mono', 'Courier New', monospace;
 }
 
-/* Header Deck */
 .terminal-header {
   padding: 16px 20px;
-  background: rgba(16, 16, 24, 0.8);
+  background: transparent;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   justify-content: space-between;
@@ -487,15 +489,15 @@ onBeforeUnmount(() => {
 }
 
 .search-box input {
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(20, 20, 20, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  padding: 6px 28px 6px 12px;
-  color: #fff;
+  border-radius: 12px;
+  padding: 8px 28px 8px 12px;
+  color: var(--color-text-main);
   font-size: 11px;
   font-family: inherit;
   width: 160px;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
 }
 
 .search-box input:focus {
@@ -537,14 +539,14 @@ onBeforeUnmount(() => {
 }
 
 .btn-close:hover {
-  background: rgba(248, 113, 113, 0.2);
-  color: #f87171;
+  background: rgba(224, 60, 49, 0.2);
+  color: #E03C31;
 }
 
 /* Filter Bar */
 .filter-bar {
-  padding: 10px 20px;
-  background: rgba(20, 20, 30, 0.4);
+  padding: 12px 20px;
+  background: rgba(255, 255, 255, 0.02);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   justify-content: space-between;
@@ -559,15 +561,15 @@ onBeforeUnmount(() => {
 }
 
 .level-filters button {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-  color: #888;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: var(--color-text-main);
   font-size: 10px;
-  padding: 4px 8px;
+  padding: 6px 12px;
   cursor: pointer;
   font-family: inherit;
-  transition: all 0.15s ease;
+  transition: all 0.3s ease;
 }
 
 .level-filters button:hover {
@@ -628,7 +630,7 @@ onBeforeUnmount(() => {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  background: #050508;
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   flex-direction: column;
 }
@@ -695,14 +697,14 @@ onBeforeUnmount(() => {
 
 /* Terminal Footer */
 .terminal-footer {
-  padding: 10px 20px;
-  background: rgba(16, 16, 24, 0.8);
+  padding: 12px 20px;
+  background: transparent;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 10px;
-  color: #666;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .footer-left strong.live {

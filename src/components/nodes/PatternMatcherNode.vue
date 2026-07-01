@@ -57,12 +57,29 @@
           </table>
         </div>
       </div>
+
+      <div class="custom-pattern-section" :class="{ 'glitch-alert': alertActive }">
+        <div class="pattern-input-group">
+          <input 
+            v-model="customPattern" 
+            placeholder="Regex or text pattern..." 
+            class="sci-input"
+            @keydown.enter="triggerMatch"
+          />
+          <button @click="triggerMatch" class="action-btn small">
+            MATCH
+          </button>
+        </div>
+        <div v-if="alertActive" class="alert-msg">
+          ⚠️ PATTERN TRIGGERED! MATCHES: {{ alertMatches }} ⚠️
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 
 const props = defineProps<{
   node: any
@@ -74,6 +91,11 @@ const patterns = ref<any[]>([])
 const loading = ref(true)
 const isUpdating = ref(false)
 const lastAnalysis = ref<string | null>(null)
+
+const customPattern = ref('')
+const alertActive = ref(false)
+const alertMatches = ref(0)
+let alertTimeout: any = null
 
 const API_BASE = (window as any).API_BASE || ''
 
@@ -110,11 +132,9 @@ async function triggerUpdate() {
     const url = API_BASE ? `${API_BASE}/auto-discovery/patterns/update` : `/api/auto-discovery/patterns/update`
     const res = await fetch(url, { method: 'POST' })
     if (res.ok) {
-      // Background task started
-      setTimeout(async () => {
-        await fetchPatterns()
-        isUpdating.value = false
-      }, 5000)
+      // Assume backend handles it or we use WebSockets later
+      await fetchPatterns()
+      isUpdating.value = false
     } else {
       isUpdating.value = false
     }
@@ -124,30 +144,70 @@ async function triggerUpdate() {
   }
 }
 
+async function triggerMatch() {
+  if (!customPattern.value) return
+  try {
+    const url = API_BASE ? `${API_BASE}/lgnn/pattern/match` : `/api/lgnn/pattern/match`
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pattern: customPattern.value,
+        target_node_id: props.node.id,
+        regex_mode: true
+      })
+    })
+  } catch (e) {
+    console.error("Pattern match failed", e)
+  }
+}
+
+function handleGlobalEvent(e: Event) {
+  const customEvent = e as CustomEvent
+  if (customEvent.detail?.event === 'pattern_alert') {
+    const payload = customEvent.detail.payload
+    if (payload && payload.target_node_id === props.node.id) {
+      alertActive.value = true
+      alertMatches.value = payload.matches
+      if (alertTimeout) clearTimeout(alertTimeout)
+      alertTimeout = setTimeout(() => {
+        alertActive.value = false
+      }, 3000)
+    }
+  }
+}
+
 onMounted(() => {
   fetchPatterns()
+  window.addEventListener('aethel-global-event', handleGlobalEvent)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('aethel-global-event', handleGlobalEvent)
+  if (alertTimeout) clearTimeout(alertTimeout)
 })
 </script>
 
 <style scoped>
 .pattern-matcher-node {
   width: 320px;
-  background: rgba(10, 20, 30, 0.9);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(0, 212, 255, 0.3);
-  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(236, 72, 153, 0.3);
+  border-radius: 16px;
   color: #fff;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: 'Space Mono', monospace;
   overflow: hidden;
-  box-shadow: 0 0 20px rgba(0, 212, 255, 0.1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(236, 72, 153, 0.05);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .header {
-  background: linear-gradient(90deg, rgba(0,212,255,0.2) 0%, transparent 100%);
+  background: linear-gradient(90deg, rgba(236, 72, 153, 0.2) 0%, transparent 100%);
   padding: 12px;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .icon {
@@ -156,21 +216,21 @@ onMounted(() => {
 }
 
 .title {
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 1px;
-  color: #00d4ff;
-  text-shadow: 0 0 5px rgba(0,212,255,0.5);
+  color: #f8fafc;
   flex-grow: 1;
-  font-size: 0.95rem;
+  font-size: 13px;
 }
 
 .badge {
   font-size: 0.7rem;
-  background: #00d4ff;
-  color: #000;
+  background: #ec4899;
+  color: #fff;
   padding: 2px 6px;
   border-radius: 4px;
   font-weight: 900;
+  box-shadow: 0 0 10px #ec4899;
 }
 
 .badge.is-updating {
@@ -201,23 +261,24 @@ onMounted(() => {
 
 .action-btn {
   width: 100%;
-  background: transparent;
-  border: 1px solid #00d4ff;
-  color: #00d4ff;
-  padding: 8px;
-  border-radius: 4px;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.2), rgba(190, 24, 93, 0.1));
+  border: 1px solid rgba(236, 72, 153, 0.5);
+  color: #fbcfe8;
+  padding: 12px;
+  border-radius: 8px;
   font-weight: bold;
   cursor: pointer;
   transition: all 0.3s;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: 'Space Mono', monospace;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
 }
 
 .action-btn:hover:not(:disabled) {
-  background: #00d4ff;
-  color: #000;
-  box-shadow: 0 0 10px rgba(0, 212, 255, 0.4);
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.3), rgba(190, 24, 93, 0.2));
+  color: #fff;
+  box-shadow: 0 0 20px rgba(236, 72, 153, 0.3);
+  transform: translateY(-2px);
 }
 
 .action-btn:disabled {
@@ -276,9 +337,9 @@ onMounted(() => {
 }
 
 .patterns-table th {
-  color: #00d4ff;
+  color: #ec4899;
   font-weight: 600;
-  background: rgba(0, 212, 255, 0.05);
+  background: rgba(236, 72, 153, 0.05);
 }
 
 .pattern-row:hover {
@@ -300,5 +361,68 @@ onMounted(() => {
 
 .pat-count {
   color: #888;
+}
+
+.custom-pattern-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed rgba(236, 72, 153, 0.3);
+  transition: all 0.3s;
+}
+
+.pattern-input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.sci-input {
+  flex: 1;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(236, 72, 153, 0.3);
+  border-radius: 8px;
+  color: #e2e8f0;
+  padding: 10px;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.3s;
+}
+.sci-input:focus {
+  border-color: #f472b6;
+}
+
+.action-btn.small {
+  width: auto;
+  padding: 6px 12px;
+}
+
+.alert-msg {
+  margin-top: 8px;
+  color: #E03C31;
+  font-weight: 900;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-shadow: 0 0 5px rgba(224, 60, 49, 0.8);
+  animation: blink 0.5s infinite;
+}
+
+.glitch-alert {
+  box-shadow: 0 0 15px rgba(224, 60, 49, 0.5);
+  border-color: #E03C31;
+  animation: glitch 0.2s infinite;
+}
+
+@keyframes glitch {
+  0% { transform: translate(1px, 1px); }
+  25% { transform: translate(-1px, -1px); }
+  50% { transform: translate(1px, -1px); }
+  75% { transform: translate(-1px, 1px); }
+  100% { transform: translate(1px, 1px); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 </style>

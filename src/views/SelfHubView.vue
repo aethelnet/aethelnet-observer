@@ -126,6 +126,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
+import { API_BASE } from '../shared/api.js'
 
 interface Anchor {
   text: string
@@ -225,7 +226,7 @@ async function syncToMatrix() {
     // In a real scenario, we'd POST these to the backend to set `is_grounded = True`
     // For now, we simulate the systemic calibration
     const allText = anchors.value.map(a => a.text).join(' ') + ' ' + currentVibe.value
-    await fetch('http://127.0.0.1:8000/api/lgnn/evolve-text', {
+    await fetch(`${API_BASE}/lgnn/evolve-text`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: `[HUB CALIBRATION] ${allText}` })

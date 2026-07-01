@@ -332,19 +332,22 @@ function addNewParam() {
   position: absolute;
   top: 60px;
   right: 20px;
-  width: 400px;
-  height: 500px;
+  width: 450px;
+  height: 600px;
   max-height: calc(100vh - 100px);
-  background: rgba(10, 10, 10, 0.95);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--border-color);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1);
+  background: rgba(10, 10, 12, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   z-index: 3000;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   color: var(--color-text-main);
   font-family: 'Space Mono', monospace;
+  overflow: hidden;
 }
 
 .console-overlay.is-fullscreen {
@@ -354,15 +357,16 @@ function addNewParam() {
   bottom: 20px;
   width: auto;
   max-height: none;
+  border-radius: 20px;
 }
 
 .console-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  background: var(--color-bg-primary);
-  border-bottom: 1px solid var(--border-color);
+  padding: 16px 20px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .header-left {
@@ -406,29 +410,33 @@ function addNewParam() {
 
 .console-tabs {
   display: flex;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.1);
 }
 
 .tab-btn {
   flex: 1;
   background: transparent;
   border: none;
-  padding: 10px;
-  color: var(--color-text-muted);
+  padding: 12px;
+  color: rgba(255, 255, 255, 0.5);
   font-family: inherit;
   font-size: 11px;
   font-weight: 900;
   cursor: pointer;
   border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
 }
 
 .tab-btn:hover {
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .tab-btn.active {
-  color: var(--color-accent);
-  border-bottom: 2px solid var(--color-accent);
+  color: #fff;
+  border-bottom: 2px solid #00BCD4;
+  background: rgba(0, 188, 212, 0.05);
 }
 
 .console-body {
@@ -436,13 +444,14 @@ function addNewParam() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .tab-content {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 16px;
+  padding: 20px;
   overflow-y: auto;
 }
 
@@ -592,25 +601,58 @@ function addNewParam() {
 
 .text-input.small { width: auto; flex: 1; }
 
+/* Script Tab / Data Area */
+.textarea {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 16px;
+  resize: none;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: #00BCD4;
+  box-shadow: 0 0 10px rgba(0, 188, 212, 0.2);
+}
+
+.action-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .action-btn {
-  background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--color-text-main);
+  background: rgba(0, 188, 212, 0.1);
+  border: 1px solid #00BCD4;
+  color: #00BCD4;
   padding: 8px 16px;
   font-family: inherit;
-  font-size: 11px;
   font-weight: 900;
   cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
 }
-.action-btn:hover { background: rgba(255,255,255,0.1); }
+
+.action-btn:hover {
+  background: rgba(0, 188, 212, 0.2);
+  box-shadow: 0 0 15px rgba(0, 188, 212, 0.4);
+}
+
 .action-btn.small { padding: 4px 8px; }
 .action-btn.primary {
-  background: var(--color-accent);
-  color: #000;
-  border-color: var(--color-accent);
+  background: rgba(16, 185, 129, 0.2);
+  color: #10B981;
+  border-color: #10B981;
 }
 .action-btn.primary:hover {
-  background: #00cc33;
+  background: rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
 }
 
 /* SCRIPT TAB */
@@ -623,33 +665,34 @@ function addNewParam() {
 .code-editor {
   flex: 1;
   width: 100%;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .script-actions {
   display: flex;
   justify-content: flex-end;
-  padding: 12px;
-  background: var(--color-bg-primary);
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.2);
 }
 
 /* LOGS TAB */
 .log-terminal {
   flex: 1;
-  background: #000;
-  border: 1px solid var(--border-color);
-  padding: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 16px;
   font-size: 11px;
   overflow-y: auto;
 }
 
-.log-line { margin-bottom: 4px; }
+.log-line { margin-bottom: 6px; font-family: 'Space Mono', monospace; }
 .log-line.system { color: #888; }
-.log-line.info { color: #00FF41; }
-.log-line.empty { animation: blink 1s infinite; }
+.log-line.info { color: #00BCD4; }
+.log-line.empty { animation: blink 1s infinite; opacity: 0.5; }
 
 @keyframes blink {
-  0%, 100% { opacity: 1; }
+  0%, 100% { opacity: 0.5; }
   50% { opacity: 0; }
 }
 </style>

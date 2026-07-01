@@ -1,5 +1,5 @@
 <template>
-  <div class="fusion-reactor-node" @mousedown.stop>
+  <div class="fusion-reactor-node">
     <div class="reactor-core">
       <div class="plasma-ring" :class="{ 'active': isFusing }"></div>
       <div class="core-center">
@@ -118,17 +118,19 @@ async function ignite() {
 
 <style scoped>
 .fusion-reactor-node {
-  background: rgba(10, 5, 15, 0.95);
-  border: 1px solid rgba(255, 60, 0, 0.4);
+  background: rgba(30, 10, 10, 0.75);
+  backdrop-filter: blur(25px) saturate(200%);
+  border: 1px solid rgba(239, 68, 68, 0.4);
   border-radius: 16px;
-  width: 340px;
+  width: 360px;
   color: #fff;
   font-family: 'Inter', sans-serif;
-  box-shadow: 0 0 40px rgba(255, 60, 0, 0.15), inset 0 0 20px rgba(255, 60, 0, 0.05);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), inset 0 0 30px rgba(239, 68, 68, 0.1);
   overflow: hidden;
   position: relative;
   display: flex;
   flex-direction: column;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .reactor-core {
@@ -175,18 +177,17 @@ async function ignite() {
 
 .header {
   padding: 16px;
-  border-bottom: 1px solid rgba(255, 60, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   position: relative;
   z-index: 1;
-  background: linear-gradient(90deg, rgba(255,60,0,0.1) 0%, transparent 100%);
 }
 
 .title {
-  font-weight: 900;
-  letter-spacing: 3px;
-  font-size: 16px;
-  color: #ff3c00;
-  text-shadow: 0 0 5px rgba(255, 60, 0, 0.5);
+  font-weight: 700;
+  letter-spacing: 1px;
+  font-size: 15px;
+  color: #f8fafc;
+  font-family: 'Space Mono', monospace;
 }
 
 .subtitle {
@@ -213,8 +214,8 @@ async function ignite() {
 
 .input-chamber {
   flex: 1;
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(239, 68, 68, 0.2);
   border-radius: 8px;
   padding: 10px;
   min-height: 70px;
@@ -222,8 +223,8 @@ async function ignite() {
 }
 
 .input-chamber.filled {
-  border-color: rgba(255, 60, 0, 0.4);
-  background: rgba(255, 60, 0, 0.05);
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .chamber-label {
@@ -242,21 +243,24 @@ async function ignite() {
 
 .ignite-btn {
   width: 100%;
-  background: transparent;
-  border: 1px solid #ff3c00;
-  color: #ff3c00;
-  padding: 12px;
-  border-radius: 6px;
-  font-weight: 900;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(185, 28, 28, 0.1));
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  color: #fecaca;
+  padding: 14px;
+  border-radius: 8px;
+  font-weight: bold;
   letter-spacing: 2px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s;
   text-transform: uppercase;
+  font-family: 'Space Mono', monospace;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.2);
 }
 
 .ignite-btn:hover:not(:disabled) {
-  background: rgba(255, 60, 0, 0.1);
-  box-shadow: 0 0 15px rgba(255, 60, 0, 0.4);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(185, 28, 28, 0.3));
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.5);
+  border-color: #f87171;
 }
 
 .ignite-btn:disabled {

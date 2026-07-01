@@ -12,26 +12,44 @@
         </div>
       </div>
 
-      <!-- WINDOW BODY (IFRAME) -->
+      <!-- WINDOW BODY -->
       <div class="app-body">
-        <iframe 
-          class="app-frame" 
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups" 
-          :srcdoc="srcdocContent"
-        ></iframe>
+        <template v-if="resolvedComponent">
+          <div style="width: 100%; height: 100%; overflow: auto; background: var(--bg-main);">
+            <component 
+              :is="resolvedComponent" 
+              :node="node" 
+              :globalNodes="globalNodes"
+              :globalLinks="globalLinks"
+              @update="$emit('update', $event)"
+              @refresh="$emit('refresh')"
+            />
+          </div>
+        </template>
+        <template v-else>
+          <iframe 
+            ref="iframeRef"
+            class="app-frame" 
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups" 
+            :srcdoc="srcdocContent"
+          ></iframe>
+        </template>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const props = defineProps<{
   node: any
+  resolvedComponent?: any
+  globalNodes?: any[]
+  globalLinks?: any[]
 }>()
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'app-message', 'update', 'refresh'])
 
 const meta = computed(() => {
   if (typeof props.node.meta_data === 'string') {
@@ -40,10 +58,39 @@ const meta = computed(() => {
   return props.node.meta_data || {}
 })
 
+const iframeRef = ref<HTMLIFrameElement | null>(null)
+
+function handleMessage(event: MessageEvent) {
+  if (event.data?.type === 'AETHEL_MSG') {
+    emit('app-message', event.data)
+  }
+}
+
+// Listen to backend WebSocket events routed via EventRouter
+function handleGlobalEvent(e: Event) {
+  const customEvent = e as CustomEvent
+  if (iframeRef.value && iframeRef.value.contentWindow) {
+    iframeRef.value.contentWindow.postMessage({
+      type: 'AETHEL_WS_EVENT',
+      payload: customEvent.detail
+    }, '*')
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('message', handleMessage)
+  window.addEventListener('aethel-global-event', handleGlobalEvent)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('message', handleMessage)
+  window.removeEventListener('aethel-global-event', handleGlobalEvent)
+})
+
 const themeColor = computed(() => meta.value.color || '#00FF41')
 
 const srcdocContent = computed(() => {
-  const uiTemplate = meta.value.ui_template || ''
+  const uiTemplate = meta.value.ui_template || props.node.content || props.node.text_content || ''
   
   // Provide basic styling and some default Aethelnet context variables via JS
   return `
@@ -128,7 +175,14 @@ const srcdocContent = computed(() => {
             nodeId: "${props.node.id}",
             sendMessage: function(msg) {
               console.log("[Aethelnet App Message]", msg);
-              // Future: window.parent.postMessage({ type: 'AETHEL_MSG', data: msg }, '*');
+              window.parent.postMessage({ type: 'AETHEL_MSG', data: msg, nodeId: "${props.node.id}" }, '*');
+            },
+            onEvent: function(callback) {
+              window.addEventListener('message', (e) => {
+                if (e.data?.type === 'AETHEL_WS_EVENT') {
+                  callback(e.data.payload);
+                }
+              });
             }
           };
         </scr` + `ipt>
@@ -148,8 +202,7 @@ const srcdocContent = computed(() => {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.85);
   z-index: 10000;
   display: flex;
   align-items: center;
