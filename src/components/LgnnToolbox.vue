@@ -26,8 +26,8 @@
           <button class="tool-btn" @click="$emit('spawn-app', 'Text')">
             <span class="btn-icon">T</span> Text Block
           </button>
-          <button class="tool-btn" @click="$emit('spawn-app', 'Script')">
-            <span class="btn-icon">&lt;/&gt;</span> Python Script
+          <button class="tool-btn" @click="$emit('spawn-app', 'Lua')">
+            <span class="btn-icon">&lt;/&gt;</span> Lua Script
           </button>
           <button class="tool-btn" @click="$emit('spawn-app', 'Render')">
             <span class="btn-icon">&lt;&gt;</span> Render / HTML
@@ -58,6 +58,9 @@
 
         <div class="category-group">
           <div class="category-title">3. DECODERS & AI</div>
+          <button class="tool-btn" @click="$emit('spawn-app', 'LgnnChat')" style="color: #00FF41; border: 1px solid #00FF41;">
+            <span class="btn-icon">💬</span> LGNN Bridge
+          </button>
           <button class="tool-btn" @click="$emit('spawn-app', 'OmniDecoder')">
             <span class="btn-icon">[O]</span> Omni Decoder
           </button>
@@ -99,8 +102,11 @@
           <button class="tool-btn" @click="$emit('toggle-forge')" style="color: #E03C31;">
             <span class="btn-icon">F</span> The Forge (OS Builder)
           </button>
+          <button class="tool-btn" @click="$emit('toggle-logs')" style="color: #4CAF50;">
+            <span class="btn-icon">L</span> System Logs (HUD)
+          </button>
           <button class="tool-btn" @click="$emit('toggle-diary')" style="color: #FF5722;">
-            <span class="btn-icon">D</span> The Diary (Logs)
+            <span class="btn-icon">D</span> The Diary (Journal)
           </button>
           <button class="tool-btn" @click="$emit('spawn-anomaly')">
             <span class="btn-icon">O</span> Anomaly
@@ -143,7 +149,7 @@
             </div>
           </div>
         </template>
-        <div class="category-group" v-if="filteredSystemApps.length === 0 && Object.keys(groupedCustomBlueprints).length === 0 && marketResults.length === 0" style="font-size: 10px; color: var(--color-text-muted); font-style: italic;">
+        <div class="category-group" v-if="Object.keys(groupedCustomBlueprints).length === 0 && marketResults.length === 0" style="font-size: 10px; color: var(--color-text-muted); font-style: italic;">
           No matching apps or blueprints found.
         </div>
 
@@ -274,11 +280,7 @@ watch(marketSearchQuery, (newVal) => {
   }, 300)
 }, { immediate: true })
 
-const filteredSystemApps = computed(() => {
-  if (!marketSearchQuery.value) return systemApps;
-  const q = marketSearchQuery.value.toLowerCase();
-  return systemApps.filter(app => app.name.toLowerCase().includes(q) || app.id.toLowerCase().includes(q));
-})
+// systemApps reference resolved - filteredSystemApps removed since system apps are not listed in Market tab
 
 const groupedCustomBlueprints = computed(() => {
   let bps = props.customBlueprints;

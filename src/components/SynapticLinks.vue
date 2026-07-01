@@ -15,6 +15,23 @@
        :key="'link-'+index"
        v-show="(link.source.isManual || (showAutonomous && (link.source.confidence === undefined || link.source.confidence >= minConfidence))) && (link.target.isManual || (showAutonomous && (link.target.confidence === undefined || link.target.confidence >= minConfidence)))">
       
+      <!-- Fat transparent hit-area for easier clicking -->
+      <line
+        :x1="link.sx1"
+        :y1="link.sy1"
+        :x2="link.sx2"
+        :y2="link.sy2"
+        stroke="transparent"
+        stroke-width="15"
+        class="synapse-link"
+        style="cursor: pointer; pointer-events: stroke;"
+        @mousedown.stop
+        @touchstart.stop
+        @click.stop="$emit('open-edge-editor', link)"
+        @contextmenu.prevent="$emit('delete-link', link)"
+        title="Click to edit label, Right-Click to delete connection"
+      />
+      <!-- Visible line -->
       <line
         :x1="link.sx1"
         :y1="link.sy1"
@@ -24,10 +41,7 @@
         :stroke-width="Math.max(link.weight * 2, 4)"
         :stroke="link.is_manual ? '#1A1A1A' : '#E03C31'"
         :stroke-dasharray="link.is_manual ? 'none' : '6,4'"
-        @click.stop="$emit('open-edge-editor', link)"
-        @contextmenu.prevent="$emit('delete-link', link)"
-        style="cursor: pointer;"
-        title="Click to edit label, Right-Click to delete connection"
+        style="pointer-events: none;"
       />
       
       <text

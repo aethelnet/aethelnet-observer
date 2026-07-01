@@ -1,5 +1,5 @@
 <template>
-  <div class="html-node-container" @mousedown.stop @touchstart.stop>
+  <div class="html-node-container">
     <div class="editor-pane">
       <div class="pane-header">[ CODE ]</div>
       <textarea 
@@ -22,6 +22,8 @@ import { ref, computed, watch } from 'vue'
 const props = defineProps<{
   node: any
 }>()
+
+const emit = defineEmits(['update'])
 
 const rawHtml = ref('')
 
@@ -60,7 +62,9 @@ const sanitizedHtml = computed(() => {
 })
 
 function saveHtml() {
-  props.node.content = 'APP:Html\n' + rawHtml.value
+  const newContent = 'APP:Html\n' + rawHtml.value
+  props.node.content = newContent
+  emit('update', props.node, undefined, newContent)
 }
 </script>
 
@@ -70,40 +74,40 @@ function saveHtml() {
   flex-direction: column;
   width: 100%;
   height: 400px;
-  background: var(--color-bg-primary);
-  border: 1px solid var(--border-color);
+  background: transparent;
+  border: none;
   font-family: var(--font-family-mono);
 }
 
 .pane-header {
   font-size: 10px;
-  font-weight: 900;
-  padding: 4px 8px;
-  background: #1A1A1A;
-  color: #888;
-  border-bottom: 1px solid var(--border-color);
+  font-weight: 800;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--color-text-accent);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .render-header {
-  background: #E03C31;
-  color: #FFF;
+  background: rgba(224, 60, 49, 0.1);
+  color: #E03C31;
 }
 
 .editor-pane {
   flex: 1;
   display: flex;
   flex-direction: column;
-  border-bottom: 2px solid #E03C31;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .code-textarea {
   flex: 1;
   width: 100%;
-  background: #050505;
-  color: #00FF41;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--color-text-main);
   border: none;
-  padding: 8px;
-  font-family: 'Space Mono', monospace;
+  padding: 12px;
+  font-family: var(--font-family-mono, monospace);
   font-size: 12px;
   resize: none;
   outline: none;
@@ -114,13 +118,16 @@ function saveHtml() {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: #FFF;
+  background: transparent;
 }
 
 .render-frame {
-  flex: 1;
   width: 100%;
+  height: 100%;
+  flex: 1;
   border: none;
-  background: #FFF;
+  background: rgba(250, 250, 250, 0.95);
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
 }
 </style>

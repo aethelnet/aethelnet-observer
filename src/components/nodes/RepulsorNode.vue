@@ -1,5 +1,5 @@
 <template>
-  <div class="repulsor-node" @mousedown.stop>
+  <div class="repulsor-node">
     <div class="forcefield" :class="{ 'active': isRepelling }"></div>
     
     <div class="header">
@@ -57,13 +57,9 @@ async function testStream() {
   
   for (const item of mockStream) {
     incomingStream.value.push(item)
-    // Small delay to simulate stream processing
-    await new Promise(r => setTimeout(r, 400))
   }
   
-  setTimeout(() => {
-    isRepelling.value = false
-  }, 1000)
+  isRepelling.value = false
 }
 </script>
 

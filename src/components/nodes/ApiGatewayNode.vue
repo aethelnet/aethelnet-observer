@@ -1,5 +1,5 @@
 <template>
-  <div class="api-node" @mousedown.stop @touchstart.stop>
+  <div class="api-node">
     <div class="header">
       <span class="icon">⬡</span> API GATEWAY
     </div>

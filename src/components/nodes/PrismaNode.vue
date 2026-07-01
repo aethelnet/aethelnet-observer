@@ -1,5 +1,5 @@
 <template>
-  <div class="prisma-node" @mousedown.stop>
+  <div class="prisma-node">
     <div class="header">
       <div class="icon-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

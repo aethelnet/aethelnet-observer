@@ -1,5 +1,5 @@
 <template>
-  <div class="incubator-node" @mousedown.stop>
+  <div class="incubator-node">
     <div class="greenhouse-glass"></div>
     
     <div class="header">

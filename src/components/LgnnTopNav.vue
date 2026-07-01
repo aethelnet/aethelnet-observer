@@ -1,5 +1,5 @@
 <template>
-  <nav role="navigation" aria-label="Main Navigation" style="position: absolute; top: 16px; right: 16px; z-index: 2000; display: flex; gap: 8px; align-items: center;">
+  <nav role="navigation" aria-label="Main Navigation" class="top-nav-glass">
     <!-- Active Persona Switcher -->
     <div class="nav-container">
       <span style="font-size: 10px; font-weight: 800; color: var(--color-text-accent);">MASK:</span>
@@ -19,8 +19,8 @@
     </div>
 
     <div style="display: flex; gap: 4px; align-items: center;">
-      <button class="nav-btn" @click="$emit('update:showAutonomous', !showAutonomous)">
-        {{ showAutonomous ? 'HIDE SPIDER NODES' : 'SHOW SPIDER NODES' }}
+      <button class="nav-btn" @click="$emit('update:showAutonomous', !showAutonomous)" :style="{ color: showAutonomous ? '#00FF41' : '#F2C12E', borderColor: showAutonomous ? '#00FF41' : '#F2C12E' }">
+        {{ showAutonomous ? '[ GALAXY VIEW ]' : '[ LOCAL VIEW ]' }}
       </button>
       <div v-if="showAutonomous" class="nav-container">
         <span style="font-size: 10px; font-weight: 900; color: var(--color-text-main);">MIN CONF:</span>
@@ -33,21 +33,18 @@
       RECENTER
     </button>
     
-    <button class="nav-btn" @click="$emit('toggle-grid')" :class="{ 'nav-btn-active': isGridMode }">
-      [ GRID ]
-    </button>
-    
+    <!-- Navigation Buttons -->
     <button class="nav-btn" @click="$emit('toggle-assets')">
       [ ASSETS ]
     </button>
-
-    <button class="nav-btn" @click="$emit('toggle-eco')" :class="{ 'nav-btn-active': isEcoMode }" style="color: #4CAF50; border-color: #4CAF50;">
-      [ ECO MODE ]
+    <button class="nav-btn" @click="$emit('toggle-grid')" :class="{ 'wip-active': isGridMode }">
+      [ GRID ]
+    </button>
+    <button class="nav-btn" @click="$emit('toggle-spiders')">
+      [ SPIDERS ]
     </button>
 
-    <button class="nav-btn" @click="$emit('update:showHelpOverlay', !showHelpOverlay)">
-      [ ? ]
-    </button>
+    <!-- Eco Mode and Help hidden for now -->
   </nav>
 </template>
 
@@ -72,6 +69,7 @@ const emits = defineEmits([
   'recenter',
   'toggle-grid',
   'toggle-assets',
+  'toggle-spiders',
   'toggle-eco',
   'add-mask',
   'edit-mask',
@@ -80,14 +78,30 @@ const emits = defineEmits([
 </script>
 
 <style scoped>
+.top-nav-glass {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2000;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: rgba(20, 20, 20, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 6px 12px;
+  border-radius: 20px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+}
+
 .nav-container {
   display: flex;
   align-items: center;
-  gap: 4px;
-  border: 1px solid var(--border-color);
-  padding: 4px 8px;
-  background: var(--color-bg-panel);
-  box-shadow: var(--shadow-node);
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 2px 8px;
+  border-radius: 12px;
 }
 
 .nav-select {
@@ -114,37 +128,45 @@ const emits = defineEmits([
   font-weight: 800;
   background: var(--color-bg-panel);
   color: var(--color-text-main);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  color: var(--color-text-main);
+  font-family: var(--font-family-mono);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 4px 10px;
   cursor: pointer;
-  box-shadow: var(--shadow-node);
-  padding: 4px 8px;
-  transition: all var(--transition-fast);
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.nav-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.nav-btn.wip-active {
+  background: rgba(0, 255, 65, 0.1);
+  border-color: rgba(0, 255, 65, 0.3);
+  color: #00FF41;
 }
 
 .nav-btn-small {
   background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--color-text-main);
+  border: none;
+  color: var(--color-text-accent);
   font-family: var(--font-family-mono);
-  font-weight: 900;
+  font-size: 9px;
+  font-weight: 800;
   cursor: pointer;
-  padding: 0 4px;
-  margin-left: 4px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
 }
+
 .nav-btn-small:hover {
-  background: var(--color-text-main);
-  color: var(--color-bg-panel);
-}
-
-.nav-btn:hover {
-  background: var(--color-text-main);
-  color: var(--color-bg-primary);
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0px var(--border-color);
-}
-
-.nav-btn:active {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0px var(--border-color);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .nav-btn-active {
@@ -152,8 +174,25 @@ const emits = defineEmits([
   color: var(--color-bg-primary);
 }
 
-.nav-btn-active:hover {
-  background: var(--color-bg-panel);
+.nav-btn:hover {
+  background: var(--color-bg-hover);
   color: var(--color-text-main);
+}
+
+.wip-btn {
+  border-style: dashed !important;
+  color: #FF9800 !important;
+  border-color: #FF9800 !important;
+  opacity: 0.8;
+}
+
+.wip-btn:hover {
+  background: rgba(255, 152, 0, 0.1) !important;
+  opacity: 1;
+}
+
+.wip-active {
+  background: rgba(255, 152, 0, 0.2) !important;
+  border-style: solid !important;
 }
 </style>

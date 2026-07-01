@@ -148,6 +148,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { VueMonacoEditor } from '@guolao/vue-monaco-editor'
+import { API_BASE } from '../shared/api.js'
 
 const emit = defineEmits(['close', 'blueprint-forged'])
 
@@ -301,7 +302,7 @@ async function saveBlueprint() {
       },
       parent_id: "MARKETPLACE"
     }
-    await fetch('http://localhost:8000/api/lgnn/node', {
+    await fetch(`${API_BASE}/lgnn/node`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(pubNode)

@@ -1,5 +1,5 @@
 <template>
-  <div class="lua-node" @mousedown.stop @touchstart.stop>
+  <div class="lua-node">
     <div class="header">
       [ LUA ENGINE ]
     </div>
@@ -34,7 +34,12 @@ const props = defineProps<{
   node: any
 }>()
 
+const emit = defineEmits(['update'])
+
 const script = ref('-- Example:\nreturn get_node_confidence("' + props.node.id + '")')
+if (props.node.content && props.node.content.startsWith('APP:Lua')) {
+  script.value = props.node.content.replace(/^APP:Lua\s*/i, '')
+}
 const result = ref<string | null>(null)
 const isError = ref(false)
 const isRunning = ref(false)
@@ -44,6 +49,10 @@ async function executeLua() {
   isRunning.value = true
   isError.value = false
   result.value = null
+  
+  const newContent = 'APP:Lua\n' + script.value
+  props.node.content = newContent
+  emit('update', props.node, undefined, newContent)
   
   try {
     const API_BASE = (window as any).API_BASE || ''

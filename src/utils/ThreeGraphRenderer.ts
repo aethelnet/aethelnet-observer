@@ -67,7 +67,7 @@ export class ThreeGraphRenderer {
     // 1. Instanced Mesh for Nodes
     // Max nodes buffer: let's say 10000
     const maxNodes = 10000
-    const geometry = new THREE.CircleGeometry(5, 16)
+    const geometry = new THREE.CircleGeometry(8, 32)
     const material = new THREE.MeshBasicMaterial({ color: 0xffffff }) // Use white so vertex colors tint it
     this.nodeMesh = new THREE.InstancedMesh(geometry, material, maxNodes)
     this.nodeMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
@@ -172,8 +172,20 @@ export class ThreeGraphRenderer {
         dummy.scale.set(k * pulse, k * pulse, 1)
         this.nodeMesh.setColorAt(count, new THREE.Color(0xff00ff))
       } else {
-        dummy.scale.set(k, k, 1)
-        this.nodeMesh.setColorAt(count, new THREE.Color(0x00F3FF))
+        // Differentiate stardust colors based on node tag
+        let color = 0x00BCD4 // Default Cyan
+        let sizeMultiplier = 1.0
+        
+        if (node.source_tag === 'identity') { color = 0x9C27B0; sizeMultiplier = 2.5; }
+        else if (node.source_tag === 'vault') { color = 0xE03C31; sizeMultiplier = 2.0; }
+        else if (node.source_tag === 'html' || node.source_tag === 'render') { color = 0x4CAF50; sizeMultiplier = 2.0; }
+        else if (node.source_tag === 'aurastream') { color = 0x2196F3; sizeMultiplier = 2.0; }
+        else if (node.source_tag === 'manual') { color = 0xF2C12E; sizeMultiplier = 1.8; }
+        else if (node.source_tag === 'subgraph') { color = 0xFF9800; sizeMultiplier = 2.5; }
+        else if (node.source_tag?.startsWith('pattern') || node.source_tag?.startsWith('prisma')) { color = 0xE91E63; sizeMultiplier = 1.5; }
+        
+        dummy.scale.set(k * sizeMultiplier, k * sizeMultiplier, 1)
+        this.nodeMesh.setColorAt(count, new THREE.Color(color))
       }
       
       dummy.updateMatrix()

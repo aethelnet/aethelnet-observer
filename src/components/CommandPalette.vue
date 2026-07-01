@@ -87,6 +87,7 @@ const commands = [
   { id: 'cmd-entropy', label: 'Spawn Entropy Chamber', description: 'Concept Decay Engine', icon: '[EN]', type: 'command', value: 'spawn-app', payload: 'EntropyChamber' },
   { id: 'cmd-incubator', label: 'Spawn Incubator', description: 'Concept Greenhouse', icon: '[IN]', type: 'command', value: 'spawn-app', payload: 'Incubator' },
   { id: 'cmd-chronosphere', label: 'Spawn Chronosphere', description: 'Predictive Extrapolation', icon: '[CH]', type: 'command', value: 'spawn-app', payload: 'Chronosphere' },
+  { id: 'cmd-blueprint', label: 'Load System Blueprint', description: 'Fetch and visualize the CodeSpider architecture', icon: '[BP]', type: 'command', value: 'load-blueprint' },
   { id: 'cmd-clear', label: 'Clear Graph', description: 'Reset the local graph visualization', icon: '[X]', type: 'command', value: 'clear-graph' },
 ]
 
