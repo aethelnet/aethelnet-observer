@@ -1,5 +1,5 @@
 <template>
-  <div class="hologram-container" @mousedown.stop @touchstart.stop>
+  <div class="hologram-container">
     <div class="holo-core" :class="{ 'is-light': theme === 'light' }" :style="{ borderColor: color }">
       <div class="holo-title" :style="{ color: color }">{{ title }}</div>
       <div class="holo-matrix">

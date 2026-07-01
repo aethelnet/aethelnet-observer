@@ -1,5 +1,5 @@
 <template>
-  <div class="omni-decoder-node" @mousedown.stop @touchstart.stop>
+  <div class="omni-decoder-node">
     
     <div class="omni-header">
       <div class="header-title">[ OMNI DECODER ]</div>

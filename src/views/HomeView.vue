@@ -1840,7 +1840,7 @@ const gossips = ref<any[]>([]);
 
 async function fetchGossip() {
   try {
-    const baseUrl = (API_BASE || "http://127.0.0.1:8000").replace(/\/api$/, "");
+    const baseUrl = (API_BASE || "http://127.0.0.1:8001").replace(/\/api$/, "");
     const res = await fetch(`${baseUrl}/aethelnet/graph/public`);
     if (!res.ok) return;
     const rawGossips = await res.json();
@@ -3375,7 +3375,7 @@ async function triggerSpiderPulse(node: Node) {
   }
 
   try {
-    const baseUrl = (API_BASE || "http://127.0.0.1:8000").replace(/\/api$/, "");
+    const baseUrl = (API_BASE || "http://127.0.0.1:8001").replace(/\/api$/, "");
     const res = await fetch(`${baseUrl}/aethelnet/graph/public`);
     if (res.ok) {
       const data = await res.json();

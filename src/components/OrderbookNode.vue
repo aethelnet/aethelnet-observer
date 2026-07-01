@@ -46,24 +46,44 @@ const props = defineProps({
 .orderbook-node {
   width: 100%;
   padding: 15px;
-  background: rgba(10, 15, 20, 0.85);
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(25px) saturate(200%);
   border-radius: 12px;
-  border: 1px solid rgba(16, 185, 129, 0.4);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 0 15px rgba(16, 185, 129, 0.1);
-  backdrop-filter: blur(10px);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7), inset 0 0 20px rgba(14, 165, 233, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+.orderbook-node::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background-image: linear-gradient(rgba(14, 165, 233, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(14, 165, 233, 0.05) 1px, transparent 1px);
+  background-size: 20px 20px;
+  pointer-events: none;
+  opacity: 0.5;
+  z-index: 0;
+}
+.node-header, .book-container {
+  position: relative;
+  z-index: 2;
 }
 .node-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 15px;
-  color: #10b981;
+  color: #0ea5e9;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 12px;
 }
 .node-header h3 {
   margin: 0;
-  font-family: monospace;
-  font-size: 1rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
   letter-spacing: 1px;
+  color: #f0f9ff;
 }
 .status-pulse {
   width: 8px;
@@ -92,26 +112,26 @@ const props = defineProps({
   border-radius: 2px;
 }
 .ask {
-  background: linear-gradient(90deg, rgba(239, 68, 68, 0.2) 0%, transparent 100%);
+  background: rgba(239, 68, 68, 0.15);
   color: #ef4444;
-  border-left: 2px solid #ef4444;
 }
 .bid {
-  background: linear-gradient(90deg, rgba(16, 185, 129, 0.2) 0%, transparent 100%);
+  background: rgba(16, 185, 129, 0.15);
   color: #10b981;
-  border-left: 2px solid #10b981;
 }
-.price { font-weight: bold; }
-.vol { opacity: 0.8; font-size: 0.8rem; }
+.price { font-weight: bold; text-shadow: 0 0 5px currentColor; }
+.vol { opacity: 0.8; font-size: 0.8rem; color: #f8fafc; }
 .spread-indicator {
   text-align: center;
-  color: #94a3b8;
-  font-family: monospace;
-  font-size: 0.75rem;
-  padding: 6px 0;
+  color: #38bdf8;
+  font-family: 'Space Mono', monospace;
+  font-size: 16px;
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+  padding: 8px 0;
   border-top: 1px dashed rgba(255,255,255,0.1);
   border-bottom: 1px dashed rgba(255,255,255,0.1);
-  margin: 6px 0;
-  letter-spacing: 2px;
+  margin: 8px 0;
+  background: rgba(0,0,0,0.2);
 }
 </style>

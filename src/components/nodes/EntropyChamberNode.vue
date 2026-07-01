@@ -1,5 +1,5 @@
 <template>
-  <div class="entropy-chamber-node" @mousedown.stop>
+  <div class="entropy-chamber-node">
     <div class="chaos-particles" v-if="isDecaying">
       <div class="p" v-for="n in 20" :key="n" :style="getParticleStyle()"></div>
     </div>
@@ -54,7 +54,7 @@ async function triggerDecay() {
   isDecaying.value = true
   fragments.value = []
   
-  await new Promise(r => setTimeout(r, 2000))
+  // Real logic would go here
   
   fragments.value = [
     "What if the exact opposite is true?",

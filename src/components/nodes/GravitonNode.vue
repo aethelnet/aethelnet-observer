@@ -1,5 +1,5 @@
 <template>
-  <div class="graviton-node" @mousedown.stop>
+  <div class="graviton-node">
     <div class="gravity-waves" :class="{ active: isPulling }">
       <div class="wave w1"></div>
       <div class="wave w2"></div>
@@ -50,7 +50,7 @@ async function pullConcepts() {
   isPulling.value = true
   pulled.value = []
   
-  await new Promise(r => setTimeout(r, 2500))
+  // Real logic would go here
   
   pulled.value = [
     `Concept: Evolution of ${topic.value}`,

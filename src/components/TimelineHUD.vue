@@ -1,15 +1,15 @@
 <template>
   <div class="timeline-hud" :class="{ 'is-expanded': isExpanded }">
-    <div class="timeline-header" @click="isExpanded = !isExpanded">
-      <span class="timeline-title">TIME MACHINE (GIT FOR COGNITION)</span>
+    <div class="hud-header" @click="isExpanded = !isExpanded">
+      <span class="timeline-title">UNIVERSE SELECTOR</span>
       <button class="expand-btn">{{ isExpanded ? '▼' : '▲' }}</button>
     </div>
     
-    <div class="timeline-content" v-show="isExpanded">
+    <div class="hud-content" v-show="isExpanded">
       <div class="snapshot-controls">
         <input 
           v-model="newSnapshotDesc" 
-          placeholder="Describe reality state..." 
+          placeholder="Describe reality branch..." 
           class="snapshot-input"
           @keydown.enter="createSnapshot('user_manual', '')"
         />
@@ -152,69 +152,86 @@ onUnmounted(() => {
 <style scoped>
 .timeline-hud {
   position: absolute;
-  bottom: 140px; /* Above the injection stream */
-  left: 50%;
-  transform: translateX(-50%);
-  width: 600px;
-  background: rgba(10, 10, 15, 0.85);
-  border: 1px solid var(--color-accent);
-  border-radius: 12px;
-  z-index: 50;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 4px 30px rgba(0, 243, 255, 0.1);
+  top: 60px;
+  right: 16px;
+  width: 280px;
+  background: rgba(20, 20, 20, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  z-index: 2000;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
   overflow: hidden;
 }
 
-.timeline-header {
-  padding: 8px 16px;
+.hud-header {
+  padding: 10px 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
-  background: rgba(0, 243, 255, 0.05);
+  background: rgba(255, 255, 255, 0.03);
   border-bottom: 1px solid transparent;
 }
 
-.timeline-hud.is-expanded .timeline-header {
-  border-bottom: 1px solid rgba(0, 243, 255, 0.2);
+.timeline-hud.is-expanded .hud-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .timeline-title {
-  font-family: var(--font-family-mono);
-  font-size: 11px;
-  color: var(--color-accent);
-  font-weight: bold;
+  font-family: var(--font-family-mono, monospace);
+  font-size: 10px;
+  color: var(--color-text-main);
+  font-weight: 800;
   letter-spacing: 1px;
 }
 
 .expand-btn {
   background: none;
   border: none;
-  color: var(--color-accent);
+  color: var(--color-text-accent);
   cursor: pointer;
-  font-size: 10px;
+  font-size: 12px;
+  transition: transform 0.3s ease;
 }
 
-.timeline-content {
-  padding: 16px;
+.hud-content {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.universe-select-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.universe-label {
+  font-size: 9px;
+  color: var(--color-text-accent);
+  font-family: var(--font-family-mono);
+  font-weight: 800;
 }
 
 .snapshot-controls {
   display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 8px;
 }
 
 .snapshot-input {
   flex: 1;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 6px;
   color: #fff;
   padding: 6px 12px;
   font-family: var(--font-family-mono);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .snapshot-input:focus {

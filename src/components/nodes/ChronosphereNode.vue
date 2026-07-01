@@ -1,5 +1,5 @@
 <template>
-  <div class="chronosphere-node" @mousedown.stop>
+  <div class="chronosphere-node">
     <div class="time-rings" :class="{ spinning: isExtrapolating }">
       <div class="ring r1"></div>
       <div class="ring r2"></div>

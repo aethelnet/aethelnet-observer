@@ -1,5 +1,5 @@
 <template>
-  <div class="vault-node-container" @mousedown.stop @touchstart.stop>
+  <div class="vault-node-container">
     <div class="vault-header" :class="{ unlocked: isUnlocked }">
       <div class="lock-status">
         <span class="icon">{{ isUnlocked ? '[ OPEN ]' : '[ LOCKED ]' }}</span>

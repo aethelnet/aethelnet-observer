@@ -16,6 +16,8 @@
       @edit-mask="editMask"
       @remove-mask="removeMask"
       @toggle-grid="toggleGridMode"
+      @toggle-assets="showToolbox = !showToolbox"
+      @toggle-spiders="spawnApp('Spider')"
       @toggle-eco="toggleEcoMode"
       :is-eco-mode="isEcoMode"
     />
@@ -33,8 +35,18 @@
       @focus-node="focusNode"
       @toggle-sensor="toggleSensor"
       @toggle-forge="showForgeWorkbench = true"
-      @toggle-diary="() => {}"
+      @toggle-diary="showDiary = !showDiary"
+      @toggle-logs="systemLogsRef?.toggleOpen()"
       @close="showToolbox = false"
+    />
+
+    <GalaxyView 
+      v-if="isGalaxyMode"
+      :nodes="nodes" 
+      :links="links" 
+      :transform="globalTransform" 
+      :is-galaxy-mode="isGalaxyMode"
+      @node-click="selectNode"
     />
 
     <div 
@@ -74,11 +86,14 @@
       <div v-if="isSpacePressed" class="space-pan-overlay"></div>
       
       <SynapticLinks
-        :links="[]"
+        :projected-links="projectedLinks"
         :fast-link-source="fastLinkSource"
         :fast-link-current="fastLinkCurrent"
         :show-autonomous="showAutonomous"
+        :show3D="false"
+        :min-confidence="minConfidence"
         @delete-link="deleteLink"
+        @open-edge-editor="edge => activeEdge = edge"
       />
 
       <div
@@ -86,6 +101,7 @@
         v-show="true"
         :key="node.id"
         class="concept-node"
+        :data-node-id="node.id"
         :class="{ 
           'is-dragged': node.isDragged, 
           'is-selected': node.isSelected,
@@ -93,7 +109,6 @@
           'is-expanded': node.isExpanded
         }"
         :style="{
-          transform: `translate(calc(${node.sx}px - 50%), calc(${node.sy}px - 50%)) scale(${node.scale || 1})`,
           zIndex: Math.floor(1000 + (node.z || 0)),
           pointerEvents: isSpacePressed ? 'none' : 'auto'
         }"
@@ -108,6 +123,7 @@
               :node="node" 
               :globalNodes="nodes"
               :globalLinks="links"
+              @update="updateNodeAndConsole"
               @spawn-link="startFastLink($event, node)"
               @unpin="unpinNode(node)"
               @edit="startEdit(node)"
@@ -249,7 +265,13 @@
     <AppWindowOverlay
       v-if="activeAppNode"
       :node="activeAppNode"
+      :resolvedComponent="resolveNodeComponent(activeAppNode)"
+      :globalNodes="nodes"
+      :globalLinks="links"
       @close="activeAppNode = null"
+      @update="saveEdit"
+      @app-message="handleAppMessage"
+      @refresh="fetchGraphData"
     />
 
     <!-- Subgraph Breadcrumb -->
@@ -258,49 +280,30 @@
       <span class="breadcrumb-path">DIMENSION: {{ currentParentId }}</span>
     </div>
 
+    <!-- THE DIARY -->
+    <TomRiddleDiary v-if="showDiary" @node-spawned="fetchGraphData" />
+
+    <!-- SYSTEM LOGS HUD -->
+    <SystemLogsHUD ref="systemLogsRef" />
+
+    <!-- EDGE EDITOR -->
+    <EdgeEditorModal 
+      v-if="activeEdge" 
+      :link="activeEdge" 
+      @close="activeEdge = null"
+      @save="updateLinkWeight"
+      @sever="deleteLink"
+    />
+
     <!-- Timeline HUD (Time-Machine) -->
     <TimelineHUD @checkout-complete="fetchGraphData" />
 
     <!-- GNN Parameters Tuning Panel -->
-    <div class="gnn-tuning-hud" :class="{ 'is-expanded': showGnnTuning }">
-      <div class="hud-header" @click="showGnnTuning = !showGnnTuning">
-        <span class="hud-title">GNN PARAMETERS TUNING</span>
-        <button class="expand-btn">{{ showGnnTuning ? '▼' : '▲' }}</button>
-      </div>
-      
-      <div class="hud-content" v-show="showGnnTuning">
-        <div class="tuning-row">
-          <div class="tuning-label">
-            <span>DECAY RATE:</span>
-            <span class="tuning-val">{{ lgnnDecay.toFixed(3) }}</span>
-          </div>
-          <input 
-            type="range" 
-            min="0.01" 
-            max="0.5" 
-            step="0.01" 
-            v-model.number="lgnnDecay" 
-            @input="sendParams"
-            class="cyber-slider"
-          />
-        </div>
-        <div class="tuning-row">
-          <div class="tuning-label">
-            <span>RESONANCE THRESHOLD:</span>
-            <span class="tuning-val">{{ lgnnResonance.toFixed(2) }}</span>
-          </div>
-          <input 
-            type="range" 
-            min="0.1" 
-            max="2.0" 
-            step="0.05" 
-            v-model.number="lgnnResonance" 
-            @input="sendParams"
-            class="cyber-slider"
-          />
-        </div>
-      </div>
-    </div>
+    <GnnTuningHUD 
+      v-model:decay="lgnnDecay" 
+      v-model:resonance="lgnnResonance" 
+      @change="sendParams" 
+    />
 
     <!-- Command Palette (Ctrl+K) -->
     <CommandPalette
@@ -308,12 +311,23 @@
       @close="showCommandPalette = false"
       @command="handleCommand"
     />
+
+    <!-- REM Sleep Overlay -->
+    <div v-if="isRemSleep" class="rem-sleep-overlay">
+      <div class="rem-text">THE GRAPH IS SLEEPING... (SYNAPTIC PRUNING ACTIVE)</div>
+    </div>
+    
+    <!-- Dream Log Toast -->
+    <div v-if="dreamLog" class="dream-log-toast">
+      {{ dreamLog }}
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, shallowRef, watch, onMounted, onUnmounted, computed, nextTick, defineAsyncComponent, triggerRef } from 'vue'
 import * as d3 from 'd3'
+import { graphConnect, sugiyama } from 'd3-dag'
 
 import LgnnTopNav from '../components/LgnnTopNav.vue'
 import LgnnToolbox from '../components/LgnnToolbox.vue'
@@ -322,6 +336,10 @@ import AppWindowOverlay from '../components/AppWindowOverlay.vue'
 import CommandPalette from '../components/CommandPalette.vue'
 import SynapticLinks from '../components/SynapticLinks.vue'
 import TimelineHUD from '../components/TimelineHUD.vue'
+import GnnTuningHUD from '../components/GnnTuningHUD.vue'
+import SystemLogsHUD from '../components/SystemLogsHUD.vue'
+import TomRiddleDiary from './TomRiddleDiary.vue'
+import EdgeEditorModal from '../components/EdgeEditorModal.vue'
 import { engineSettings } from '../utils/engineSettings'
 import { forceLennardJones, forceEntanglement, forceHawkingRadiation } from '../utils/quantumPhysics'
 import { useLgnnWebsocket } from '../composables/useLgnnWebsocket'
@@ -331,7 +349,8 @@ import HtmlNode from '../components/nodes/HtmlNode.vue'
 import LuaNode from '../components/nodes/LuaNode.vue'
 import ApiGatewayNode from '../components/nodes/ApiGatewayNode.vue'
 import VitalsNode from '../components/nodes/VitalsNode.vue'
-import { ThreeGraphRenderer } from '../utils/ThreeGraphRenderer'
+import { ThreeGraphRenderer } from '../shared/ThreeGraphRenderer'
+import GalaxyView from '../components/GalaxyView.vue'
 import VaultNode from '../components/nodes/VaultNode.vue'
 import AudioNode from '../components/nodes/AudioNode.vue'
 import NodeConsoleOverlay from '../components/NodeConsoleOverlay.vue'
@@ -339,8 +358,10 @@ import IdentityNode from '../components/nodes/IdentityNode.vue'
 import SubgraphNode from '../components/nodes/SubgraphNode.vue'
 import WebhookNode from '../components/nodes/WebhookNode.vue'
 import PersonaNode from '../components/nodes/PersonaNode.vue'
-import GuideNode from '../components/nodes/GuideNode.vue'
-import CustomNode from '../components/nodes/CustomNode.vue'
+import GuideNode from '@/components/nodes/GuideNode.vue'
+import CustomNode from '@/components/nodes/CustomNode.vue'
+import LgnnChatNode from '@/components/nodes/LgnnChatNode.vue'
+import PinnedSummary from '@/components/PinnedSummary.vue'
 import ModularSynthNode from '../components/nodes/ModularSynthNode.vue'
 import SpiderNode from '../components/nodes/SpiderNode.vue'
 import ObjDecoderNode from '../components/nodes/ObjDecoderNode.vue'
@@ -377,9 +398,11 @@ const isEcoMode = ref(false)
 const showGnnTuning = ref(false)
 const lgnnDecay = ref(0.05)
 const lgnnResonance = ref(0.75)
+const showDiary = ref(false)
+const systemLogsRef = ref<any>(null)
 
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-const wsUrl = `${wsProtocol}//${window.location.host}/api/lgnn/ws`
+const wsUrl = `${wsProtocol}//${window.location.host}/ws`
 const { ws, sendJson } = useLgnnWebsocket(
   wsUrl,
   fetchGraphData,
@@ -402,9 +425,11 @@ const toolboxPosition = ref({ x: 0, y: 0 })
 const parallaxX = ref(0)
 const parallaxY = ref(0)
 const activeConsoleNode = ref<any | null>(null)
-const showToolbox = ref(true)
-const isGridMode = ref(false)
-const isDraggingToolbox = ref(false)
+const activeEdge = ref<any | null>(null)
+const showToolbox = ref(false)
+const showCommandPalette = ref(false)
+const isGalaxyMode = ref(false)
+const searchQuery = ref('')
 const activeAppNode = ref<any>(null)
 const currentParentId = ref<string | null>(null)
 
@@ -475,10 +500,10 @@ function toggleGridMode() {
   } else {
     // Release grid layout
     nodes.value.forEach(node => {
-      node.fx = null
-      node.fy = null
+      delete node.fx
+      delete node.fy
     })
-    simulation.alpha(0.3).restart()
+    simulation.alpha(1).restart()
   }
 }
 
@@ -496,73 +521,103 @@ function toggleEcoMode() {
 }
 
 function applyGridLayout() {
-  const inDegree = new Map()
   const adj = new Map()
-  nodes.value.forEach(n => {
-    inDegree.set(n.id, 0)
-    adj.set(n.id, [])
-  })
+  nodes.value.forEach(n => adj.set(n.id, []))
   
-  edges.value.forEach(e => {
+  links.value.forEach(e => {
     const sourceId = typeof e.source === 'object' ? e.source.id : e.source
     const targetId = typeof e.target === 'object' ? e.target.id : e.target
-    if (inDegree.has(targetId) && adj.has(sourceId)) {
-      inDegree.set(targetId, inDegree.get(targetId) + 1)
+    if (adj.has(sourceId) && adj.has(targetId)) {
       adj.get(sourceId).push(targetId)
     }
   })
   
-  const depth = new Map()
-  const queue: string[] = []
-  nodes.value.forEach(n => {
-    if (inDegree.get(n.id) === 0) {
-      queue.push(n.id)
-      depth.set(n.id, 0)
-    }
-  })
+  const acyclicEdges: string[][] = []
+  const visited = new Set<string>()
+  const recStack = new Set<string>()
   
-  while (queue.length > 0) {
-    const u = queue.shift()!
-    const d = depth.get(u) || 0
-    const neighbors = adj.get(u) || []
-    neighbors.forEach(v => {
-      const nextD = Math.max(depth.get(v) || 0, d + 1)
-      depth.set(v, nextD)
-      
-      inDegree.set(v, inDegree.get(v) - 1)
-      if (inDegree.get(v) === 0) {
-        queue.push(v)
+  function dfs(u: string) {
+    visited.add(u)
+    recStack.add(u)
+    
+    for (const v of adj.get(u) || []) {
+      if (!visited.has(v)) {
+        acyclicEdges.push([u, v])
+        dfs(v)
+      } else if (!recStack.has(v)) {
+        acyclicEdges.push([u, v])
       }
-    })
+    }
+    recStack.delete(u)
   }
   
   nodes.value.forEach(n => {
-    if (!depth.has(n.id)) {
-      depth.set(n.id, 0)
-    }
+    if (!visited.has(n.id)) dfs(n.id)
   })
   
-  const layers: any[][] = []
-  nodes.value.forEach(n => {
-    const d = depth.get(n.id)
-    if (!layers[d]) layers[d] = []
-    layers[d].push(n)
-  })
-  
-  const spacingX = 450
-  const spacingY = 300
-  const numCols = layers.length
-  
-  layers.forEach((layer, col) => {
-    if (!layer) return
-    const numInLayer = layer.length
-    layer.forEach((node, row) => {
-      node.fx = (col - numCols / 2) * spacingX
-      node.fy = (row - numInLayer / 2) * spacingY
+  if (acyclicEdges.length === 0) {
+    // No edges at all: arrange in a wide circle instead of a stiff grid
+    const radius = Math.max(300, nodes.value.length * 40)
+    const centerX = 0
+    const centerY = 0
+    nodes.value.forEach((node, i) => {
+      const angle = (i / nodes.value.length) * Math.PI * 2
+      node.fx = centerX + Math.cos(angle) * radius
+      node.fy = centerY + Math.sin(angle) * radius
       node.x = node.fx
       node.y = node.fy
     })
-  })
+    return
+  }
+  
+  try {
+    const createDag = graphConnect()
+    const dag = createDag(acyclicEdges)
+    const layout = sugiyama()
+    layout(dag)
+    
+    let minX = Infinity, maxX = -Infinity
+    let minY = Infinity, maxY = -Infinity
+    
+    for (const node of dag.nodes()) {
+      if (node.x < minX) minX = node.x
+      if (node.x > maxX) maxX = node.x
+      if (node.y < minY) minY = node.y
+      if (node.y > maxY) maxY = node.y
+    }
+    
+    const scaleX = 200
+    const scaleY = 150
+    const centerX = (minX + maxX) / 2 || 0
+    const centerY = (minY + maxY) / 2 || 0
+    
+    const positionedIds = new Set<string>()
+    for (const dNode of dag.nodes()) {
+      const id = dNode.data
+      const vNode = nodes.value.find(n => n.id === id)
+      if (vNode) {
+        vNode.fx = (dNode.x - centerX) * scaleX
+        vNode.fy = (dNode.y - centerY) * scaleY
+        vNode.x = vNode.fx
+        vNode.y = vNode.fy
+        positionedIds.add(id)
+      }
+    }
+    
+    let unplacedIdx = 0
+    nodes.value.forEach(node => {
+      if (!positionedIds.has(node.id)) {
+        node.fx = (maxX > -Infinity ? ((maxX - centerX) * scaleX + 250) : 0) + (unplacedIdx % 3) * 200
+        node.fy = (unplacedIdx * 100)
+        node.x = node.fx
+        node.y = node.fy
+        unplacedIdx++
+      }
+    })
+    
+  } catch (err) {
+    console.error("DAG Layout failed:", err)
+  }
 }
 
 function updateNodeAndConsole(node: any, newMeta: any, newContent?: string) {
@@ -622,7 +677,7 @@ async function spawnOmniDecoder(targetNode: any) {
         }),
         is_grounded: true,
         confidence: 1.0,
-        parent_id: currentParentId.value || 'ROOT'
+        parent_id: currentParentId.value || 'root'
       })
     });
     
@@ -658,7 +713,7 @@ async function updateNode(node: any, options: any = {}) {
         meta_data: node.meta_data || "{}",
         source_tag: node.source_tag || "manual",
         connections: [],
-        parent_id: node.parent_id || currentParentId.value || 'ROOT'
+        parent_id: node.parent_id || currentParentId.value || 'root'
       })
     })
     await fetchGraphData()
@@ -669,7 +724,7 @@ async function updateNode(node: any, options: any = {}) {
 
 function spawnNewMask() {
   const newId = `identity_${Date.now()}`
-  nodes.value.push({
+  const newNode = {
     id: newId,
     label: `NEW MASK`,
     source_tag: 'identity',
@@ -680,15 +735,18 @@ function spawnNewMask() {
     isManual: true,
     activation: 1.0,
     confidence: 1.0
-  })
+  }
+  nodes.value.push(newNode as any)
+  triggerRef(nodes)
   globalActivePersonaId.value = newId
+  updateNode(newNode)
+  activeConsoleNode.value = newNode
 }
 
 function editMask(id: string) {
   const node = nodes.value.find((n: any) => n.id === id)
   if (node) {
-    selectedNode.value = node
-    showConsole.value = true
+    activeConsoleNode.value = node
   }
 }
 
@@ -728,6 +786,56 @@ function onBlueprintForged(bp: any) {
   showToolbox.value = true
 }
 
+function handleAppMessage(msg: any) {
+  const payload = msg.data
+  if (!payload || !payload.action) return
+  
+  if (payload.action === 'SPAWN_NODE') {
+    // Send request to backend
+    const tempId = 'app_spawn_' + Date.now()
+    const url = API_BASE ? `${API_BASE}/lgnn/node` : '/api/lgnn/node'
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: tempId,
+        text_content: payload.content || 'Spawned by App',
+        source_tag: payload.source_tag || 'custom',
+        connections: [msg.nodeId], // Connect to the app that spawned it
+        parent_id: currentParentId.value || 'root',
+        node_type: 'standard'
+      })
+    }).then(res => {
+      if (res.ok) {
+        fetchGraphData().then(() => refreshSimulation())
+      }
+    })
+  } else if (payload.action === 'EVOLVE') {
+    const url = API_BASE ? `${API_BASE}/lgnn/market/spawn_app` : '/api/lgnn/market/spawn_app'
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: msg.nodeId, iterations: payload.iterations || 1 })
+    }).then(res => {
+      if (res.ok) fetchGraphData()
+    })
+  } else if (payload.action === 'CLOSE_WINDOW') {
+    if (activeAppNode.value && activeAppNode.value.id === msg.nodeId) {
+      activeAppNode.value = null;
+    }
+  } else if (payload.action === 'SET_DECAY') {
+    if (payload.value !== undefined) {
+      lgnnDecay.value = parseFloat(payload.value);
+      sendParams();
+    }
+  } else if (payload.action === 'SET_RESONANCE') {
+    if (payload.value !== undefined) {
+      lgnnResonance.value = parseFloat(payload.value);
+      sendParams();
+    }
+  }
+}
+
 function handleCommand(item: any) {
   if (item.type === 'node') {
     // Focus the node
@@ -740,18 +848,13 @@ function handleCommand(item: any) {
     }
   } else if (item.type === 'app') {
     // Download/Spawn the community app from market
-    injectSeedWithText(`[ DOWNLOADING APP: ${item.label} ]`, 'blueprint')
-    // We simulate downloading and spawning it in the background
-    setTimeout(() => {
-      spawnCustom(item.node.meta_data)
-    }, 1000)
+    spawnCustom(item.node.meta_data)
   } else if (item.type === 'command') {
     const cmd = item.value
     if (cmd.startsWith('spawn-')) {
       const appType = cmd.replace('spawn-', '')
       if (appType === 'spider') {
-        const payload = item.payload || 'spider'
-        injectSeedWithText(`🕸️ SPIDER: ${payload}`, 'spider')
+        spawnApp('Spider')
       } else if (appType === 'anomaly') {
         // Create a custom Gravity Well node instantly
         const id = `manual_anomaly_${Date.now()}`
@@ -760,7 +863,7 @@ function handleCommand(item: any) {
           label: 'GRAVITY ANOMALY',
           content: 'Sucking in untagged low-confidence ideas...',
           source_tag: 'manual',
-          parent_id: currentParentId.value || 'ROOT',
+          parent_id: currentParentId.value || 'root',
           x: (window.innerWidth / 2 - globalTransform.x) / globalTransform.k,
           y: (window.innerHeight / 2 - globalTransform.y) / globalTransform.k,
           z: 0,
@@ -777,12 +880,12 @@ function handleCommand(item: any) {
         const appMap: Record<string, string> = {
           'identity': 'Identity',
           'aurastream': 'AuraStream',
-          'html': 'Render',
+          'html': 'Html',
           'render': 'Render',
           'vault': 'Vault',
           'subgraph': 'Subgraph',
           'audio': 'Audio',
-          'omni': 'Omni',
+          'omni': 'OmniDecoder',
           'vitals': 'Vitals'
         }
         const mapped = appMap[appType] || appType
@@ -796,33 +899,88 @@ function handleCommand(item: any) {
         }
       })
     } else if (cmd === 'toggle-diary') {
-      if (showToolbox.value) showToolbox.value = false
+      showDiary.value = !showDiary.value
+    } else if (cmd === 'toggle-logs') {
+      systemLogsRef.value?.toggleOpen()
     } else if (cmd === 'clear-graph') {
       nodes.value = []
       links.value = []
+    } else if (cmd === 'load-blueprint') {
+      isGalaxyMode.value = true
+      // We assume /api/blueprint or /naas/blueprint? 
+      // Since aethelnet-node is running on port 8000, we'll hit its endpoint
+      const API_BASE = window.API_BASE || 'http://localhost:8000/api'
+      fetch(`${API_BASE}/system_apps/blueprint`) // or wherever we mounted it
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.nodes) {
+            const bpNodes = data.nodes.map((n: any) => ({
+              id: n.id,
+              label: n.name || n.id,
+              type: n.type || 'file',
+              x: (Math.random() - 0.5) * 5000,
+              y: (Math.random() - 0.5) * 5000,
+              z: (Math.random() - 0.5) * 5000,
+              color: n.type === 'file' ? '#00BCD4' : (n.type === 'function' ? '#4CAF50' : '#FF9800')
+            }))
+            const bpEdges = data.edges.map((e: any) => ({
+              source: e.source,
+              target: e.target,
+              type: e.type || 'import'
+            }))
+            nodes.value = bpNodes
+            links.value = bpEdges
+            triggerRef(nodes)
+            triggerRef(links)
+          }
+        })
+        .catch(err => console.error("Failed to load blueprint", err))
     }
   }
 }
 
 
-function spawnCustom(bp: any) {
+async function spawnCustom(bp: any) {
+  const tempId = 'custom_' + Date.now()
   const newNode = {
-    label: bp.name,
-    content: bp.script || '# Custom App Node',
+    id: tempId,
+    text_content: bp.script || '# Custom App Node',
+    node_type: 'macro',
+    is_grounded: true,
+    confidence: 1.0,
     source_tag: 'custom',
-    parent_id: currentParentId.value || 'ROOT',
-    x: 0,
-    y: 0,
-    z: 0,
+    connections: [],
+    parent_id: currentParentId.value || 'root',
     meta_data: JSON.stringify({
       blueprint: bp,
       state: {}
     })
   }
-  nodes.value.push(newNode as any)
-  const pushedNode = nodes.value[nodes.value.length - 1]
-  pushedNode.isExpanded = true
-  updateNode(pushedNode, {})
+
+  try {
+    const url = API_BASE ? `${API_BASE}/lgnn/node` : '/api/lgnn/node';
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newNode)
+    })
+    
+    if (response.ok) {
+      await fetchGraphData()
+      const spawned = nodes.value.find((n: any) => n.id === tempId)
+      if (spawned) {
+        spawned.x = (window.innerWidth / 2 - globalTransform.x) / globalTransform.k
+        spawned.y = (window.innerHeight / 2 - globalTransform.y) / globalTransform.k
+        spawned.fx = spawned.x
+        spawned.fy = spawned.y
+        spawned.isExpanded = true
+        triggerRef(nodes)
+        refreshSimulation()
+      }
+    }
+  } catch (err) {
+    console.error("Failed to spawn custom app:", err)
+  }
   showToolbox.value = false
 }
 
@@ -845,8 +1003,14 @@ const toggleAudio = () => {
   }
 }
 
+function saveExpandedState() {
+  const expandedIds = nodes.value.filter(n => n.isExpanded).map(n => n.id)
+  localStorage.setItem('aethelnet_expanded_nodes', JSON.stringify(expandedIds))
+}
+
 function toggleExpand(node: Node) {
   node.isExpanded = !node.isExpanded
+  saveExpandedState()
 }
 
 function getAppType(node: Node): string | null {
@@ -881,6 +1045,7 @@ function resolveNodeComponent(node: Node) {
   if (node.source_tag === 'lua') return LuaNode
   if (node.source_tag === 'vitals') return VitalsNode
   if (node.source_tag === 'identity') return IdentityNode
+  if (node.source_tag === 'lgnn_chat') return LgnnChatNode
   if (node.source_tag === 'custom' || node.source_tag === 'custom_app' || node.label?.startsWith('APP:')) return CustomNode
   if (node.id === 'AETHEL_DOCS') return GuideNode
   if (node.source_tag === 'persona' || node.id.startsWith('persona_')) return PersonaNode
@@ -905,7 +1070,7 @@ async function saveEdit(node: Node) {
           text_content: node.content || node.label || '',
           source_tag: "manual",
           connections: [],
-          parent_id: currentParentId.value || 'ROOT'
+          parent_id: currentParentId.value || 'root'
         })
       })
     } catch (e) {
@@ -1011,9 +1176,11 @@ async function enterSubgraph(node: any) {
       (d3ZoomInstance as any).transform,
       d3.zoomIdentity.translate(targetX, targetY).scale(targetK)
     ).on('end', () => {
+      fetchGraphData()
       refreshSimulation()
     })
   } else {
+    fetchGraphData()
     refreshSimulation()
   }
 }
@@ -1024,22 +1191,46 @@ async function leaveSubgraph() {
     currentParentId.value = parent?.id === 'root' ? null : (parent?.id || null)
     
     if (canvasContainer.value && parent && d3ZoomInstance) {
-      refreshSimulation() // Refresh immediately so parent is visible before zooming out
-      d3.select(canvasContainer.value).transition().duration(750).call(
-        (d3ZoomInstance as any).transform,
-        d3.zoomIdentity.translate(parent.x, parent.y).scale(parent.k)
-      )
+      fetchGraphData().then(() => {
+        refreshSimulation() // Refresh immediately so parent is visible before zooming out
+        d3.select(canvasContainer.value as any).transition().duration(750).call(
+          (d3ZoomInstance as any).transform,
+          d3.zoomIdentity.translate(parent.x, parent.y).scale(parent.k)
+        )
+      })
     } else {
-      refreshSimulation()
+      fetchGraphData().then(() => refreshSimulation())
     }
   }
 }
 
+const sessionStartTime = Date.now()
+
+function isSessionLocal(id: string) {
+  if (!id) return false;
+  const parts = id.split('_');
+  const lastPart = parts[parts.length - 1];
+  if (lastPart && lastPart.length === 13) {
+    const ts = parseInt(lastPart, 10);
+    if (!isNaN(ts) && ts >= sessionStartTime) {
+      return true;
+    }
+  }
+  return false;
+}
+
 const visibleNodes = computed(() => {
-  const pid = currentParentId.value || 'ROOT'
+  const pid = currentParentId.value || 'root'
   return nodes.value.filter(n => {
-    const nodeParent = n.parent_id || 'ROOT'
-    return nodeParent === pid
+    const nodeParent = n.parent_id || 'root'
+    if (nodeParent !== pid) return false
+    
+    // Blank Page Mode: Hide stardust unless Galaxy View is enabled
+    if (!showAutonomous.value) {
+      if (!isSessionLocal(n.id) && !n.isExpanded && !n.isSelected) return false
+    }
+    
+    return true
   })
 })
 
@@ -1155,11 +1346,69 @@ const boxStart = ref({ x: 0, y: 0 })
 const boxCurrent = ref({ x: 0, y: 0 })
 
 // UI state
-const showAutonomous = ref(false)
+const showAutonomous = ref(true)
 const minConfidence = ref(0.5)
 const globalActivePersonaId = ref('')
 const transform = ref({ x: 0, y: 0, scale: 1 })
 const currentResonance = ref(0)
+
+// REM Sleep Cycle (The Forge / Synaptic Pruning)
+const isRemSleep = ref(false)
+const dreamLog = ref("")
+let remIdleTimer: any = null
+const REM_SLEEP_TIMEOUT = 120000 // 2 minutes of idle time
+
+async function triggerRemSleep() {
+  if (isRemSleep.value || isDreaming.value) return;
+  isRemSleep.value = true;
+  
+  if (physicsWorker) {
+    physicsWorker.postMessage({ type: 'DREAM' }) // Speed up physics slightly to represent processing
+  }
+
+  try {
+    const url = API_BASE ? `${API_BASE}/lgnn/rem_sleep` : '/api/lgnn/rem_sleep';
+    const response = await fetch(url, { method: 'POST' });
+    const result = await response.json();
+    if (result.status === 'success') {
+      dreamLog.value = result.log;
+    }
+  } catch(e) {
+    console.error("REM Sleep interrupted", e);
+  }
+}
+
+function wakeUp() {
+  if (isRemSleep.value) {
+    isRemSleep.value = false;
+    if (physicsWorker) physicsWorker.postMessage({ type: 'STOP' })
+    fetchGraphData(); // Reload pruned graph
+    
+    // Hide toast after 5 seconds
+    setTimeout(() => {
+      dreamLog.value = "";
+    }, 5000);
+  }
+  
+  clearTimeout(remIdleTimer);
+  remIdleTimer = setTimeout(triggerRemSleep, REM_SLEEP_TIMEOUT);
+}
+
+onMounted(() => {
+  window.addEventListener('mousemove', wakeUp);
+  window.addEventListener('keydown', wakeUp);
+  window.addEventListener('mousedown', wakeUp);
+  window.addEventListener('touchstart', wakeUp);
+  remIdleTimer = setTimeout(triggerRemSleep, REM_SLEEP_TIMEOUT);
+})
+
+onUnmounted(() => {
+  window.removeEventListener('mousemove', wakeUp);
+  window.removeEventListener('keydown', wakeUp);
+  window.removeEventListener('mousedown', wakeUp);
+  window.removeEventListener('touchstart', wakeUp);
+  clearTimeout(remIdleTimer);
+})
 
 function zoomIn() {
   if (zoomBehavior && canvasContainer.value) {
@@ -1192,6 +1441,7 @@ onUnmounted(() => {
 })
 
 let simulation: any = null
+let physicsWorker: Worker | null = null
 let animationFrameId = 0
 let width = window.innerWidth
 let height = window.innerHeight
@@ -1277,7 +1527,8 @@ async function triggerDreamState() {
 async function fetchGraphData() {
   if (nodes.value.some(n => n.isEditing)) return
   try {
-    const url = API_BASE ? `${API_BASE}/lgnn/graph` : `/api/lgnn/graph`;
+    const pid = encodeURIComponent(currentParentId.value || 'root')
+    const url = API_BASE ? `${API_BASE}/lgnn/graph?parent_id=${pid}` : `/api/lgnn/graph?parent_id=${pid}`;
     const res = await fetch(url)
     if (!res.ok) return
     const data = await res.json()
@@ -1287,9 +1538,11 @@ async function fetchGraphData() {
     const nodeMap = new Map(nodes.value.map(n => [n.id, n]))
     const newNodesMap = new Map(data.nodes.map((n: any) => [n.id, n]))
     
-    // Remove deleted nodes
+    // Remove nodes that don't belong to current parent, or have been deleted
+    const currentPid = currentParentId.value || 'root'
     for (let i = nodes.value.length - 1; i >= 0; i--) {
-      if (!newNodesMap.has(nodes.value[i].id)) {
+      const nodeParent = nodes.value[i].parent_id || 'root'
+      if (nodeParent !== currentPid || !newNodesMap.has(nodes.value[i].id)) {
         nodes.value.splice(i, 1)
         topologyChanged = true
       }
@@ -1302,12 +1555,14 @@ async function fetchGraphData() {
       const existing = nodeMap.get(n.id)
       if (existing) {
         existing.confidence = n.confidence
-        existing.content = n.content || existing.content || ''
+        existing.content = n.content || n.text_content || existing.content || ''
         existing.node_type = n.node_type || 'standard'
         existing.meta_data = typeof n.meta_data === 'string' ? JSON.parse(n.meta_data || '{}') : n.meta_data
       } else {
         const manualTags = ['manual', 'custom', 'blueprint', 'identity', 'audio', 'spider', 'webhook', 'vault', 'subgraph', 'internal']
         const isManual = n.id.startsWith('seed_') || n.id.startsWith('wiki_') || n.id.startsWith('manual_') || n.node_type === 'macro' || manualTags.includes(n.source_tag) || n.id.startsWith('OPERATOR') || n.id.startsWith('PRISM')
+        
+        const savedExpanded = JSON.parse(localStorage.getItem('aethelnet_expanded_nodes') || '[]')
         
         const cx = window.innerWidth / 2
         const cy = window.innerHeight / 2
@@ -1323,16 +1578,16 @@ async function fetchGraphData() {
         nodes.value.push({
           id: n.id,
           label: n.label || n.id,
-          content: n.content || '',
+          content: n.content || n.text_content || '',
           inputs: {},
           isManual,
           isAutonomous: n.source_tag === 'spider',
           source_tag: n.source_tag,
-          parent_id: n.parent_id || 'ROOT',
+          parent_id: n.parent_id || 'root',
           x: startX,
           y: startY,
           z: isManual ? 0 : (Math.random() * 200 - 100),
-          isExpanded: false,
+          isExpanded: savedExpanded.includes(n.id),
           isDragged: false,
           isSelected: false,
           isEditing: false,
@@ -1366,81 +1621,73 @@ async function fetchGraphData() {
     const localLinks = manualLocalEdges.value.filter(l => {
       const srcId = typeof l.source === 'string' ? l.source : (l.source as Node).id
       const tgtId = typeof l.target === 'string' ? l.target : (l.target as Node).id
-      return !existingEdges.has(srcId + '->' + tgtId)
+      
+      const hasSrc = nodes.value.some(n => n.id === srcId)
+      const hasTgt = nodes.value.some(n => n.id === tgtId)
+      
+      return hasSrc && hasTgt && !existingEdges.has(srcId + '->' + tgtId)
     }).map(l => {
       const srcId = typeof l.source === 'string' ? l.source : (l.source as Node).id
       const tgtId = typeof l.target === 'string' ? l.target : (l.target as Node).id
       return {
-        source: nodes.value.find(n => n.id === srcId) || srcId,
-        target: nodes.value.find(n => n.id === tgtId) || tgtId,
-        weight: l.weight
+        source: nodes.value.find(n => n.id === srcId) as Node,
+        target: nodes.value.find(n => n.id === tgtId) as Node,
+        weight: 1
       }
     })
     
     links.value = [...backendLinks, ...localLinks]
     
-    if (!simulation) {
-      const forceCluster = (alpha: number) => {
-        const nodeMap = new Map(nodes.value.map(n => [n.id, n]))
-        for (const node of nodes.value) {
-          if (node.parent_id && node.parent_id !== 'ROOT') {
-            const parentNode = nodeMap.get(node.parent_id)
-            if (parentNode) {
-              const dx = (parentNode.x || 0) - (node.x || 0)
-              const dy = (parentNode.y || 0) - (node.y || 0)
-              const dist = Math.sqrt(dx * dx + dy * dy)
-              if (dist > 150) {
-                // Pull child towards parent's radius
-                node.vx = (node.vx || 0) + dx * alpha * 0.5
-                node.vy = (node.vy || 0) + dy * alpha * 0.5
-              }
+    if (!physicsWorker) {
+      physicsWorker = new Worker(new URL('../workers/physics.worker.ts', import.meta.url), { type: 'module' })
+      physicsWorker.onmessage = (e) => {
+        if (e.data.type === 'TICK') {
+          const positions = e.data.payload
+          const nodeMap = new Map(nodes.value.map(n => [n.id, n]))
+          for (const p of positions) {
+            const node = nodeMap.get(p.id)
+            if (node && !node.isDragged) { // don't override dragged position
+              node.x = p.x
+              node.y = p.y
+              node.vx = p.vx
+              node.vy = p.vy
             }
           }
-        }
-      }
-
-      const forceGravityWells = (alpha: number) => {
-        const gravityWells = nodes.value.filter(n => n.node_type === 'gravity_well' || (n.meta_data && n.meta_data.is_anomaly))
-        if (gravityWells.length === 0) return
-        
-        for (const well of gravityWells) {
-          const strength = well.meta_data?.gravity_strength || 0.5
-          for (const node of nodes.value) {
-            if (node.id === well.id) continue
-            // Apply a gravitational pull towards the well
-            const dx = (well.x || 0) - (node.x || 0)
-            const dy = (well.y || 0) - (node.y || 0)
-            const dist = Math.sqrt(dx * dx + dy * dy)
-            // Stronger pull when closer, but don't divide by zero
-            if (dist > 10 && dist < 800) {
-              // Inverse square law approximation, scaled by alpha
-              const pull = (strength * 1000) / (dist * dist)
-              node.vx = (node.vx || 0) + (dx / dist) * pull * alpha
-              node.vy = (node.vy || 0) + (dy / dist) * pull * alpha
-            }
-          }
-        }
-      }
-
-      simulation = d3.forceSimulation()
-        .alphaDecay(engineSettings.physicsDecay)
-        .force("charge", d3.forceManyBody().strength(-100).theta(1.5))
-        .force("quantum_lj", forceLennardJones()) // Replaces rigid collide
-        .force("quantum_entanglement", forceEntanglement())
-        .force("hawking_radiation", forceHawkingRadiation())
-        .force("cluster", forceCluster)
-        .force("gravity_wells", forceGravityWells)
-        .on("tick", () => {
           nodes.value.forEach(constrainToBounds)
           updateProjection()
-        })
+        }
+      }
+      
+      // Setup the mock simulation proxy to intercept all legacy d3 calls
+      simulation = {
+        alpha: (v: number) => {
+          if (v > 0) physicsWorker?.postMessage({ type: 'DREAM' })
+          return simulation
+        },
+        alphaTarget: (v: number) => {
+          if (v > 0) physicsWorker?.postMessage({ type: 'DREAM' })
+          else physicsWorker?.postMessage({ type: 'STOP' })
+          return simulation
+        },
+        restart: () => {
+          physicsWorker?.postMessage({ type: 'DREAM' })
+          return simulation
+        },
+        stop: () => {
+          physicsWorker?.postMessage({ type: 'STOP' })
+          return simulation
+        },
+        nodes: (n: any) => simulation,
+        force: (name: string, f?: any) => {
+          if (f === undefined) return { links: () => {} }
+          return simulation
+        },
+        alphaDecay: (v: number) => simulation,
+        on: (event: string, cb: any) => simulation
+      }
     }
     
-    // Update decay dynamically
-    simulation.alphaDecay(engineSettings.physicsDecay)
-    
-    simulation.nodes(nodes.value)
-    // Create a copy of links for d3 to mutate, leaving our links array pristine
+    // Create a copy of links for the worker
     const d3Links = links.value.map(l => ({ 
       source: (l.source as Node).id ?? l.source, 
       target: (l.target as Node).id ?? l.target, 
@@ -1450,14 +1697,29 @@ async function fetchGraphData() {
     if (isGridMode.value) {
       applyGridLayout()
     } else {
-      simulation.force("link", d3.forceLink(d3Links).id((d: any) => d.id).distance(linkDistance))
-      if (topologyChanged || links.value.length !== (existingEdges.size + manualLocalEdges.value.length)) {
-        simulation.alpha(0.3).restart()
-      }
+      // Send data to worker instead of local simulation
+      physicsWorker.postMessage({
+        type: 'UPDATE',
+        payload: {
+          nodes: JSON.parse(JSON.stringify(nodes.value)), // strip reactivity
+          links: d3Links,
+          engineSettings,
+          linkDistance
+        }
+      })
     }
       
     if (topologyChanged) {
       triggerRef(nodes)
+      if (threeRenderer) {
+        const visibleNodeIds = new Set(visibleNodes.value.map(n => n.id))
+        const visibleLinks = links.value.filter(l => {
+          const sid = typeof l.source === 'object' ? l.source.id : l.source
+          const tid = typeof l.target === 'object' ? l.target.id : l.target
+          return visibleNodeIds.has(sid) && visibleNodeIds.has(tid)
+        })
+        threeRenderer.updateData(visibleNodes.value, visibleLinks)
+      }
     }
       
     updateProjection()
@@ -1468,7 +1730,7 @@ async function fetchGraphData() {
 
 async function saveGraphPhysics() {
   try {
-    const url = API_BASE ? `${API_BASE}/lgnn/graph?parent_id=${encodeURIComponent(currentParentId.value || 'ROOT')}` : `/api/lgnn/graph?parent_id=${encodeURIComponent(currentParentId.value || 'ROOT')}`;
+    const url = API_BASE ? `${API_BASE}/lgnn/graph?parent_id=${encodeURIComponent(currentParentId.value || 'root')}` : `/api/lgnn/graph?parent_id=${encodeURIComponent(currentParentId.value || 'root')}`;
     await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1490,13 +1752,47 @@ async function saveGraphPhysics() {
 function updateProjection() {
   const { x: tx, y: ty, k } = globalTransform
   
-  // Only update DOM positions for interactive UI nodes
+  // Only update coordinates
   domNodes.value.forEach(node => {
     const perspective = 800 / (800 + (node.z || 0))
     node.scale = k * perspective
     node.sx = tx + (node.x || 0) * k
     node.sy = ty + (node.y || 0) * k
   })
+  
+  // Directly update DOM to avoid Vue Virtual DOM lag
+  if (canvasContainer.value) {
+    const els = canvasContainer.value.querySelectorAll('.concept-node')
+    els.forEach(el => {
+      const id = el.getAttribute('data-node-id')
+      if (id) {
+        const node = domNodes.value.find(n => n.id === id)
+        if (node) {
+          (el as HTMLElement).style.transform = `translate(calc(${node.sx}px - 50%), calc(${node.sy}px - 50%)) scale(${node.scale || 1})`
+        }
+      }
+    })
+  }
+
+  // Update synaptic links
+  const newProjectedLinks = []
+  for (const link of links.value) {
+    const s = typeof link.source === 'string' ? nodes.value.find(n => n.id === link.source) : link.source
+    const t = typeof link.target === 'string' ? nodes.value.find(n => n.id === link.target) : link.target
+    if (s && t && (s.isExpanded || t.isExpanded)) {
+      const sx1 = tx + (s.x || 0) * k
+      const sy1 = ty + (s.y || 0) * k
+      const sx2 = tx + (t.x || 0) * k
+      const sy2 = ty + (t.y || 0) * k
+      newProjectedLinks.push({
+        ...link,
+        source: s,
+        target: t,
+        sx1, sy1, sx2, sy2
+      })
+    }
+  }
+  projectedLinks.value = newProjectedLinks
   
   if (threeRenderer) {
     threeRenderer.globalTransform = globalTransform
@@ -1534,8 +1830,17 @@ function setupZoomAndPan() {
     .filter((e) => {
       // Don't pan on shift+drag (used for box select)
       if (e.type === 'mousedown' && e.shiftKey) return false
-      // Only pan if Spacebar is pressed, otherwise let the event bubble to onBackgroundMouseDown for hit testing!
-      if (e.type === 'mousedown' && !isSpacePressed.value) return false
+      // Only pan if Spacebar is pressed, OR if the event target is the background
+      if (e.type === 'mousedown' && !isSpacePressed.value) {
+        if (e.target && e.target.closest) {
+           if (e.target.closest('.concept-node') || 
+               e.target.closest('.app-window-overlay') || 
+               e.target.closest('.toolbox') ||
+               e.target.closest('.floating-action-bar')) {
+             return false
+           }
+        }
+      }
       return true
     })
     .on("zoom", (e) => {
@@ -1618,34 +1923,66 @@ function startDrag(event: MouseEvent | TouchEvent, node: Node) {
   activeDragNode = node
   node.isDragged = true
   
+  if (simulation) {
+    simulation.alphaTarget(0.3).restart()
+  }
+  
+  const initialClientX = 'touches' in event ? event.touches[0].clientX : (event as MouseEvent).clientX
+  const initialClientY = 'touches' in event ? event.touches[0].clientY : (event as MouseEvent).clientY
+  const rect = canvasContainer.value?.getBoundingClientRect()
+  const offsetX = rect ? rect.left : 0
+  const offsetY = rect ? rect.top : 0
+  const { x: tx, y: ty, k } = globalTransform
+  
+  const initialMouseX = (initialClientX - offsetX - tx) / k
+  const initialMouseY = (initialClientY - offsetY - ty) / k
+  const dragOffsetX = (node.x || 0) - initialMouseX
+  const dragOffsetY = (node.y || 0) - initialMouseY
+  
   const moveHandler = (e: MouseEvent | TouchEvent) => {
     if (!activeDragNode) return
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
     
-    // Get canvas boundaries to offset global mouse coordinates
-    const rect = canvasContainer.value?.getBoundingClientRect()
-    const offsetX = rect ? rect.left : 0
-    const offsetY = rect ? rect.top : 0
-    
     // Reverse the projection to find raw x/y
-    const { x: tx, y: ty, k } = globalTransform
+    const currentMouseX = (clientX - offsetX - tx) / k
+    const currentMouseY = (clientY - offsetY - ty) / k
     
     // Set both the fixed coordinates and current coordinates so the simulation knows
-    activeDragNode.fx = (clientX - offsetX - tx) / k
-    activeDragNode.fy = (clientY - offsetY - ty) / k
+    activeDragNode.fx = currentMouseX + dragOffsetX
+    activeDragNode.fy = currentMouseY + dragOffsetY
     activeDragNode.x = activeDragNode.fx
     activeDragNode.y = activeDragNode.fy
     
-    if (simulation) {
-      simulation.alphaTarget(0.3).restart()
+    if (physicsWorker) {
+      physicsWorker.postMessage({
+        type: 'DRAG',
+        payload: {
+          id: activeDragNode.id,
+          fx: activeDragNode.fx,
+          fy: activeDragNode.fy
+        }
+      })
     }
+    
+    // We already keep the simulation hot from startDrag, no need to restart on every move
+    // which causes massive lag on large graphs.
     updateProjection()
   }
   
   const endHandler = () => {
     if (activeDragNode) {
       activeDragNode.isDragged = false
+      if (physicsWorker) {
+        physicsWorker.postMessage({
+          type: 'DRAG',
+          payload: {
+            id: activeDragNode.id,
+            fx: null,
+            fy: null
+          }
+        })
+      }
       activeDragNode = null
       if (simulation) {
         simulation.alphaTarget(0)
@@ -1673,33 +2010,21 @@ function onBackgroundMouseDown(e: MouseEvent) {
     clientY = (e as any).touches[0].clientY
   }
   
+  let hitNode = null
+  
   if (threeRenderer) {
-    const { x: tx, y: ty, k } = globalTransform
-    
-    let hitNode = null
-    let minDist = 25 // 25px click radius
-    
-    for (let i = 0; i < visibleNodes.value.length; i++) {
-      const n = visibleNodes.value[i]
-      if (n.isManual) continue
-      
-      const px = tx + (n.x || 0) * k
-      const py = ty + (n.y || 0) * k
-      const dx = clientX - px
-      const dy = clientY - py
-      const dist = Math.sqrt(dx*dx + dy*dy)
-      
-      if (dist < minDist) {
-        minDist = dist
-        hitNode = n
-      }
+    const rect = canvasContainer.value?.getBoundingClientRect()
+    if (rect) {
+      const clickX = clientX - rect.left
+      const clickY = clientY - rect.top
+      hitNode = threeRenderer.raycastHover(clickX, clickY)
     }
     
-    if (hitNode) {
+    if (hitNode && !hitNode.isManual) {
       hitNode.isExpanded = true
       hitNode.isManual = true
       triggerRef(nodes)
-      activeDragNode = hitNode
+      startDrag(e, hitNode)
       return // We clicked a WebGL node!
     }
   }
@@ -1755,6 +2080,14 @@ function onBackgroundMouseDown(e: MouseEvent) {
 
 function hasAppUI(node: any) {
   if (!node) return false
+  
+  if (node.source_tag) {
+    const tag = node.source_tag.toLowerCase()
+    if (tag === 'html' || tag === 'render_html' || tag === 'render' || tag === 'app') {
+      return true
+    }
+  }
+  
   let meta = node.meta_data
   if (typeof meta === 'string') {
     try { meta = JSON.parse(meta) } catch(e) { return false }
@@ -1777,7 +2110,7 @@ async function injectSeed() {
         text_content: text,
         source_tag: "injection",
         connections: [],
-        parent_id: currentParentId.value || 'ROOT'
+        parent_id: currentParentId.value || 'root'
       })
     })
     
@@ -1868,8 +2201,49 @@ async function deleteLink(link: any) {
   }
   updateProjection()
   
-  // No DELETE endpoint exists for edges yet, so this only deletes it from the UI until the page reloads
-  // If we had a delete edge endpoint, we would call it here
+  const url = API_BASE ? `${API_BASE}/lgnn/edge/${sourceId}/${targetId}` : `/api/lgnn/edge/${sourceId}/${targetId}`
+  fetch(url, { method: 'DELETE' }).catch(e => console.error(e))
+}
+
+async function updateLinkWeight({ link, weight }: { link: any, weight: number }) {
+  link.weight = weight
+  
+  // Update local edge if it exists
+  const sourceId = link.source.id ?? link.source
+  const targetId = link.target.id ?? link.target
+  const localMatch = manualLocalEdges.value.find(l => {
+    const sId = (l.source as Node).id ?? l.source
+    const tId = (l.target as Node).id ?? l.target
+    return (sId === sourceId && tId === targetId) || (sId === targetId && tId === sourceId)
+  })
+  if (localMatch) {
+    localMatch.weight = weight
+  }
+
+  // Update physics
+  if (simulation) {
+    const d3Links = links.value.map(l => ({ 
+      source: (l.source as Node).id ?? l.source, 
+      target: (l.target as Node).id ?? l.target, 
+      weight: l.weight 
+    }))
+    simulation.force("link", d3.forceLink(d3Links).id((d: any) => d.id).distance(linkDistance))
+    simulation.alphaTarget(0.3).restart()
+    setTimeout(() => simulation.alphaTarget(0), 1000)
+  }
+  updateProjection()
+
+  // Network call
+  const url = API_BASE ? `${API_BASE}/lgnn/edge/${encodeURIComponent(sourceId)}/${encodeURIComponent(targetId)}` : `/api/lgnn/edge/${encodeURIComponent(sourceId)}/${encodeURIComponent(targetId)}`
+  try {
+    await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weight })
+    })
+  } catch (e) {
+    console.error("Failed to update edge weight", e)
+  }
 }
 
 async function spawnContextualGuide(targetNode: any) {
@@ -1954,14 +2328,19 @@ async function spawnApp(appName: string) {
       await fetchGraphData()
       // Make sure newly spawned nodes start expanded
       const spawned = nodes.value.find(n => n.id === nodeTypeInfo.id)
-      if (spawned) spawned.isExpanded = true
+      if (spawned) {
+        spawned.isExpanded = true
+        saveExpandedState()
+        triggerRef(nodes)
+        refreshSimulation()
+      }
       return
     } catch (err) {
       console.error("Spawn macro failed:", err)
     }
   }
 
-  const content = appName === 'Text' ? 'New thought...' : `APP:${appName}`
+  const content = appName === 'Text' ? 'New thought...' : (appName === 'LgnnChat' ? 'LGNN Bridge Session' : `APP:${appName}`)
   const tempId = 'manual_' + Date.now()
   let sourceTag = 'manual'
   if (appName === 'Spider') sourceTag = 'spider'
@@ -1985,6 +2364,11 @@ async function spawnApp(appName: string) {
   else if (appName === 'Subgraph') sourceTag = 'subgraph'
   else if (appName === 'Kreativfabrik') sourceTag = 'kreativfabrik'
   else if (appName === 'PatternMatcher') sourceTag = 'pattern_matcher'
+  else if (appName === 'Html') sourceTag = 'html'
+  else if (appName === 'LgnnChat') sourceTag = 'lgnn_chat'
+  else if (appName === 'Render') sourceTag = 'render'
+  else if (appName === 'Identity') sourceTag = 'identity'
+  else if (appName === 'LgnnChat') sourceTag = 'lgnn_chat'
   
   try {
     const url = API_BASE ? `${API_BASE}/lgnn/node` : '/api/lgnn/node';
@@ -1996,13 +2380,20 @@ async function spawnApp(appName: string) {
         text_content: content,
         source_tag: sourceTag,
         connections: [],
-        parent_id: currentParentId.value || 'ROOT'
+        parent_id: currentParentId.value || 'root'
       })
     })
     if (response.ok) {
       await fetchGraphData()
-      const spawned = nodes.value.find(n => n.id === tempId)
-      if (spawned) spawned.isExpanded = true
+      const spawned = nodes.value.find((n: any) => n.id === tempId)
+      if (spawned) {
+        spawned.x = (window.innerWidth / 2 - globalTransform.x) / globalTransform.k
+        spawned.y = (window.innerHeight / 2 - globalTransform.y) / globalTransform.k
+        spawned.isExpanded = true
+        spawned.isManual = true
+        triggerRef(nodes)
+        refreshSimulation()
+      }
       return tempId
     }
   } catch (err) {
@@ -2025,7 +2416,7 @@ async function onDropCanvas(event: DragEvent) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           commit_hash: data.hash,
-          target_parent_id: currentParentId.value || 'ROOT'
+          target_parent_id: currentParentId.value || 'root'
         })
       })
       if (res.ok) {
@@ -2062,11 +2453,22 @@ onMounted(() => {
     threeRenderer.onClick = (node: any) => {
       node.isExpanded = true
       node.isManual = true // This forces it into domNodes computed property
+      
+      selectedNodeIds.value.clear()
+      selectedNodeIds.value.add(node.id)
+      
       triggerRef(nodes)
       
-      // Optionally zoom/pan to it? Or just select it
+      // Optionally zoom/pan to it
       activeDragNode = node
-      activeAppNode.value = node
+      
+      // Only open AppWindowOverlay if it explicitly is an app window
+      try {
+        const meta = typeof node.meta_data === 'string' ? JSON.parse(node.meta_data) : (node.meta_data || {})
+        if (meta.ui_template || node.label?.startsWith('APP:')) {
+          activeAppNode.value = node
+        }
+      } catch (e) {}
     }
   }
   
@@ -2117,6 +2519,10 @@ function handleKeyDown(e: KeyboardEvent) {
     isSpacePressed.value = true
     spaceKeyDownTime = Date.now()
     e.preventDefault() // Prevent scrolling down
+  }
+  
+  if (e.key === 't' || e.key === 'T') {
+    showToolbox.value = !showToolbox.value
   }
   
   if (e.key === 'Escape') {
@@ -2564,12 +2970,15 @@ h2 {
   position: absolute;
   top: 0;
   left: 0;
+  will-change: transform;
   min-width: 180px;
   max-width: 280px;
-  background: var(--color-bg-primary);
-  border: 2px solid var(--border-color);
-  border-radius: 0;
-  box-shadow: var(--shadow-node);
+  background: var(--color-bg-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: var(--shadow-glass);
   padding: 16px 20px;
   cursor: grab;
   user-select: none;
@@ -2726,19 +3135,9 @@ h2 {
   transform: scale(0.95);
 }
 
-/* Injection Stream (Brutalist) */
+/* Injection Stream (Glassmorphism) */
 .injection-stream {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: var(--color-accent-active);
-  border-top: 4px solid var(--border-color);
-  padding: 16px 32px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  z-index: 2000;
   box-shadow: 0 -8px 0px rgba(26, 26, 26, 0.1);
 }
 
@@ -2872,86 +3271,7 @@ h2 {
   border-width: 0;
 }
 
-/* GNN Tuning HUD (Premium Glassmorphism) */
-.gnn-tuning-hud {
-  position: absolute;
-  bottom: 140px;
-  right: 24px;
-  width: 280px;
-  background: rgba(10, 10, 15, 0.85);
-  border: 1px solid var(--color-accent);
-  border-radius: 12px;
-  z-index: 2000;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 4px 30px rgba(0, 243, 255, 0.1);
-  transition: all 0.3s ease;
-  overflow: hidden;
-}
-
-.hud-header {
-  padding: 8px 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  background: rgba(0, 243, 255, 0.05);
-  border-bottom: 1px solid transparent;
-}
-
-.gnn-tuning-hud.is-expanded .hud-header {
-  border-bottom: 1px solid rgba(0, 243, 255, 0.2);
-}
-
-.hud-title {
-  font-family: var(--font-family-mono);
-  font-size: 10px;
-  color: var(--color-accent);
-  font-weight: bold;
-  letter-spacing: 1px;
-}
-
-.expand-btn {
-  background: none;
-  border: none;
-  color: var(--color-accent);
-  cursor: pointer;
-  font-size: 10px;
-}
-
-.hud-content {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.tuning-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.tuning-label {
-  font-family: var(--font-family-mono);
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.7);
-  display: flex;
-  justify-content: space-between;
-}
-
-.tuning-val {
-  color: var(--color-accent);
-  font-weight: bold;
-}
-
-.cyber-slider {
-  -webkit-appearance: none;
-  background: rgba(255, 255, 255, 0.1);
-  height: 4px;
-  border-radius: 2px;
-  outline: none;
-  width: 100%;
-}
+/* Removed inline gnn-tuning-hud styles */
 
 .cyber-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -2962,4 +3282,54 @@ h2 {
   cursor: pointer;
   box-shadow: 0 0 8px var(--color-accent);
 }
+
+/* REM Sleep UI */
+.rem-sleep-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(10, 5, 20, 0.7);
+  backdrop-filter: blur(8px);
+  z-index: 1500;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  animation: breathe 4s infinite alternate ease-in-out;
+}
+
+@keyframes breathe {
+  0% { opacity: 0.8; }
+  100% { opacity: 1; }
+}
+
+.rem-text {
+  color: #a855f7;
+  font-family: var(--font-family-mono);
+  font-size: 24px;
+  letter-spacing: 4px;
+  text-shadow: 0 0 20px rgba(168, 85, 247, 0.8);
+}
+
+.dream-log-toast {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 20, 25, 0.9);
+  border: 1px solid #a855f7;
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-family: var(--font-family-mono);
+  font-size: 14px;
+  z-index: 3000;
+  box-shadow: 0 0 30px rgba(168, 85, 247, 0.4);
+  animation: slideDownFade 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes slideDownFade {
+  0% { top: 40px; opacity: 0; }
+  100% { top: 80px; opacity: 1; }
+}
+
 </style>

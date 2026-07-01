@@ -25,8 +25,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, defineEmits } from 'vue'
 import { API_BASE } from '../shared/api.js'
+
+const emit = defineEmits(['node-spawned'])
 
 const isMinimized = ref(false)
 const journalText = ref('')
@@ -69,6 +71,7 @@ async function processJournal() {
         // We'll pass it implicitly by making the backend recognize OPERATOR_DIARY.
       })
     })
+    emit('node-spawned')
   } catch (e) {
     console.error("Diary processing failed", e)
   } finally {

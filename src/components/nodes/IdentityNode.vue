@@ -1,5 +1,5 @@
 <template>
-  <div class="identity-node-container" @mousedown.stop @touchstart.stop>
+  <div class="identity-node-container">
     <div class="identity-header">
       <div class="header-icon">👁️</div>
       <div class="header-title">MIRROR TERMINAL</div>

@@ -1,71 +1,87 @@
 <template>
-  <div class="spider-node-container" @mousedown.stop @touchstart.stop>
-    <div class="spider-header">
-      <div class="header-icon"><i class="fas fa-spider"></i></div>
-      <div class="header-title">SPIDER PROTOCOL</div>
-      <div class="status-dot" :class="{ active: isCrawling }"></div>
-    </div>
+  <HoloFrame 
+    title="SPIDER PROTOCOL" 
+    color="#00FF41" 
+    :width="340"
+    @collapse="$emit('toggle-expand')"
+    @action-primary="query = ''"
+  >
+    <template #icon>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:14px; height:14px;">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 8 L12 3 M12 16 L12 21 M8 12 L3 12 M16 12 L21 12" />
+        <path d="M9 9 L5 5 M15 15 L19 19 M9 15 L5 19 M15 9 L19 5" />
+        <circle cx="12" cy="3" r="1" fill="currentColor"/>
+        <circle cx="12" cy="21" r="1" fill="currentColor"/>
+        <circle cx="3" cy="12" r="1" fill="currentColor"/>
+        <circle cx="21" cy="12" r="1" fill="currentColor"/>
+        <circle cx="5" cy="5" r="1" fill="currentColor"/>
+        <circle cx="19" cy="19" r="1" fill="currentColor"/>
+        <circle cx="5" cy="19" r="1" fill="currentColor"/>
+        <circle cx="19" cy="5" r="1" fill="currentColor"/>
+      </svg>
+    </template>
+    <template #action-primary-icon>🔄</template>
     
-    <div class="spider-body">
-      <div class="spider-input-group">
-        <input 
-          v-model="query" 
-          placeholder="Enter URL or Search Query..." 
-          class="sci-input"
-          @keydown.enter="startCrawl"
-        />
-        <button @click="startCrawl" class="spider-btn" :disabled="isCrawling">
-          <span class="btn-glitch" v-if="isCrawling"></span>
-          {{ isCrawling ? 'SCANNING...' : 'CRAWL' }}
-        </button>
-      </div>
+    <div class="spider-input-group">
+      <input 
+        v-model="query" 
+        placeholder="Enter URL or Search Query..." 
+        class="sci-input"
+        @keydown.enter="startCrawl"
+      />
+      <button @click="startCrawl" class="spider-btn" :disabled="isCrawling">
+        <span class="btn-glitch" v-if="isCrawling"></span>
+        {{ isCrawling ? 'SCANNING...' : 'CRAWL' }}
+      </button>
+    </div>
 
-      <!-- Crawl Depth Slider -->
-      <div class="depth-control">
-        <div class="depth-labels">
-          <span class="depth-title">CRAWL DEPTH [ {{ depth }} ]</span>
-          <span class="depth-max">MAX: 5</span>
-        </div>
-        <input 
-          type="range" 
-          min="1" 
-          max="5" 
-          step="1" 
-          v-model.number="depth" 
-          class="sci-range"
-        />
+    <!-- Crawl Depth Slider -->
+    <div class="depth-control">
+      <div class="depth-labels">
+        <span class="depth-title">CRAWL DEPTH [ {{ depth }} ]</span>
+        <span class="depth-max">MAX: 5</span>
       </div>
+      <input 
+        type="range" 
+        min="1" 
+        max="5" 
+        step="1" 
+        v-model.number="depth" 
+        class="sci-range"
+      />
+    </div>
 
-      <div v-if="isCrawling" class="spider-status">
-        <div class="loader-container">
-          <div class="loader-bar"></div>
-        </div>
-        <div class="status-text">
-          <span>Extracting DOM nodes: <span class="highlight">{{ domNodes }}</span></span>
-          <span class="blink">Filtering noise...</span>
-        </div>
+    <div v-if="isCrawling" class="spider-status">
+      <div class="loader-container">
+        <div class="loader-bar"></div>
       </div>
+      <div class="status-text">
+        <span>Extracting DOM nodes: <span class="highlight">{{ domNodes }}</span></span>
+        <span class="blink">Filtering noise...</span>
+      </div>
+    </div>
 
-      <div v-if="results.length > 0" class="spider-results">
-        <div class="results-header">DATA FRAGMENTS ACQUIRED:</div>
-        <div class="results-list">
-          <div v-for="(res, idx) in results" :key="idx" class="result-item">
-            <span class="res-arrow">>></span> {{ res }}
-          </div>
+    <div v-if="results.length > 0" class="spider-results">
+      <div class="results-header">DATA FRAGMENTS ACQUIRED:</div>
+      <div class="results-list">
+        <div v-for="(res, idx) in results" :key="idx" class="result-item">
+          <span class="res-arrow">>></span> {{ res }}
         </div>
       </div>
     </div>
-  </div>
+  </HoloFrame>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import HoloFrame from '../HoloFrame.vue'
 
 const props = defineProps<{
   node: any
 }>()
 
-const emit = defineEmits(['refresh'])
+const emit = defineEmits(['refresh', 'toggle-expand'])
 
 const query = ref('')
 const depth = ref(1)
@@ -83,6 +99,7 @@ async function startCrawl() {
   domNodes.value = 0
   
   // Fake animation for the UI
+
   interval = setInterval(() => {
     domNodes.value += Math.floor(Math.random() * 40)
   }, 100)
@@ -105,7 +122,10 @@ async function startCrawl() {
     const data = await res.json()
     
     if (data.status === 'success') {
-        results.value = data.results
+        // If results were already streamed, don't overwrite them
+        if (results.value.length === 0) {
+            results.value = data.results
+        }
         domNodes.value = data.dom_nodes
         emit('refresh')
     } else {
@@ -118,85 +138,34 @@ async function startCrawl() {
     isCrawling.value = false
   }
 }
+
+function handleGlobalEvent(e: Event) {
+  const customEvent = e as CustomEvent
+  if (customEvent.detail?.event === 'spider_stream') {
+    const payload = customEvent.detail.payload
+    if (payload && payload.spider_node_id === props.node.id) {
+      // Append live result
+      if (!results.value.includes(payload.content)) {
+          results.value.push(payload.content)
+      }
+    }
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('aethel-global-event', handleGlobalEvent)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('aethel-global-event', handleGlobalEvent)
+})
 </script>
 
 <style scoped>
-.spider-node-container {
-  display: flex;
-  flex-direction: column;
-  width: 340px;
-  background: rgba(5, 10, 10, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(0, 255, 65, 0.3);
-  border-radius: 12px;
-  font-family: 'Inter', 'Space Mono', monospace;
-  color: #fff;
-  box-shadow: 0 15px 35px rgba(0,0,0,0.6), inset 0 0 20px rgba(0, 255, 65, 0.05);
-  overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
-
-.spider-node-container:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 20px 45px rgba(0,0,0,0.7), inset 0 0 30px rgba(0, 255, 65, 0.15);
-  border-color: rgba(0, 255, 65, 0.6);
-}
-
-.spider-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  background: linear-gradient(90deg, rgba(0, 255, 65, 0.1) 0%, transparent 100%);
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-}
-
-.header-icon {
-  font-size: 14px;
-  color: #00FF41;
-  text-shadow: 0 0 8px #00FF41;
-}
-
-.header-title {
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 2px;
-  color: rgba(255,255,255,0.9);
-  flex: 1;
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #333;
-  box-shadow: inset 0 0 4px rgba(0,0,0,0.8);
-  transition: all 0.3s ease;
-}
-
-.status-dot.active {
-  background: #00FF41;
-  box-shadow: 0 0 10px #00FF41;
-  animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.2); opacity: 0.6; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-.spider-body {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
 .spider-input-group {
   display: flex;
   gap: 8px;
+  margin-bottom: 16px;
 }
 
 .sci-input {
