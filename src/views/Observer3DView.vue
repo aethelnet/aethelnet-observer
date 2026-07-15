@@ -1,185 +1,403 @@
 <template>
-  <div class="observer-3d" ref="container">
-    <div class="hud">
-      <span class="hud-title">MACRO VISION (UNIT 734)</span>
-      <span class="hud-status">[WebGL Engine Active] >> Rendering 10,000 Reservoir Nodes</span>
+  <div class="observer-3d-view">
+    <!-- WebGL Canvas Layer -->
+    <canvas ref="canvasRef" class="gl-canvas"></canvas>
+
+    <!-- Overlay Layer -->
+    <div class="hud-overlay">
+      <div class="top-bar">
+        <div class="system-status">
+          <div class="pulse-dot"></div>
+          <span>AETHELNET CORE ACTIVE</span>
+        </div>
+        <div class="view-controls">
+          <button class="hud-btn" @click="resetCamera">Reset View</button>
+          <button class="hud-btn" :class="{ active: autoRotate }" @click="autoRotate = !autoRotate">Auto-Rotate</button>
+        </div>
+      </div>
+      
+      <div class="bottom-bar">
+        <div class="stats">
+          <span>Nodes: {{ nodes.length }}</span>
+          <span>Edges: {{ links.length }}</span>
+        </div>
+      </div>
     </div>
+    
+    <!-- P2P Mesh Interactive Cockpit -->
+    <P2PMeshOverlay style="pointer-events: auto;" />
+
+    <!-- Node Details Panel -->
+    <NodeDetailsOverlay 
+      v-if="selectedNode" 
+      :node="selectedNode" 
+      @close="selectedNode = null"
+      style="pointer-events: auto;"
+    />
+
+    <!-- Ouroboros Concept Injector -->
+    <OuroborosInjector style="pointer-events: auto;" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as THREE from 'three'
-import { API_BASE } from '../shared/api.js'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
+import { useAgentStore } from '../stores/agentStore'
+import P2PMeshOverlay from '../components/P2PMeshOverlay.vue'
+import NodeDetailsOverlay from '../components/NodeDetailsOverlay.vue'
+import OuroborosInjector from '../components/OuroborosInjector.vue'
 
-const container = ref<HTMLDivElement | null>(null)
-let scene: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer
-let particles: THREE.Points | null = null
-let animationId: number
-let mouseX = 0, mouseY = 0
-let fetchInterval: number
+const agentStore = useAgentStore()
+const canvasRef = ref<HTMLCanvasElement | null>(null)
+const autoRotate = ref(true)
+const selectedNode = ref(null)
 
-const onMouseMove = (event: MouseEvent) => {
-  const halfX = window.innerWidth / 2
-  const halfY = window.innerHeight / 2
-  mouseX = (event.clientX - halfX) * 0.5
-  mouseY = (event.clientY - halfY) * 0.5
-}
+// Temporary mock data if store is empty
+const nodes = ref(agentStore.nodes.length ? agentStore.nodes : Array.from({ length: 150 }, (_, i) => ({
+  id: `n_${i}`,
+  x: (Math.random() - 0.5) * 100,
+  y: (Math.random() - 0.5) * 100,
+  z: (Math.random() - 0.5) * 100,
+  type: ['agent', 'data', 'concept'][Math.floor(Math.random() * 3)],
+  active: Math.random() > 0.5
+})))
 
-const onResize = () => {
-  if (!container.value) return
-  camera.aspect = container.value.clientWidth / container.value.clientHeight
-  camera.updateProjectionMatrix()
-  renderer.setSize(container.value.clientWidth, container.value.clientHeight)
-}
+const links = ref(agentStore.edges.length ? agentStore.edges : Array.from({ length: 200 }, () => ({
+  source: `n_${Math.floor(Math.random() * 150)}`,
+  target: `n_${Math.floor(Math.random() * 150)}`,
+  value: Math.random()
+})))
 
-const fetchLiveNodes = async () => {
-  try {
-    const url = API_BASE ? `${API_BASE}/lgnn/graph` : '/api/lgnn/graph';
-    const res = await fetch(url)
-    if (!res.ok) return
-    const data = await res.json()
-    
-    if (particles) {
-      scene.remove(particles)
-      particles.geometry.dispose()
-      ;(particles.material as THREE.Material).dispose()
-    }
+// Three.js State
+let scene: THREE.Scene
+let camera: THREE.PerspectiveCamera
+let renderer: THREE.WebGLRenderer
+let controls: OrbitControls
+let animationFrameId: number
 
-    const geometry = new THREE.BufferGeometry()
-    const vertices = []
-    const colors = []
-    
-    // Scale factor to spread the nodes out in the 3D space
-    const scale = 25.0 
+let nodeMesh: THREE.InstancedMesh
+let linkLines: THREE.LineSegments
 
-    for (const node of data.nodes) {
-      const isManual = node.id.startsWith('seed_') || node.id.startsWith('wiki_') || node.id.startsWith('manual_') || node.isManual
-      const act = Math.abs(node.mean_activation || 0)
-      
-      // Use backend coordinates or random jitter
-      const x = (node.x || (Math.random() - 0.5) * 50) * scale
-      const y = (node.y || (Math.random() - 0.5) * 50) * scale
-      const z = (node.z || (Math.random() - 0.5) * 50) * scale
-      vertices.push(x, y, z)
-      
-      if (isManual) {
-        colors.push(0.88, 0.23, 0.19) // #E03C31 accent for manual thoughts
-      } else if (act > 0.45) {
-        // High resonance (Opus threshold passed!) gets red
-        colors.push(0.88, 0.23, 0.19)
-      } else {
-        // Background noise gets the brutalist white
-        colors.push(0.95, 0.95, 0.94)
-      }
-    }
-    
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+const raycaster = new THREE.Raycaster()
+const mouse = new THREE.Vector2()
 
-    const material = new THREE.PointsMaterial({
-      size: 5,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.85,
-      sizeAttenuation: true
-    })
+const initThreeJS = () => {
+  if (!canvasRef.value) return
 
-    particles = new THREE.Points(geometry, material)
-    scene.add(particles)
-  } catch (e) {
-    console.error("Failed to fetch 3D graph data", e)
-  }
-}
-
-onMounted(() => {
-  if (!container.value) return
-
-  // 1. Scene Setup
+  // Scene setup
   scene = new THREE.Scene()
-  scene.fog = new THREE.FogExp2(0x1a1a1a, 0.0004)
+  scene.fog = new THREE.FogExp2(0x050505, 0.01)
 
-  // 2. Camera
-  camera = new THREE.PerspectiveCamera(75, container.value.clientWidth / container.value.clientHeight, 1, 6000)
-  camera.position.z = 1800
+  // Camera setup
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
+  camera.position.z = 100
 
-  // 3. Renderer (Brutalist dark theme)
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-  renderer.setSize(container.value.clientWidth, container.value.clientHeight)
-  renderer.setClearColor(0x1a1a1a, 1) // Brutalist dark base
-  container.value.appendChild(renderer.domElement)
+  // Renderer setup
+  renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true, alpha: true })
+  renderer.setSize(window.innerWidth - 250, window.innerHeight) // Subtract sidebar width
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
-  // Initial fetch and setup polling
-  fetchLiveNodes()
-  fetchInterval = window.setInterval(fetchLiveNodes, 5000)
+  // Controls
+  controls = new OrbitControls(camera, renderer.domElement)
+  controls.enableDamping = true
+  controls.dampingFactor = 0.05
+  controls.autoRotate = autoRotate.value
+  controls.autoRotateSpeed = 0.5
 
-  // 4. Animation Loop
-  const animate = () => {
-    animationId = requestAnimationFrame(animate)
-    
-    if (particles) {
-      // Slow cinematic rotation of the entire universe
-      particles.rotation.x += 0.0002
-      particles.rotation.y += 0.0005
-    }
-    
-    // Parallax mouse drift
-    camera.position.x += (mouseX - camera.position.x) * 0.05
-    camera.position.y += (-mouseY - camera.position.y) * 0.05
-    camera.lookAt(scene.position)
-    
-    renderer.render(scene, camera)
-  }
+  // Lighting
+  const ambientLight = new THREE.AmbientLight(0x404040)
+  scene.add(ambientLight)
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
+  directionalLight.position.set(1, 1, 1)
+  scene.add(directionalLight)
+
+  createGraph()
+
+  // Handle Resize
+  window.addEventListener('resize', onWindowResize)
   
-  window.addEventListener('mousemove', onMouseMove)
-  window.addEventListener('resize', onResize)
-
+  // Handle Clicks for Raycasting
+  renderer.domElement.addEventListener('pointerdown', onPointerDown)
+  
+  // Start loop
   animate()
+}
+
+const onPointerDown = (event: PointerEvent) => {
+  if (!camera || !nodeMesh) return
+  const rect = renderer.domElement.getBoundingClientRect()
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+  
+  raycaster.setFromCamera(mouse, camera)
+  const intersects = raycaster.intersectObject(nodeMesh)
+  
+  if (intersects.length > 0 && intersects[0].instanceId !== undefined) {
+    const id = intersects[0].instanceId
+    selectedNode.value = nodes.value[id]
+    
+    // Slight flash effect on click
+    const color = new THREE.Color(0xffffff)
+    nodeMesh.setColorAt(id, color)
+    if(nodeMesh.instanceColor) nodeMesh.instanceColor.needsUpdate = true
+  } else {
+    // Only deselect if they clicked empty space (not a HUD)
+    selectedNode.value = null
+  }
+}
+
+const createGraph = () => {
+  // 1. Create Nodes (InstancedMesh for performance)
+  const geometry = new THREE.SphereGeometry(1, 16, 16)
+  const material = new THREE.MeshBasicMaterial({ color: 0x00ffaa, transparent: true, opacity: 0.8 })
+  
+  nodeMesh = new THREE.InstancedMesh(geometry, material, nodes.value.length)
+  
+  const dummy = new THREE.Object3D()
+  const color = new THREE.Color()
+  
+  nodes.value.forEach((node: any, i: number) => {
+    dummy.position.set(node.x, node.y, node.z)
+    
+    // Size based on active state
+    const scale = node.active ? 1.5 : 1.0
+    dummy.scale.set(scale, scale, scale)
+    dummy.updateMatrix()
+    
+    nodeMesh.setMatrixAt(i, dummy.matrix)
+    
+    // Color based on type
+    if (node.type === 'agent') color.setHex(0x00ffaa)
+    else if (node.type === 'data') color.setHex(0x00aaff)
+    else color.setHex(0xff3366)
+    
+    nodeMesh.setColorAt(i, color)
+  })
+  
+  nodeMesh.instanceMatrix.needsUpdate = true
+  if(nodeMesh.instanceColor) nodeMesh.instanceColor.needsUpdate = true
+  scene.add(nodeMesh)
+
+  // 2. Create Links
+  const linkMaterial = new THREE.LineBasicMaterial({ 
+    color: 0x00ffaa, 
+    transparent: true, 
+    opacity: 0.2 
+  })
+  
+  const points: number[] = []
+  
+  links.value.forEach((link: any) => {
+    const sourceNode = nodes.value.find((n: any) => n.id === link.source)
+    const targetNode = nodes.value.find((n: any) => n.id === link.target)
+    
+    if (sourceNode && targetNode) {
+      points.push(sourceNode.x, sourceNode.y, sourceNode.z)
+      points.push(targetNode.x, targetNode.y, targetNode.z)
+    }
+  })
+  
+  const lineGeometry = new THREE.BufferGeometry()
+  lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
+  
+  linkLines = new THREE.LineSegments(lineGeometry, linkMaterial)
+  scene.add(linkLines)
+}
+
+const updateGraph = () => {
+  if (!scene) return
+  
+  // Very basic update logic - in a real app, you'd update positions based on physics
+  const dummy = new THREE.Object3D()
+  const time = Date.now() * 0.001
+  
+  nodes.value.forEach((node: any, i: number) => {
+    // Slight idle float
+    const yOffset = Math.sin(time + node.x) * 2
+    dummy.position.set(node.x, node.y + yOffset, node.z)
+    
+    const scale = node.active ? 1.5 + Math.sin(time*5)*0.2 : 1.0
+    dummy.scale.set(scale, scale, scale)
+    
+    dummy.updateMatrix()
+    nodeMesh.setMatrixAt(i, dummy.matrix)
+  })
+  
+  nodeMesh.instanceMatrix.needsUpdate = true
+}
+
+const animate = () => {
+  animationFrameId = requestAnimationFrame(animate)
+  controls.autoRotate = autoRotate.value
+  controls.update()
+  updateGraph()
+  renderer.render(scene, camera)
+}
+
+const onWindowResize = () => {
+  if (!camera || !renderer) return
+  const width = window.innerWidth - 250 // Sidebar width
+  const height = window.innerHeight
+  
+  camera.aspect = width / height
+  camera.updateProjectionMatrix()
+  renderer.setSize(width, height)
+}
+
+const resetCamera = () => {
+  if (!camera || !controls) return
+  // Smooth transition could be added here
+  camera.position.set(0, 0, 100)
+  controls.target.set(0, 0, 0)
+}
+
+watch(autoRotate, (val) => {
+  if (controls) controls.autoRotate = val
 })
 
-onUnmounted(() => {
-  if (animationId) cancelAnimationFrame(animationId)
-  if (fetchInterval) clearInterval(fetchInterval)
+onMounted(() => {
+  initThreeJS()
+})
+
+onBeforeUnmount(() => {
+  cancelAnimationFrame(animationFrameId)
+  window.removeEventListener('resize', onWindowResize)
   if (renderer && renderer.domElement) {
+    renderer.domElement.removeEventListener('pointerdown', onPointerDown)
     renderer.dispose()
+    renderer.forceContextLoss()
   }
-  window.removeEventListener('mousemove', onMouseMove)
-  window.removeEventListener('resize', onResize)
+  // Dispose geometries and materials
+  scene?.traverse((object) => {
+    if ((object as THREE.Mesh).isMesh) {
+      const mesh = object as THREE.Mesh
+      mesh.geometry.dispose()
+      if (Array.isArray(mesh.material)) {
+        mesh.material.forEach(m => m.dispose())
+      } else {
+        mesh.material.dispose()
+      }
+    }
+  })
 })
 </script>
 
 <style scoped>
-.observer-3d {
+.observer-3d-view {
   width: 100%;
   height: 100%;
   position: relative;
-  background: #1A1A1A;
+  background-color: #050505;
   overflow: hidden;
 }
 
-.hud {
+.gl-canvas {
   position: absolute;
-  top: 16px;
-  left: 16px;
-  z-index: 10;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+.hud-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* Let clicks pass through to canvas */
   display: flex;
   flex-direction: column;
-  pointer-events: none;
+  justify-content: space-between;
+  padding: 1.5rem;
+  box-sizing: border-box;
 }
 
-.hud-title {
-  color: #F4F4F0;
-  font-family: 'Space Mono', monospace;
-  font-size: 24px;
-  font-weight: 900;
-  letter-spacing: 2px;
-  text-shadow: 2px 2px 0px #000;
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: auto;
 }
 
-.hud-status {
-  color: #E03C31;
-  font-family: 'Courier New', Courier, monospace;
-  font-weight: bold;
-  margin-top: 4px;
+.system-status {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(0, 20, 10, 0.6);
+  border: 1px solid rgba(0, 255, 170, 0.3);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  backdrop-filter: blur(4px);
+  color: #00ffaa;
+  font-family: monospace;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: #00ffaa;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #00ffaa;
+  animation: pulse 2s infinite;
+}
+
+.view-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.hud-btn {
+  background: rgba(10, 10, 15, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(4px);
+}
+
+.hud-btn:hover {
+  background: rgba(20, 20, 30, 0.9);
+  color: #fff;
+  border-color: rgba(0, 255, 170, 0.3);
+}
+
+.hud-btn.active {
+  background: rgba(0, 255, 170, 0.1);
+  color: #00ffaa;
+  border-color: rgba(0, 255, 170, 0.5);
+}
+
+.bottom-bar {
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: auto;
+}
+
+.stats {
+  display: flex;
+  gap: 1.5rem;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); opacity: 0.5; }
+  50% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.5; }
 }
 </style>
