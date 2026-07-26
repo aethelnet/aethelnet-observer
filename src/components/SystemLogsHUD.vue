@@ -27,7 +27,7 @@
               @change="saveBackendUrl" 
               type="text" 
               class="backend-url-input" 
-              placeholder="http://127.0.0.1:8001/api"
+              placeholder="http://127.0.0.1:8000/api"
               title="Press Enter to save and re-bind frontend API client"
             />
           </div>
@@ -302,7 +302,7 @@ function saveBackendUrl() {
 
 onMounted(() => {
   // Load current configured backend URL
-  backendUrlInput.value = localStorage.getItem('SOVEREIGN_BACKEND_URL') || 'http://127.0.0.1:8001/api'
+  backendUrlInput.value = localStorage.getItem('SOVEREIGN_BACKEND_URL') || 'http://127.0.0.1:8000/api'
   
   window.addEventListener('keydown', handleKeydown)
   // If drawer is initialized open, boot polling immediately

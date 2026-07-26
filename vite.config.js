@@ -71,17 +71,17 @@ export default defineConfig({
                 secure: false
             },
             '/api': {
-                target: 'http://127.0.0.1:1421',
+                target: 'http://127.0.0.1:8000',
                 changeOrigin: true,
                 ws: true
             },
             '/aethelnet': {
-                target: 'http://127.0.0.1:1421',
+                target: 'http://127.0.0.1:8000',
                 changeOrigin: true,
                 ws: true
             },
             '/ws': {
-                target: 'ws://127.0.0.1:1421',
+                target: 'ws://127.0.0.1:8000',
                 ws: true
             }
         }
