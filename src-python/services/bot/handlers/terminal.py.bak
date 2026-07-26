@@ -1,0 +1,203 @@
+
+import logging
+import asyncio
+from typing import Optional
+from backend.services.bot.handlers.base import BaseHandler
+from backend.services.data_manager import get_data_manager
+from backend.services.paper_broker import get_broker
+
+logger = logging.getLogger("TerminalHandler")
+
+class TerminalHandler(BaseHandler):
+    """
+    The Execution Cockpit (Terminal).
+    The Single Source of Truth for operations (Buy/Sell/Close/Manage).
+    """
+
+    async def handle_terminal(self, chat_id: int, symbol: str, message_id: int = None):
+        """
+        Renders the Terminal Interface.
+        Checks for Open Positions -> Shows PnL/Close.
+        Checks for No Position -> Shows Buy/Sell.
+        """
+        try:
+            symbol = symbol.upper()
+            broker = get_broker()
+            dm = get_data_manager()
+            
+            # Fetch Real-Time Data
+            ticker = await asyncio.to_thread(dm.get_ticker_stats, symbol)
+            price = ticker.get('last_price', 0.0) if ticker else 0.0
+            
+            # Fetch Account State
+            balance = broker.get_balance(chat_id)
+            position = broker.get_position_detailed(chat_id, symbol)
+            
+            # --- HEADER ---
+            msg = (
+                f"<b>[ TERMINAL ] :: {symbol}</b>\n"
+                "<code>════════════════════════════════</code>\n"
+            )
+            
+            # --- STATUS READOUT ---
+            if position:
+                # ACTIVE POSITION
+                # Defensive Casting to prevent 'dict.__format__' errors if state is corrupted
+                entry = float(position.get('entry_price', 0.0))
+                size = float(position.get('size', 0.0))
+                price = float(price)
+                
+                side = "LONG" if size > 0 else "SHORT"
+                
+                # Live PnL Parsing
+                # Value = Size * Current Price
+                # Cost = Size * Entry
+                # PnL = (Size * Current) - (Size * Entry) -> Size * (Current - Entry)
+                curr_val = size * price
+                entry_val = size * entry
+                pnl = curr_val - entry_val
+                entry_abs = abs(entry_val)
+                pnl_pct = (pnl / entry_abs) * 100 if entry_abs != 0 else 0.0
+                
+                # Visual Sign
+                sign = "+" if pnl >= 0 else "-"
+                
+                msg += (
+                    f"STATUS   : <b>ACTIVE {side}</b>\n"
+                    f"ENTRY    : <code>${entry:,.2f}</code>\n"
+                    f"MARK     : <code>${price:,.2f}</code>\n"
+                    f"SIZE     : <code>{abs(size):.4f} {symbol}</code>\n"
+                    "<code>────────────────────────────────</code>\n"
+                    f"PnL      : <b>{sign}${abs(pnl):,.2f} ({sign}{abs(pnl_pct):.2f}%)</b>\n"
+                    "<code>────────────────────────────────</code>\n"
+                )
+                
+                # Active Controls
+                keyboard = [
+                    [
+                        {"text": "TRADINGVIEW", "url": f"https://www.tradingview.com/chart/?symbol=BINANCE:{symbol}"},
+                        {"text": "MT5", "url": "https://trade.mql5.com/trade"}
+                    ],
+                    [
+                        {"text": "CLOSE POSITION", "callback_data": f"TRADE_CLOSE_{symbol}"},
+                        {"text": "EDIT RISK", "callback_data": f"TRADE_RISK_{symbol}"}
+                    ],
+                    [
+                         {"text": f"ADD SIZE", "callback_data": f"TRADE_ADD_{symbol}"}
+                    ]
+                ]
+            else:
+                # NO POSITION
+                msg += (
+                    f"STATUS   : <b>FLAT</b>\n"
+                    f"PRICE    : <code>${price:,.2f}</code>\n"
+                    f"BALANCE  : <code>${balance:,.2f}</code>\n"
+                    "<code>────────────────────────────────</code>\n"
+                    "<i>System ready. Select action.</i>\n"
+                )
+                
+                # Order Controls
+                keyboard = [
+                    [
+                        {"text": "TRADINGVIEW", "url": f"https://www.tradingview.com/chart/?symbol=BINANCE:{symbol}"},
+                        {"text": "MT5", "url": "https://trade.mql5.com/trade"}
+                    ],
+                    [
+                        {"text": "BUY / LONG", "callback_data": f"TRADE_BUY_{symbol}"},
+                        {"text": "SELL / SHORT", "callback_data": f"TRADE_SELL_{symbol}"}
+                    ],
+                    [
+                        {"text": "SET ALERT", "callback_data": f"ALERT_SET_{symbol}"}
+                    ]
+                ]
+
+            msg += "\n"
+            
+            # Back Navigation
+            keyboard.append([
+                {"text": "[ REFRESH ]", "callback_data": f"TERMINAL_{symbol}"},
+                {"text": f"« STATS", "callback_data": f"STATS_{symbol}"}
+            ])
+            
+            markup = {"inline_keyboard": keyboard}
+            
+            if message_id:
+                try:
+                    await self.bot.edit_message_text(chat_id, message_id, msg, reply_markup=markup)
+                except Exception:
+                    await self.bot.send_message(chat_id, msg, reply_markup=markup)
+            else:
+                await self.bot.send_message(chat_id, msg, reply_markup=markup)
+
+        except Exception as e:
+            self.logger.error(f"Terminal Error: {e}")
+            await self.send_message(chat_id, "[!] Terminal Malfunction.")
+
+    async def handle_trade_command(self, chat_id: int, symbol: str, action: str, message_id: int = None):
+        """
+        Executes the trade action and refreshes the terminal.
+        """
+        try:
+            broker = get_broker()
+            dm = get_data_manager()
+            
+            # Get Price
+            start_price = await asyncio.to_thread(dm.get_ticker_stats, symbol)
+            price = start_price.get('last_price', 0.0) if start_price else 0.0
+            
+            if price == 0:
+                await self.send_message(chat_id, "[!] Error: No Price Data.")
+                return
+
+            success = False
+            msg = ""
+            
+            if action == "BUY":
+                # MVP: Buy $1000 worth (or Balance if less)
+                # In real version, we'd ask for size.
+                qty = 1000.0 / price
+                success, reason = broker.open_position(chat_id, symbol, qty, price)
+                msg = f"Opened LONG {symbol}" if success else f"Failed: {reason}"
+                
+            elif action == "SELL":
+                # MVP: Short $1000 worth
+                qty = -1000.0 / price
+                success, reason = broker.open_position(chat_id, symbol, qty, price)
+                msg = f"Opened SHORT {symbol}" if success else f"Failed: {reason}"
+                
+            elif action == "CLOSE":
+                success, reason = broker.close_position(chat_id, symbol, price)
+                msg = f"Closed {symbol}" if success else f"Failed: {reason}"
+                
+            elif action == "ADD":
+                 # MVP: Add another $1000 generic
+                 # Check direction first
+                 pos = broker.get_position(chat_id, symbol)
+                 if pos:
+                     current_qty = pos['size']
+                     direction = 1 if current_qty > 0 else -1
+                     qty = (1000.0 / price) * direction
+                     success, reason = broker.open_position(chat_id, symbol, qty, price) # Merges into existing
+                     msg = f"Added to {symbol}" if success else f"Failed: {reason}"
+            
+            # Send Toast (Ephemeral Notification) via Answer Callback if possible, 
+            # but we are in message editing flow.
+            # Ideally we show an alert. 
+            # For now, we just refresh the terminal, and maybe append a status line?
+            # Actually, handle_terminal writes the whole message.
+            
+            # Let's refresh the terminal state
+            await self.handle_terminal(chat_id, symbol, message_id)
+            
+            # Send a separate small notification if failed (optional)
+            if not success:
+                 await self.bot.answer_callback_query(callback_query_id=None, text=msg, show_alert=True)
+
+        except Exception as e:
+            self.logger.error(f"Trade Execution Error: {e}")
+            
+    async def handle_alert_command(self, chat_id: int, symbol: str, message_id: int = None):
+        # Stub for Alert
+        # In future: Launch a keypad to type price?
+        await self.bot.send_message(chat_id, f"Alert feature coming to {symbol} in v2.1.")
+

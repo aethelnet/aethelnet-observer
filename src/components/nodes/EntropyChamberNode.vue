@@ -1,5 +1,5 @@
 <template>
-  <div class="entropy-chamber-node">
+  <div class="entropy-chamber-node glass-panel">
     <div class="chaos-particles" v-if="isDecaying">
       <div class="p" v-for="n in 20" :key="n" :style="getParticleStyle()"></div>
     </div>
@@ -68,15 +68,18 @@ async function triggerDecay() {
 
 <style scoped>
 .entropy-chamber-node {
-  background: rgba(15, 0, 5, 0.95);
-  border: 1px solid rgba(255, 0, 80, 0.5);
-  border-radius: 4px 4px 20px 20px;
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(255, 0, 80, 0.3);
+  border-radius: 12px;
   width: 310px;
   color: #fff;
   font-family: 'Inter', sans-serif;
-  box-shadow: 0 0 25px rgba(255, 0, 80, 0.15);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(255, 0, 80, 0.1);
   position: relative;
   overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .chaos-particles {
@@ -123,11 +126,11 @@ async function triggerDecay() {
 .input-block textarea { width: 100%; height: 60px; background: rgba(0,0,0,0.6); border: 1px solid #ff0050; border-radius: 4px; color: #fff; padding: 8px; font-size: 12px; resize: none; }
 
 .decay-btn {
-  width: 100%; margin-top: 12px; background: rgba(255, 0, 80, 0.2); border: 1px solid #ff0050; color: #fff;
-  padding: 10px; border-radius: 4px; font-weight: bold; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 2px;
+  width: 100%; margin-top: 12px; background: rgba(255, 0, 80, 0.1); border: 1px solid rgba(255, 0, 80, 0.5); color: #ff0050;
+  padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 2px;
 }
-.decay-btn:hover:not(:disabled) { background: #ff0050; box-shadow: 0 0 20px rgba(255, 0, 80, 0.6); }
-.decay-btn:disabled { opacity: 0.5; cursor: wait; }
+.decay-btn:hover:not(:disabled) { background: rgba(255, 0, 80, 0.2); box-shadow: 0 0 15px rgba(255, 0, 80, 0.4); transform: translateY(-1px); }
+.decay-btn:disabled { opacity: 0.5; cursor: wait; border-color: #555; color: #888; }
 
 .fragments { margin-top: 16px; }
 .fragments-label { font-size: 10px; color: #ff6b96; margin-bottom: 8px; text-transform: uppercase; border-bottom: 1px dashed rgba(255, 0, 80, 0.3); padding-bottom: 4px;}

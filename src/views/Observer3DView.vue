@@ -24,6 +24,9 @@
       </div>
     </div>
     
+    <!-- Telemetry HUD -->
+    <TelemetryHUD />
+    
     <!-- P2P Mesh Interactive Cockpit -->
     <P2PMeshOverlay style="pointer-events: auto;" />
 
@@ -46,6 +49,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { useAgentStore } from '../stores/agentStore'
 import P2PMeshOverlay from '../components/P2PMeshOverlay.vue'
+import TelemetryHUD from '../components/TelemetryHUD.vue'
 import NodeDetailsOverlay from '../components/NodeDetailsOverlay.vue'
 import OuroborosInjector from '../components/OuroborosInjector.vue'
 

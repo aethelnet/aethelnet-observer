@@ -105,11 +105,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import * as echarts from 'echarts'
 
 const chartContainer = ref<HTMLElement | null>(null)
 let chart: echarts.ECharts | null = null
+let mediaQuery: MediaQueryList | null = null
 
 const selectedSymbol = ref('BTC/USDC')
 const availableSymbols = ref(['BTC/USDC', 'ETH/USDC'])
@@ -147,7 +148,7 @@ const toggleAutopilot = async () => {
       throw new Error(`HTTP Error ${response.status}`)
     }
 
-    const result = await response.json()
+    await response.json()
     autopilotEnabled.value = newState
     
     if (newState) {
@@ -377,13 +378,14 @@ onMounted(() => {
   
   document.addEventListener('ws:message', wsListener)
   window.addEventListener('resize', resizeListener)
+  mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
   mediaQuery.addEventListener('change', themeChangeListener)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('ws:message', wsListener)
   window.removeEventListener('resize', resizeListener)
-  mediaQuery.removeEventListener('change', themeChangeListener)
+  if (mediaQuery) mediaQuery.removeEventListener('change', themeChangeListener)
   if (chart) {
     chart.dispose()
   }

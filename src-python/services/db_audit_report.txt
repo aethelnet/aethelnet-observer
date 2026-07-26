@@ -1,0 +1,126 @@
+Database & Trading System Audit Report
+Generated: automated summary for developer review
+
+Overview:
+This report covers analysis and concrete fixes for: backend/services/database.py,
+backend/services/brain.py, backend/services/trading_service.py, backend/services/data_manager.py.
+It focuses on high-severity items first, then medium/low.
+
+CRITICAL / HIGH SEVERITY ITEMS (fix ASAP)
+1) Analysis cache TTL bug (database.py)
+   - File/location: backend/services/database.py
+   - Severity: HIGH
+   - Impact: The analysis cache treated the DB timestamp as the cache insertion time. This caused
+     TTL checks to immediately expire cached entries (since DB ts << now), rendering the cache
+     ineffective and causing repeated DB reads and recomputations.
+   - Fix implemented: cache entries now store (cached_at, ts, payload). get_latest_analysis
+     checks cached_at against _cache_ttl. insert_analysis updates cache with cached_at.
+   - Rationale: prevents repeated recalculation and reduces DB load.
+
+2) Event-loop blocking sleep in async function (data_manager.py)
+   - File/location: backend/services/data_manager.py -> fetch_and_store
+   - Severity: HIGH
+   - Impact: time.sleep() used inside an async function blocks the entire event loop,
+     halting all other coroutines and causing missed market data, degraded trading responsiveness.
+   - Fix implemented: replaced time.sleep(jitter) with await asyncio.sleep(jitter).
+
+3) Unsafe attribute access for execution flag (trading_service.py)
+   - File/location: backend/services/trading_service.py
+   - Severity: HIGH
+   - Impact: Potential AttributeError if live_manager exists but does not have is_execution_active.
+     This could crash startup or prevent correct detection of execution state.
+   - Fix implemented: replaced chained attribute access with getattr(getattr(...), 'is_execution_active', False).
+
+MEDIUM SEVERITY / PERFORMANCE & CORRECTNESS
+4) Cache growth and semantics (database.py)
+   - File/location: backend/services/database.py
+   - Severity: MEDIUM
+   - Impact: _analysis_cache and _signals_cache can grow unbounded. The TTL check now works for analyses,
+     but there is no periodic eviction.
+   - Suggested next steps:
+     - Add a lightweight LRU or periodic cleanup routine to prune entries older than (2 * _cache_ttl).
+     - Limit per-symbol cache list sizes (signals already capped during insert).
+
+5) Unit mismatch risk for timestamps (brain.py <-> database.py)
+   - File/location: backend/services/brain.py -> ingest_candle & load_historical_z_scores
+   - Severity: MEDIUM
+   - Impact: DB stores ts in seconds; ingest_candle stores ts as timestamp_ms/1000.0 (seconds). Ensure
+     all comparisons to 'ts' use the same units. Code appears consistent but pay attention when adding new calls.
+   - Suggestion: Add a small comment in DB helpers documenting ts units (seconds) and assert conversions when needed.
+
+6) IncrementalStats seeding & window semantics (brain.py)
+   - File/location: backend/services/brain.py -> load_historical_z_scores
+   - Severity: MEDIUM
+   - Impact: Seeding incremental stats by replaying historical prices is good; ensure ordering is chronological
+     (the implemented load iterates reversed analyses to restore chronological order). Confirm that the number
+     of seeded prices does not exceed the window size or that popping behavior is intended.
+   - Suggestion: When loading > window_size prices, only seed the latest `window_size` prices to match current behavior.
+
+LOW / MAINTENANCE & CLEANUP
+7) Dead code and redundant AI-generated helpers
+   - File/location: backend/services/brain.py
+   - Severity: LOW
+   - Impact: Removed unused physics helpers — good. Continue scanning for other unused functions across repo.
+   - Suggestion: Run static analysis (vulture, pylint) to find additional dead code.
+
+8) Database concurrency considerations
+   - File/location: backend/services/database.py
+   - Severity: LOW -> MEDIUM (depending on load)
+   - Impact: Using sqlite3 connections per-call + PRAGMA WAL is acceptable for modest concurrent reads/writes.
+     If system scales to multiple processes or heavy write throughput, consider moving to a server DB (Postgres)
+     or ensure all writes are serialized through a single writer thread/process.
+   - Suggestion: For production live trading, prefer a robust server DB for multi-component persistence.
+
+9) SQLAlchemy session management & locking (data_manager.py)
+   - File/location: backend/services/data_manager.py
+   - Severity: LOW
+   - Impact: Session objects are created and closed in most functions; db_lock is used for writes. This is acceptable.
+   - Suggestion: Use contextmanager for sessions or FastAPI-style dependency pattern to reduce human errors.
+
+SECURITY REVIEW
+10) Secrets / hardcoded values
+    - Files inspected: trading_service.py, data_manager.py, database.py
+    - Severity: MEDIUM
+    - Findings:
+      - No API keys present in these files as provided. Ensure API keys are loaded from environment or secure vault.
+      - performance_tracker.starting_balance is hardcoded (1M). Not a secret but should come from config.
+    - Suggestion: Use get_settings() for all environment-dependent values. Audit other files for secrets.
+
+11) SQL injection
+    - Findings: All SQL statements in database.py use parameterized queries. SQLAlchemy usage also uses parameters.
+    - Severity: LOW (no direct SQL injection risk found in these files).
+
+RESOURCE LEAKS & ERROR HANDLING
+12) Missing/weak error handling on DB operations
+    - File/location: backend/services/database.py
+    - Severity: MEDIUM
+    - Impact: Many DB methods swallow exceptions and log; that is acceptable for best-effort caching but make
+      sure upstream callers can detect persistent failures (raise or return sentinel) if correctness depends on DB.
+    - Suggestion: For critical flows (positions/trades persistence), consider re-raising or returning explicit failures.
+
+Concrete next-code steps already applied in PR:
+- Fix analysis cache storage and TTL semantics.
+- Replace blocking sleep in async fetch path.
+- Harden attribute lookup for execution flag.
+
+Recommended follow-ups (small, prioritized):
+A) Add an LRU/eviction for _analysis_cache:
+   - Implement a simple periodic cleanup run on first Database instantiation (background thread or via scheduled call).
+B) Limit seed size for IncrementalStats when loading history:
+   - In load_historical_z_scores, only call self._inc_stats.add_price for the last `window_size` prices.
+C) Add explicit validation on DB inputs:
+   - e.g., assert type(ts) is float and symbol is str in insert_analysis to avoid corrupt payloads.
+D) Add a quick health-check endpoint or CLI to assert DB connectivity, schema version, and last persisted z-score timestamp.
+
+Commands to run locally to verify:
+- List DB tables: sqlite3 market_data.db ".tables"
+- Quick DB check from project root:
+  python -c "from backend.services.database import get_database; print('schema:', get_database()._get_schema_version())"
+
+If you want, I can:
+- Implement TTL-based eviction for _analysis_cache (small change).
+- Limit the incremental stats seeding to window_size in brain.load_historical_z_scores.
+- Add an explicit health-check function in database.py that asserts WAL and returns last z-score timestamp per symbol.
+
+Next steps:
+- Tell me which follow-up fixes you want applied and I will prepare SEARCH/REPLACE blocks to implement them.

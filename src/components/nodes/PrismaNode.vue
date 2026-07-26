@@ -1,5 +1,5 @@
 <template>
-  <div class="prisma-node">
+  <div class="prisma-node glass-panel">
     <div class="header">
       <div class="icon-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -78,8 +78,10 @@
 import { ref } from 'vue'
 
 const props = defineProps<{
-  node: any
+  node?: any
 }>()
+
+const emit = defineEmits(['update', 'spawn-link', 'unpin', 'edit', 'toggle-expand', 'execute', 'save-edit', 'delete', 'enter', 'refresh'])
 
 const rawInput = ref('')
 const isProcessing = ref(false)
@@ -101,7 +103,8 @@ async function refract() {
   
   try {
     const API_BASE = (window as any).API_BASE || ''
-    const res = await fetch(`${API_BASE}/lgnn/prisma/refract`, {
+    const url = API_BASE ? `${API_BASE}/lgnn/prisma/refract` : '/api/lgnn/prisma/refract'
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -113,10 +116,11 @@ async function refract() {
       })
     })
     const data = await res.json()
-    if (data.status === 'success' && data.facts) {
+    if (data.status === 'success' && data.facts && Array.isArray(data.facts)) {
       facts.value = data.facts
+      emit('refresh') // Tell LgnnView to fetch new nodes!
     } else {
-      facts.value = [data.message || 'Failed to extract facts']
+      facts.value = [data.message || `Failed to extract facts. Raw response: ${JSON.stringify(data)}`]
     }
   } catch (err: any) {
     facts.value = [`Network Error: ${err.message}`]
@@ -128,98 +132,95 @@ async function refract() {
 
 <style scoped>
 .prisma-node {
-  background: rgba(15, 15, 20, 0.95);
-  border: 1px solid rgba(138, 43, 226, 0.4);
-  border-radius: 12px;
-  width: 320px;
-  color: #fff;
-  font-family: 'Inter', sans-serif;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(138, 43, 226, 0.15);
-  overflow: hidden;
-  backdrop-filter: blur(10px);
+  background: var(--color-bg-primary);
+  width: 100%;
+  height: 100%;
+  color: var(--color-text-main);
+  font-family: var(--font-family);
   display: flex;
   flex-direction: column;
 }
 
 .header {
-  background: linear-gradient(90deg, rgba(138,43,226,0.2) 0%, rgba(0,212,255,0.1) 100%);
-  padding: 12px 16px;
+  background: #ffffff;
+  padding: 14px 18px;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 2px solid #000000;
 }
 
 .icon-wrap {
-  width: 28px;
-  height: 28px;
-  margin-right: 12px;
-  color: #00d4ff;
-  filter: drop-shadow(0 0 5px rgba(0, 212, 255, 0.5));
+  width: 24px;
+  height: 24px;
+  margin-right: 10px;
+  color: #000000;
 }
 
 .title {
-  font-weight: 800;
-  letter-spacing: 2px;
-  font-size: 14px;
-  background: -webkit-linear-gradient(#fff, #aaa);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-weight: 700;
+  letter-spacing: 1px;
+  font-size: 18px;
+  color: #000000;
+  text-transform: uppercase;
 }
 
 .subtitle {
   margin-left: auto;
-  font-size: 10px;
-  color: #888;
+  font-size: 12px;
+  color: #333333;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  font-weight: bold;
 }
 
 .content {
-  padding: 16px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  background: #ffffff;
+  flex: 1;
 }
 
 .input-feed label {
   display: block;
-  font-size: 11px;
-  color: #aaa;
+  font-size: 12px;
+  color: #000000;
   margin-bottom: 6px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-weight: bold;
 }
 
 textarea {
   width: 100%;
-  height: 80px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: #eee;
-  padding: 10px;
-  font-size: 12px;
+  height: 120px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 0;
+  color: #000000;
+  padding: 12px;
+  font-size: 14px;
   resize: none;
   font-family: inherit;
-  transition: border-color 0.2s;
+  transition: none;
 }
 
 input, select {
   width: 100%;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: #eee;
-  padding: 8px 10px;
-  font-size: 12px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 0;
+  color: #000000;
+  padding: 12px;
+  font-size: 14px;
   font-family: inherit;
-  transition: border-color 0.2s;
+  transition: none;
   box-sizing: border-box;
 }
 
 textarea:focus, input:focus, select:focus {
   outline: none;
-  border-color: rgba(138, 43, 226, 0.5);
+  background: #f0f0f0;
+  box-shadow: 4px 4px 0px #000000;
 }
 
 .settings-toggle {
@@ -227,35 +228,40 @@ textarea:focus, input:focus, select:focus {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  padding: 4px 0;
+  padding: 8px;
   user-select: none;
-  transition: opacity 0.2s;
+  border: 2px solid transparent;
 }
 
 .settings-toggle:hover {
-  opacity: 0.8;
+  background: #000000;
+  color: #ffffff;
+}
+.settings-toggle:hover .toggle-icon, .settings-toggle:hover .toggle-text {
+  color: #ffffff;
 }
 
 .toggle-icon {
-  font-size: 10px;
-  color: #00d4ff;
+  font-size: 14px;
+  color: #000000;
+  font-weight: bold;
 }
 
 .toggle-text {
-  font-size: 10px;
-  color: #888;
-  letter-spacing: 1px;
-  font-weight: 600;
+  font-size: 12px;
+  color: #000000;
+  font-weight: bold;
+  text-transform: uppercase;
 }
 
 .settings-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-left: 8px;
-  border-left: 2px solid rgba(138, 43, 226, 0.3);
+  padding: 16px;
+  border: 2px solid #000000;
+  background: #f9f9f9;
 }
-
 
 .action-bar {
   display: flex;
@@ -263,62 +269,60 @@ textarea:focus, input:focus, select:focus {
 }
 
 .refract-btn {
-  background: linear-gradient(135deg, #8a2be2, #00d4ff);
-  border: none;
-  color: white;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-weight: 600;
-  font-size: 12px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  color: #000000;
+  padding: 12px 24px;
+  border-radius: 0;
+  font-family: var(--font-family-mono);
+  font-weight: bold;
+  font-size: 14px;
   cursor: pointer;
-  transition: transform 0.1s, box-shadow 0.2s;
-  box-shadow: 0 0 10px rgba(138, 43, 226, 0.3);
+  box-shadow: 2px 2px 0px #000000;
+  text-transform: uppercase;
 }
 
 .refract-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 0 15px rgba(0, 212, 255, 0.4);
+  background: #000000;
+  color: #ffffff;
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0px #000000;
 }
 
 .refract-btn:disabled {
-  opacity: 0.7;
-  cursor: wait;
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .output-facts {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  gap: 12px;
+  border-top: 2px solid #000000;
   padding-top: 16px;
 }
 
 .fact-item {
   display: flex;
   align-items: flex-start;
-  background: rgba(0, 212, 255, 0.05);
-  border-left: 3px solid #00d4ff;
-  padding: 10px;
-  border-radius: 0 6px 6px 0;
-  animation: slideIn 0.3s ease-out forwards;
+  background: #ffffff;
+  border: 2px solid #000000;
+  padding: 16px;
+  box-shadow: 2px 2px 0px #000000;
 }
 
 .fact-icon {
-  color: #00d4ff;
+  color: #000000;
   font-weight: bold;
-  margin-right: 10px;
-  margin-top: 2px;
-  font-size: 12px;
+  margin-right: 12px;
+  font-size: 16px;
 }
 
 .fact-text {
-  font-size: 12px;
-  line-height: 1.4;
-  color: #ddd;
-}
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(-10px); }
-  to { opacity: 1; transform: translateX(0); }
+  font-size: 14px;
+  line-height: 1.5;
+  color: #000000;
+  font-weight: 500;
 }
 </style>

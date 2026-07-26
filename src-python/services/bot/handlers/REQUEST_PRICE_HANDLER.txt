@@ -1,0 +1,12 @@
+Please add the file that implements the /price command (common paths):
+
+- backend/services/bot/handlers/price.py
+- or backend/services/bot/handlers/market.py
+
+I need the exact file contents so I can insert logic that generates and updates a Mandelbrot snapshot based on the currently selected/visible symbols on the screen.
+
+Once you paste the /price handler file here, I will:
+1) Add an import for generate_mandelbrot_bytes.
+2) Insert code so the handler generates a small Mandelbrot snapshot (seeded by e.g., symbol hash + timestamp) and sends it alongside the price output, and updates the image when users navigate symbols/screens.
+
+Please paste the file you want edited (price handler) and I will provide precise SEARCH/REPLACE edits.

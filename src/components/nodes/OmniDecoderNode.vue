@@ -1,5 +1,5 @@
 <template>
-  <div class="omni-decoder-node">
+  <div class="omni-decoder-node glass-panel">
     
     <div class="omni-header">
       <div class="header-title">[ OMNI DECODER ]</div>
@@ -197,14 +197,14 @@ async function saveState() {
   display: flex;
   flex-direction: column;
   width: 340px;
-  background: rgba(10, 15, 25, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(0, 243, 255, 0.3);
   border-radius: 12px;
   font-family: 'Inter', 'Space Mono', monospace;
   color: #fff;
-  box-shadow: 0 15px 35px rgba(0,0,0,0.6), inset 0 0 20px rgba(0, 243, 255, 0.05);
+  box-shadow: 0 15px 35px rgba(0,0,0,0.6), inset 0 0 20px rgba(0, 243, 255, 0.1);
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
@@ -220,8 +220,8 @@ async function saveState() {
   justify-content: space-between;
   align-items: center;
   padding: 14px 16px;
-  background: linear-gradient(90deg, rgba(0, 243, 255, 0.1) 0%, transparent 100%);
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: linear-gradient(90deg, rgba(0, 243, 255, 0.15) 0%, transparent 100%);
+  border-bottom: 1px solid rgba(0, 243, 255, 0.2);
 }
 
 .header-title {

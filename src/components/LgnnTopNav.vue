@@ -33,23 +33,25 @@
       RECENTER
     </button>
     
-    <!-- Navigation Buttons -->
-    <button class="nav-btn" @click="$emit('toggle-assets')">
-      [ ASSETS ]
-    </button>
-    <button class="nav-btn" @click="$emit('toggle-grid')" :class="{ 'wip-active': isGridMode }">
-      [ GRID ]
-    </button>
-    <button class="nav-btn" @click="$emit('toggle-spiders')">
-      [ SPIDERS ]
-    </button>
+    <div v-if="authStore.isConnected" class="nav-container" style="background: #fff; border: 2px solid #000; box-shadow: 4px 4px 0px #000; border-radius: 0;">
+      <span style="font-size: 10px; font-weight: 800; color: #000;">PUBLIC:</span>
+      <span style="font-size: 11px; font-weight: 900; color: #000;">{{ parseFloat(authStore.aethelBalance).toFixed(0) }}</span>
+      <span style="font-size: 10px; font-weight: 800; color: #000; margin-left: 8px;">SHIELDED:</span>
+      <span style="font-size: 11px; font-weight: 900; color: #fff; background: #000; padding: 2px 4px;">{{ parseFloat(authStore.shieldedBalance).toFixed(0) }}</span>
+      <span style="font-size: 10px; font-weight: 800; color: #000;">AETHEL</span>
+    </div>
 
-    <!-- Eco Mode and Help hidden for now -->
+    <button class="nav-btn" @click="authStore.connectWallet()" :class="{ 'nav-btn-active': authStore.isConnected }" style="margin-left: auto;">
+      {{ authStore.isConnected ? `[ ${authStore.shortAddress} ]` : '[ CONNECT WALLET ]' }}
+    </button>
   </nav>
 </template>
 
 <script setup lang="ts">
 import { defineProps, defineEmits } from 'vue'
+import { useAuthStore } from '../stores/authStore'
+
+const authStore = useAuthStore()
 
 const props = defineProps<{
   identityNodes: any[];
@@ -86,113 +88,109 @@ const emits = defineEmits([
   display: flex;
   gap: 8px;
   align-items: center;
-  background: rgba(20, 20, 20, 0.4);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  padding: 6px 12px;
-  border-radius: 20px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  background: #ffffff;
+  border: 2px solid #000000;
+  padding: 8px 16px;
+  border-radius: 0;
+  box-shadow: 4px 4px 0px #000000;
+  font-family: 'Space Mono', monospace;
 }
 
 .nav-container {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.03);
-  padding: 2px 8px;
-  border-radius: 12px;
+  gap: 8px;
+  background: #ffffff;
+  padding: 4px 10px;
+  border-radius: 0;
+  border: 2px solid #000000;
 }
 
 .nav-select {
   background: transparent;
   border: none;
   outline: none;
-  font-family: var(--font-family-mono);
-  font-size: 10px;
-  font-weight: 800;
-  color: var(--color-text-main);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: #333;
   cursor: pointer;
-  max-width: 120px;
+  max-width: 140px;
 }
 
 .nav-select option {
-  background: var(--color-bg-panel);
-  color: var(--color-text-main);
+  background: #fff;
+  color: #333;
 }
 
 .nav-btn {
-  font-family: 'Space Mono', var(--font-family-mono);
-  border: 1px solid var(--border-color);
+  background: #ffffff;
+  border: 2px solid #000000;
   border-radius: 0;
-  font-weight: 800;
-  background: var(--color-bg-panel);
-  color: var(--color-text-main);
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  color: var(--color-text-main);
-  font-family: var(--font-family-mono);
-  font-size: 9px;
+  color: #000000;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 6px 14px;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.2s ease;
+  transition: none;
+  box-shadow: 2px 2px 0px #000000;
 }
 
 .nav-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: #000000;
+  border-color: #000000;
+  color: #ffffff;
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0px #000000;
 }
 
 .nav-btn.wip-active {
-  background: rgba(0, 255, 65, 0.1);
-  border-color: rgba(0, 255, 65, 0.3);
-  color: #00FF41;
+  background: #000000;
+  border-color: #000000;
+  color: #ffffff;
 }
 
 .nav-btn-small {
   background: transparent;
   border: none;
-  color: var(--color-text-accent);
-  font-family: var(--font-family-mono);
+  color: #888;
+  font-family: 'Space Mono', monospace;
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 700;
   cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 4px;
+  padding: 4px 6px;
+  border-radius: 6px;
   transition: all 0.2s ease;
 }
 
 .nav-btn-small:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.04);
+  color: #333;
 }
 
 .nav-btn-active {
-  background: var(--color-text-main);
-  color: var(--color-bg-primary);
-}
-
-.nav-btn:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text-main);
+  background: #333;
+  color: #fff;
 }
 
 .wip-btn {
   border-style: dashed !important;
-  color: #FF9800 !important;
-  border-color: #FF9800 !important;
-  opacity: 0.8;
+  color: #888 !important;
+  border-color: #ddd !important;
 }
 
 .wip-btn:hover {
-  background: rgba(255, 152, 0, 0.1) !important;
-  opacity: 1;
+  background: rgba(0, 0, 0, 0.02) !important;
+  color: #555 !important;
+  border-color: #bbb !important;
 }
 
 .wip-active {
-  background: rgba(255, 152, 0, 0.2) !important;
+  background: rgba(0, 188, 212, 0.1) !important;
   border-style: solid !important;
+  color: #00bcd4 !important;
+  border-color: rgba(0, 188, 212, 0.3) !important;
 }
 </style>

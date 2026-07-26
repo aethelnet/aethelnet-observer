@@ -1,0 +1,60 @@
+I need the exact function you want added and the path of the /price handler so I can make precise edits.
+
+Please provide (or confirm) the following:
+
+1) Exact function code to add
+   - Paste the full function implementation text (including its signature and docstring).
+   - If you want me to author a default helper for you, reply "AUTO" and I will add a recommended implementation (see example below).
+
+   Example helper (you can copy/modify or supply your own):
+   ```
+   def build_snapshot_banner(symbol: Optional[str] = None, data: Optional[dict] = None) -> str:
+       """
+       Return a short "snapshot banner" string summarizing a symbol or key params.
+
+       - symbol: optional symbol string like "AAPL" or "BTCUSDT"
+       - data: optional dict with custom fields to highlight (e.g., price, change, phase)
+       """
+       parts = []
+       if symbol:
+           parts.append(f"/{symbol}")
+       if data:
+           price = data.get("price")
+           if price is not None:
+               parts.append(f"${price:.2f}" if isinstance(price, (int, float)) else str(price))
+           change = data.get("change_pct")
+           if change is not None:
+               parts.append(f"{change:+.2f}%")
+       return " | ".join(parts) if parts else "Market Snapshot"
+   ```
+
+2) Target files to edit
+   - Confirm the exact file path for the /price handler where this function should be invoked.
+     Common locations (please confirm which one applies or paste its file contents):
+       - backend/services/bot/handlers/price.py
+       - backend/services/bot/handlers/market.py
+       - backend/services/bot/handlers/general.py (if /price lives here)
+     If you paste the file contents, I will place the call at a reasonable location (after the message text is built and before reply).
+
+3) Where to call the function
+   - For /start: do you want the helper called inside cmd_start (before showing the main menu) or used to augment the menu message text (appended to msg)?
+   - For /price: call after assembling the price message and before sending reply_text/reply_photo.
+
+Default plan if you reply "AUTO" and confirm the price handler path:
+- Add the helper (named build_snapshot_banner) to backend/services/bot/handlers/general.py near other helper code.
+- Append the banner (if non-empty) to the message shown by cmd_start (under the SYSTEM_READY line).
+- Insert a single call to build_snapshot_banner in the /price handler (file you confirm). If you don't provide /price, I will wait for that file.
+
+After you paste the function and/or confirm "AUTO" plus the price handler path, I will:
+1) Provide concise explanation of edits (1–2 lines).
+2) Return exact SEARCH/REPLACE blocks to:
+   - Insert the helper into the target file(s) (or add a new shared utils file if you prefer).
+   - Add the call-sites in cmd_start and in the price handler.
+3) Suggest a git commit command to run.
+
+If you want me to proceed now with my recommended default helper and you want it added to cmd_start only (and you'll paste /price later), reply: "AUTO — start-only". 
+If you want me to proceed and you confirm the /price file path (or paste its contents), reply: "AUTO — start+price" and include the price handler path or contents.
+
+Waiting for:
+- The exact function text you want added OR
+- A one-word choice ("AUTO", "AUTO — start-only", or "AUTO — start+price") and the price handler path or file contents.

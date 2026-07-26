@@ -29,9 +29,18 @@ const getWsUrl = () => {
             configuredBackend = null;
         }
         
+        let targetUrl;
         if (configuredBackend) {
-            // Convert backend URL (e.g. http://host:8000/api) to WS url (e.g. ws://host:8000/ws/stream)
-            return configuredBackend.replace(/^http/, 'ws').replace(/\/api\/?$/, '') + '/ws/stream';
+            // Convert backend URL (e.g. http://host:8001/api) to WS url (e.g. ws://host:8001/ws/stream)
+            try {
+                const urlObj = new URL(configuredBackend);
+                urlObj.protocol = urlObj.protocol === 'https:' ? 'wss:' : 'ws:';
+                urlObj.pathname = '/ws/stream';
+                targetUrl = urlObj.toString();
+            } catch (e) {
+                targetUrl = 'ws://127.0.0.1:8001/ws/stream';
+            }
+            return targetUrl;
         }
         
         const host = window.location.host; // includes port

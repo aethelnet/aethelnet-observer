@@ -1,5 +1,5 @@
 <template>
-  <div class="vault-node-container">
+  <div class="vault-node-container glass-panel">
     <div class="vault-header" :class="{ unlocked: isUnlocked }">
       <div class="lock-status">
         <span class="icon">{{ isUnlocked ? '[ OPEN ]' : '[ LOCKED ]' }}</span>
@@ -104,272 +104,232 @@ function toggleVisibility(key: string) {
 .vault-node-container {
   display: flex;
   flex-direction: column;
-  width: 340px;
-  background: rgba(10, 10, 12, 0.7);
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  font-family: 'Inter', 'Space Mono', monospace;
-  color: #fff;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(0,255,65,0.05);
+  width: 100%;
+  height: 100%;
+  background: var(--color-bg-primary);
+  color: var(--color-text-main);
+  font-family: var(--font-family);
   overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
-
-.vault-node-container:hover {
-  box-shadow: 0 15px 40px rgba(0,0,0,0.6), inset 0 0 30px rgba(0,255,65,0.1);
-  transform: translateY(-2px);
 }
 
 .vault-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.4);
-  border-bottom: 2px solid #E03C31;
-  transition: all 0.4s ease;
+  padding: 16px;
+  background: #ffffff;
+  border-bottom: 2px solid #000000;
 }
 
 .vault-header.unlocked {
-  border-bottom-color: #00FF41;
-  background: rgba(0, 255, 65, 0.05);
+  background: #f0f0f0;
 }
 
 .lock-status {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 1.5px;
-  color: rgba(255,255,255,0.8);
+  gap: 12px;
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #000000;
+  text-transform: uppercase;
 }
 
 .icon {
-  color: #E03C31;
-  transition: color 0.4s ease;
+  color: #000000;
 }
 .unlocked .icon {
-  color: #00FF41;
+  color: #000000;
 }
 
 .auth-btn {
-  background: #E03C31;
-  color: #FFF;
-  border: none;
-  border-radius: 4px;
-  padding: 6px 12px;
-  font-size: 10px;
-  font-weight: 800;
+  background: #ffffff;
+  color: #000000;
+  border: 2px solid #000000;
+  border-radius: 0;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: bold;
   cursor: pointer;
   text-transform: uppercase;
-  transition: all 0.2s ease;
-  box-shadow: 0 0 10px rgba(224, 60, 49, 0.3);
+  box-shadow: 2px 2px 0px #000000;
 }
 .auth-btn:hover {
-  background: #ff473a;
-  box-shadow: 0 0 15px rgba(224, 60, 49, 0.6);
-  transform: scale(1.05);
+  background: #000000;
+  color: #ffffff;
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0px #000000;
 }
 
 .lock-btn {
-  background: rgba(0, 255, 65, 0.1);
-  color: #00FF41;
-  border: 1px solid rgba(0, 255, 65, 0.3);
-  box-shadow: none;
+  background: #ffffff;
+  color: #000000;
+  border: 2px solid #000000;
 }
 .lock-btn:hover {
-  background: rgba(0, 255, 65, 0.2);
-  border-color: #00FF41;
-  box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+  background: #000000;
+  color: #ffffff;
 }
 
 .vault-body {
-  padding: 16px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-height: 180px;
+  gap: 16px;
+  flex: 1;
+  background: #ffffff;
 }
 
 .locked-body {
   justify-content: center;
   align-items: center;
   text-align: center;
-  background: repeating-linear-gradient(
-    45deg,
-    rgba(20,20,20,0.5),
-    rgba(20,20,20,0.5) 10px,
-    rgba(30,30,30,0.5) 10px,
-    rgba(30,30,30,0.5) 20px
-  );
-  position: relative;
-  overflow: hidden;
-}
-
-.locked-body::after {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(180deg, transparent 0%, rgba(224, 60, 49, 0.1) 100%);
-  pointer-events: none;
+  background: #ffffff;
+  border: 2px dashed #000000;
+  margin: 16px;
 }
 
 .glitch-text {
-  color: #E03C31;
-  font-size: 20px;
+  color: #000000;
+  font-size: 24px;
   font-weight: 900;
-  letter-spacing: 4px;
-  text-shadow: 2px 0 0 rgba(255,0,0,0.8), -2px 0 0 rgba(0,255,255,0.8);
-  animation: glitch-anim 2s infinite linear alternate-reverse;
-}
-
-@keyframes glitch-anim {
-  0% { text-shadow: 2px 0 0 rgba(255,0,0,0.8), -2px 0 0 rgba(0,255,255,0.8); }
-  25% { text-shadow: -2px 0 0 rgba(255,0,0,0.8), 2px 0 0 rgba(0,255,255,0.8); }
-  50% { text-shadow: 2px 0 0 rgba(255,0,0,0.8), 2px 0 0 rgba(0,255,255,0.8); }
-  75% { text-shadow: -2px 0 0 rgba(255,0,0,0.8), -2px 0 0 rgba(0,255,255,0.8); }
-  100% { text-shadow: 2px 0 0 rgba(255,0,0,0.8), -2px 0 0 rgba(0,255,255,0.8); }
+  letter-spacing: 2px;
+  text-transform: uppercase;
 }
 
 .sub-text {
-  font-size: 11px;
-  color: rgba(255,255,255,0.5);
-  margin-top: 12px;
+  font-size: 14px;
+  color: #000000;
+  margin-top: 16px;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  font-weight: bold;
 }
 
 .info-banner {
-  font-size: 10px;
-  color: #F2C12E;
-  background: rgba(242, 193, 46, 0.05);
-  padding: 8px 10px;
-  border-radius: 4px;
-  border-left: 3px solid #F2C12E;
-  line-height: 1.4;
+  font-size: 12px;
+  color: #000000;
+  background: #ffffff;
+  padding: 12px;
+  border: 2px solid #000000;
+  box-shadow: 2px 2px 0px #000000;
+  line-height: 1.5;
+  font-weight: bold;
 }
 
 .key-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  max-height: 220px;
+  gap: 12px;
+  flex: 1;
   overflow-y: auto;
-  padding-right: 4px;
-}
-
-.key-list::-webkit-scrollbar {
-  width: 4px;
-}
-.key-list::-webkit-scrollbar-track {
-  background: rgba(0,0,0,0.2);
-}
-.key-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.2);
-  border-radius: 2px;
 }
 
 .key-item {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
-  background: rgba(0,0,0,0.3);
-  padding: 4px;
-  border-radius: 4px;
-  border: 1px solid rgba(255,255,255,0.05);
+  background: #ffffff;
+  padding: 8px;
+  border: 2px solid #000000;
+  box-shadow: 2px 2px 0px #000000;
 }
 
 .key-input {
-  width: 90px;
-  background: transparent;
+  width: 120px;
+  background: #ffffff;
   border: none;
-  border-right: 1px solid rgba(255,255,255,0.1);
-  color: rgba(255,255,255,0.7);
-  font-size: 10px;
-  padding: 4px 6px;
-  font-family: 'Space Mono', monospace;
+  border-right: 2px solid #000000;
+  color: #000000;
+  font-size: 12px;
+  padding: 8px;
+  font-family: var(--font-family-mono);
+  font-weight: bold;
 }
 
 .val-input {
   flex: 1;
-  background: transparent;
+  background: #ffffff;
   border: none;
-  color: #00FF41;
-  font-size: 11px;
-  padding: 4px 8px;
-  font-family: 'Space Mono', monospace;
+  color: #000000;
+  font-size: 14px;
+  padding: 8px;
+  font-family: var(--font-family-mono);
   outline: none;
-  transition: all 0.2s ease;
 }
+
 .val-input:focus {
-  background: rgba(0, 255, 65, 0.05);
+  background: #f0f0f0;
 }
 
 .icon-btn {
-  background: transparent;
-  border: none;
-  color: rgba(255,255,255,0.4);
-  padding: 4px 6px;
-  font-size: 10px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  color: #000000;
+  padding: 4px 8px;
+  font-size: 12px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  border-radius: 3px;
+  font-weight: bold;
 }
+
 .icon-btn:hover {
-  color: #FFF;
-  background: rgba(255,255,255,0.1);
+  background: #000000;
+  color: #ffffff;
 }
+
 .icon-btn.danger:hover {
-  background: rgba(224, 60, 49, 0.2);
-  color: #E03C31;
+  background: #000000;
+  color: #ffffff;
 }
 
 .add-new {
   display: flex;
-  gap: 8px;
-  margin-top: auto;
-  border-top: 1px solid rgba(255,255,255,0.1);
+  gap: 12px;
+  margin-top: 16px;
+  border-top: 2px solid #000000;
   padding-top: 16px;
 }
 
 .new-key-input {
   flex: 1;
-  background: rgba(0,0,0,0.4);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 4px;
-  color: #FFF;
-  padding: 8px 10px;
-  font-size: 11px;
-  font-family: 'Space Mono', monospace;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 0;
+  color: #000000;
+  padding: 12px;
+  font-size: 14px;
+  font-family: var(--font-family-mono);
   outline: none;
-  transition: all 0.2s ease;
 }
+
 .new-key-input:focus {
-  border-color: #00FF41;
-  box-shadow: 0 0 10px rgba(0,255,65,0.2);
+  background: #f0f0f0;
+  box-shadow: 4px 4px 0px #000000;
 }
 
 .add-btn {
-  background: rgba(255,255,255,0.1);
-  color: #FFF;
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 4px;
-  font-weight: 800;
-  font-size: 11px;
-  padding: 0 16px;
+  background: #ffffff;
+  color: #000000;
+  border: 2px solid #000000;
+  border-radius: 0;
+  font-weight: bold;
+  font-size: 14px;
+  padding: 0 24px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  box-shadow: 2px 2px 0px #000000;
+  text-transform: uppercase;
 }
+
 .add-btn:not(:disabled):hover {
-  background: #FFF;
-  color: #000;
-  transform: translateY(-1px);
+  background: #000000;
+  color: #ffffff;
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0px #000000;
 }
+
 .add-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.5;
   cursor: not-allowed;
+  box-shadow: none;
 }
 </style>

@@ -13,8 +13,6 @@
           placeholder="[ FOCUS NODE... ]" 
         />
       </div>
-
-      <button class="brutal-btn" @click="$emit('close')">[ RETURN TO 2D ]</button>
     </div>
     
     <div class="hud">
@@ -23,6 +21,7 @@
       <div class="hud-stat blink">LIVE DATA STREAM</div>
       <div v-if="errorMessage" style="color: #E03C31; margin-top: 10px;">ERR: {{ errorMessage }}</div>
       <div v-if="debugInfo" style="color: #F2C12E; margin-top: 10px;">DBG: {{ debugInfo }}</div>
+      <div class="hud-stat blink" style="cursor: pointer; margin-top: 15px; color: #00FF41; border: 1px solid #00FF41; padding: 5px;" @click="injectTestNodes">[ INJECT DECODER TEST ]</div>
     </div>
 
     <!-- NODE DETAILS PANEL -->
@@ -37,7 +36,15 @@
         <div class="data-row"><strong>ENTROPY:</strong> <span>{{ (selectedNode.entropy || 0).toFixed(2) }}</span></div>
         <div class="node-content-box">
           <div class="content-label">EXTRACTED KNOWLEDGE:</div>
-          <div class="content-text">{{ selectedNode.text_content || selectedNode.name || 'No semantic data available.' }}</div>
+          <div class="content-text">{{ selectedNode.content || selectedNode.text_content || selectedNode.name || 'No semantic data available.' }}</div>
+        </div>
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button class="brutal-btn" @click="quarantineSelected" v-if="selectedNode.node_type !== 'quarantined'">[ QUARANTINE ]</button>
+          <button class="brutal-btn" @click="nukeSelected">[ NUKE ]</button>
+        </div>
+        
+        <div style="margin-top: 20px; border-top: 2px solid #111; padding-top: 20px;">
+          <DeepDecoderView :inputs="{ 'focus': { node: selectedNode, value: selectedNode.text_content || selectedNode.name } }" style="height: 400px;" />
         </div>
       </div>
     </div>
@@ -50,12 +57,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, markRaw } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import ForceGraph3D from '3d-force-graph'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import * as THREE from 'three'
+import SpriteText from 'three-spritetext'
 import { API_BASE } from '../shared/api.js'
 import TomRiddleDiary from './TomRiddleDiary.vue'
+import DeepDecoderView from './DeepDecoderView.vue'
 
 defineEmits(['close'])
 
@@ -78,11 +87,17 @@ onMounted(async () => {
         .backgroundColor('rgba(0,0,0,0)')
       .nodeLabel('label')
       .nodeAutoColorBy('node_type')
+      .enableNodeDrag(true)
       .linkDirectionalParticles(2)
       .linkDirectionalParticleWidth(1.5)
-      .linkDirectionalParticleSpeed(d => (d as any).weight * 0.01)
-      .nodeVal(n => ((n as any).confidence || 0.5) * 5)
-      .nodeColor(n => {
+      .linkDirectionalParticleSpeed((d: any) => (d as any).weight * 0.01)
+      .nodeVal((n: any) => {
+        const node = n as any;
+        if (node.node_type === 'GitRepo') return 20;
+        if (node.node_type === 'GitFile') return 2;
+        return (node.confidence || 0.5) * 5;
+      })
+      .nodeColor((n: any) => {
         const node = n as any;
         const q = searchQuery.value.toLowerCase();
         
@@ -93,24 +108,143 @@ onMounted(async () => {
           isFocused = textMatch;
         }
 
-        if (!isFocused) return 'rgba(30, 30, 30, 0.2)'; // Ghosted out
+        if (!isFocused) return 'rgba(17, 17, 17, 0.1)'; // Ghosted out
         
-        if (node.node_type === 'macro') return '#E03C31'; // Operator/Prism
-        if (node.isManual) return '#00FF41'; // Seed
-        return '#005096'; // Spider
+        if (node.node_type === 'quarantined') return '#FF3366'; // Dead Zone (Red)
+        if (node.node_type === 'macro') return '#FF3366'; // Operator/Prism
+        if (node.node_type === 'GitRepo') return '#111111'; // Magenta giant star
+        if (node.node_type === 'GitFile') return '#555555'; // BlueViolet for files
+        if (node.node_type === 'zk_proof_verified') return '#32D74B'; // Guardian Shield
+        if (node.node_type === 'bounty_node') return '#111111'; // Yellow Target
+        if (node.node_type === 'hunter_spider') return '#111111'; // Orange Hunter
+        if (node.isManual) return '#005096'; // Seed
+        return '#111111'; // Spider
+      })
+      .nodeThreeObjectExtend(true)
+      .nodeThreeObject((n: any) => {
+        const node = n as any;
+        const q = searchQuery.value.toLowerCase();
+        
+        // Bounty Target Geometry
+        if (node.node_type === 'bounty_node') {
+            const geometry = new THREE.TorusGeometry(5, 1, 16, 100);
+            const material = new THREE.MeshBasicMaterial({ color: 0xF2C12E, wireframe: true, transparent: true, opacity: 0.9 });
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            const sprite = new SpriteText("BOUNTY_TARGET");
+            sprite.color = '#F2C12E';
+            sprite.textHeight = 4;
+            sprite.position.y = 10;
+            mesh.add(sprite);
+            
+            node.__bountyMesh = mesh;
+            return mesh;
+        }
+
+        // Hunter Spider Geometry
+        if (node.node_type === 'hunter_spider') {
+            const geometry = new THREE.TetrahedronGeometry(4, 0); // Sharp pointy pyramid
+            const material = new THREE.MeshBasicMaterial({ color: 0xFF4500, wireframe: true, transparent: true, opacity: 0.9 });
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            const sprite = new SpriteText("HUNTER_SPIDER");
+            sprite.color = '#FF4500';
+            sprite.textHeight = 3;
+            sprite.position.y = 8;
+            mesh.add(sprite);
+            
+            node.__hunterMesh = mesh;
+            return mesh;
+        }
+
+        // Spider Glitch Geometry
+        if (node.source_tag && String(node.source_tag).includes('Spider')) {
+            const geometry = new THREE.IcosahedronGeometry(Math.random() * 2 + 3, 0); // Spiky
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true, transparent: true, opacity: 0.8 });
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            // Add a sprite label too
+            const labelStr = String(node.source_tag).replace('_Spider', '').toUpperCase();
+            const sprite = new SpriteText("SPIDER_" + labelStr);
+            sprite.color = '#00ffff';
+            sprite.textHeight = 3;
+            sprite.position.y = 8;
+            mesh.add(sprite);
+            
+            node.__spiderMesh = mesh; // Store reference for animation
+            return mesh;
+        }
+
+        // Guardian Shield Geometry
+        if (node.node_type === 'zk_proof_verified') {
+            const geometry = new THREE.OctahedronGeometry(Math.random() * 1.5 + 4, 0);
+            const material = new THREE.MeshBasicMaterial({ color: 0x32D74B, wireframe: true, transparent: true, opacity: 0.9 });
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            const sprite = new SpriteText("GUARDIAN_NODE");
+            sprite.color = '#32D74B';
+            sprite.textHeight = 4;
+            sprite.position.y = 10;
+            mesh.add(sprite);
+            
+            node.__guardianMesh = mesh;
+            return mesh;
+        }
+
+        // Quarantined Dead Zone
+        if (node.node_type === 'quarantined') {
+            const geometry = new THREE.BoxGeometry(4, 4, 4);
+            const material = new THREE.MeshBasicMaterial({ color: 0xE03C31, wireframe: false, transparent: true, opacity: 0.5 });
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            const sprite = new SpriteText("QUARANTINED");
+            sprite.color = '#E03C31';
+            sprite.textHeight = 3;
+            sprite.position.y = 8;
+            mesh.add(sprite);
+            
+            return mesh;
+        }
+
+        // Show labels for GitRepos, Macros, Seeds, or if searched
+        let isFocused = false;
+        if (q) {
+          isFocused = (node.name || '').toLowerCase().includes(q) || (node.text_content || '').toLowerCase().includes(q);
+        }
+
+        const shouldShowLabel = isFocused || node.node_type === 'GitRepo' || node.node_type === 'macro' || node.isManual;
+        
+        if (shouldShowLabel) {
+          const sprite = new SpriteText(node.name || node.id);
+          sprite.color = '#111111';
+          sprite.textHeight = node.node_type === 'GitRepo' ? 12 : 4;
+          sprite.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+          sprite.padding = 2;
+          sprite.borderRadius = 0;
+          // Offset above the sphere so they don't overlap completely
+          sprite.position.y = node.node_type === 'GitRepo' ? 30 : 10;
+          return sprite;
+        }
+        return null;
       })
       .nodeRelSize(4)
-      .linkWidth(d => {
+      .linkWidth((d: any) => {
         const q = searchQuery.value.toLowerCase();
         if (q) return 0.5; // Dim all links when searching
         return (d as any).weight * 1.5;
       })
-      .linkColor(link => {
+      .linkColor((link: any) => {
         const q = searchQuery.value.toLowerCase();
-        if (q) return 'rgba(255, 255, 255, 0.02)'; // Ghost links
-        return 'rgba(255, 255, 255, 0.2)';
+        if (q) return 'rgba(17, 17, 17, 0.05)'; // Ghost links
+        
+        // Sever links from/to quarantined nodes
+        if (link.source.node_type === 'quarantined' || link.target.node_type === 'quarantined') {
+           return 'rgba(255, 51, 102, 0.3)'; // Severed toxic links (faint red)
+        }
+        
+        return 'rgba(17, 17, 17, 0.2)'; // Dark links
       })
-      .onNodeClick(node => {
+      .onNodeClick((node: any) => {
         // Set selected node for the UI panel
         selectedNode.value = node;
         
@@ -124,29 +258,87 @@ onMounted(async () => {
         );
       });
       
-      // 🌌 1. ADD BLOOM EFFECTS (NEON GLOW)
-      const bloomPass = new UnrealBloomPass(
-        new THREE.Vector2(window.innerWidth, window.innerHeight),
-        2.5,  // strength
-        0.5,  // radius
-        0.1   // threshold
-      );
-      graph.postProcessingComposer().addPass(bloomPass);
+      // 🌌 1. REMOVED BLOOM EFFECTS FOR BRUTALISM
 
       // 🌌 2. BLACK HOLE GRAVITY LOGIC
       // Pull all nodes gently towards the center [0,0,0], but let them repel each other strongly
       graph.d3Force('charge').strength(-200); // Stronger repulsion so they don't clump
       graph.d3Force('center', null); // Remove default center force
       // Custom gravity well pulling to center
-      import('d3').then(d3 => {
-        graph.d3Force('gravity', d3.forceRadial(10, 0, 0, 0).strength(0.05));
-      }).catch(e => console.warn('d3 optional import failed for gravity'));
+      import('d3').then((d3: any) => {
+        graph.d3Force('gravity', d3.forceRadial(10, 0, 0).strength(0.05));
+      }).catch(() => console.warn('d3 optional import failed for gravity'));
     } catch (e) {
       console.error("Failed to initialize 3D graph:", e);
     }
 
     await fetchData()
-    interval = setInterval(fetchData, 2000) // Poll every 2s
+    let interval = setInterval(fetchData, 2000) // Poll every 2s
+
+    // Create the global function to allow manual injection
+    window._injectDecoderTest = () => {
+      const b64Node = { id: 'TEST_B64', label: 'Base64 Intel', node_type: 'intel', confidence: 0.99, value: 'QWV0aGVsbmV0IEludGVsOiBDb21wcm9taXNlZA==' };
+      const walletNode = { id: 'TEST_WALLET', label: 'Treasury Wallet', node_type: 'wallet', confidence: 1.0, value: '0x1234567890123456789012345678901234567890' };
+      const jwtNode = { id: 'TEST_JWT', label: 'Auth Token', node_type: 'token', confidence: 0.85, value: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1bml0LTczNCIsIm5hbWUiOiJBdXJhdGljIFByaW1lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c' };
+      
+      const currentNodes = graph.graphData().nodes;
+      graph.graphData({
+        nodes: [...currentNodes, b64Node, walletNode, jwtNode],
+        links: graph.graphData().links
+      });
+      // also push to localNodes so that it persists the next 2s before poll?
+      // actually, just stop polling temporarily so they don't disappear
+      clearInterval(interval);
+      console.log("Injected test nodes and paused polling.");
+    };
+
+    // Animation Loop (Glitch Effect & Shield Pulse)
+    const animateMeshes = () => {
+      if (graph) {
+         const { nodes } = graph.graphData();
+         nodes.forEach((n: any) => {
+            if (n.__spiderMesh) {
+                // Wild glitch rotation
+                n.__spiderMesh.rotation.x += Math.random() * 0.2;
+                n.__spiderMesh.rotation.y += Math.random() * 0.2;
+                
+                // Pulsate scale
+                const scale = 1 + Math.sin(Date.now() * 0.02) * 0.3 + (Math.random() * 0.2);
+                n.__spiderMesh.scale.set(scale, scale, scale);
+                
+                // Glitch color intensity flash
+                if (Math.random() > 0.95) {
+                   n.__spiderMesh.material.color.setHex(0xff00ff); // Magenta flash
+                } else if (Math.random() > 0.9) {
+                   n.__spiderMesh.material.color.setHex(0xffffff); // White flash
+                } else {
+                   n.__spiderMesh.material.color.setHex(0x00ffff); // Cyan default
+                }
+            }
+            
+            if (n.__guardianMesh) {
+                // Steady scan rotation
+                n.__guardianMesh.rotation.y += 0.02;
+                // Shield pulse
+                const scale = 1 + Math.sin(Date.now() * 0.005) * 0.05;
+                n.__guardianMesh.scale.set(scale, scale, scale);
+            }
+            
+            if (n.__bountyMesh) {
+                n.__bountyMesh.rotation.z += 0.05;
+                const scale = 1 + Math.sin(Date.now() * 0.005) * 0.2;
+                n.__bountyMesh.scale.set(scale, scale, scale);
+            }
+            
+            if (n.__hunterMesh) {
+                n.__hunterMesh.rotation.x += 0.3;
+                n.__hunterMesh.rotation.y += 0.3;
+            }
+         });
+      }
+      requestAnimationFrame(animateMeshes);
+    };
+    animateMeshes();
   }
 })
 
@@ -161,10 +353,59 @@ onUnmounted(() => {
 // Search filter handler to force re-evaluation of node colors
 function applySearch() {
   if (graph) {
-    // This forces the graph to re-evaluate colors based on the new searchQuery
     graph.nodeColor(graph.nodeColor());
     graph.linkColor(graph.linkColor());
     graph.linkWidth(graph.linkWidth());
+  }
+}
+
+function triggerFocus(nodeId: string) {
+  // implemented via watcher
+}
+
+function injectTestNodes() {
+  if (window._injectDecoderTest) {
+    window._injectDecoderTest();
+  }
+}
+
+function quarantineSelected() {
+  if (selectedNode.value && graph) {
+    const id = selectedNode.value.id;
+    selectedNode.value.node_type = 'quarantined';
+    selectedNode.value.entropy = 1.0;
+    
+    // Update data locally to bypass full fetch override immediately
+    const data = graph.graphData();
+    const node = data.nodes.find((n: any) => n.id === id);
+    if (node) {
+      node.node_type = 'quarantined';
+      node.entropy = 1.0;
+    }
+    
+    // Force re-render
+    graph.nodeColor(graph.nodeColor());
+    graph.linkColor(graph.linkColor());
+    
+    // Call API
+    const url = API_BASE ? `${API_BASE}/lgnn/node/${id}/quarantine` : `/api/lgnn/node/${id}/quarantine`;
+    fetch(url, { method: 'POST' }).catch(console.error);
+  }
+}
+
+function nukeSelected() {
+  if (selectedNode.value && graph) {
+    const id = selectedNode.value.id;
+    const data = graph.graphData();
+    const newNodes = data.nodes.filter((n: any) => n.id !== id);
+    const newLinks = data.links.filter((l: any) => l.source.id !== id && l.target.id !== id);
+    graph.graphData({ nodes: newNodes, links: newLinks });
+    graphData.value = { nodes: newNodes, links: newLinks };
+    selectedNode.value = null;
+    
+    // Call API
+    const url = API_BASE ? `${API_BASE}/lgnn/node/${id}` : `/api/lgnn/node/${id}`;
+    fetch(url, { method: 'DELETE' }).catch(console.error);
   }
 }
 
@@ -199,12 +440,17 @@ async function fetchData() {
             ...n,
             id: n.id,
             name: n.label,
-            val: n.confidence || 1,
+            val: n.size || n.confidence || 10,
             text_content: n.text_content,
-            node_type: n.node_type,
-            entropy: n.entropy,
-            isManual: n.isManual,
-            ...(existingNode ? { x: existingNode.x, y: existingNode.y, z: existingNode.z, vx: existingNode.vx, vy: existingNode.vy, vz: existingNode.vz } : {})
+            content: n.content,
+            value: n.content || n.text_content || n.value,
+            node_type: n.node_type || 'default',
+            entropy: n.entropy || Math.random(),
+            isManual: n.isManual || false,
+            source_tag: n.source_tag || 'server',
+            tensor: n.tensor || n.embedding || null,
+            color: n.color,
+            ...(existingNode ? { x: existingNode.x, y: existingNode.y, z: existingNode.z, vx: existingNode.vx, vy: existingNode.vx, vz: existingNode.vz } : {})
           };
         });
         
@@ -261,30 +507,30 @@ async function fetchData() {
 .glitch {
   font-size: 24px;
   font-weight: 900;
-  color: #F4F4F0;
+  color: #111111;
   text-transform: uppercase;
   letter-spacing: 2px;
   margin: 0;
-  text-shadow: 2px 2px 0 #E03C31, -2px -2px 0 #005096;
+  text-shadow: 2px 2px 0 #FF3366;
 }
 
 .brutal-btn {
   pointer-events: auto;
-  background: #E03C31;
-  color: #FFF;
-  border: 2px solid #FFF;
+  background: #FFFFFF;
+  color: #111111;
+  border: 2px solid #111111;
   padding: 8px 16px;
-  font-family: 'Space Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-weight: bold;
   font-size: 14px;
   cursor: pointer;
-  box-shadow: 4px 4px 0 #FFF;
+  box-shadow: 4px 4px 0 #111111;
   transition: transform 0.1s;
 }
 
 .brutal-btn:active {
   transform: translate(4px, 4px);
-  box-shadow: 0 0 0 #FFF;
+  box-shadow: 0 0 0 #111111;
 }
 
 .search-box {
@@ -296,23 +542,23 @@ async function fetchData() {
 
 .brutal-input {
   width: 100%;
-  background: rgba(0, 0, 0, 0.6);
-  border: 2px solid #005096;
-  color: #00FF41;
+  background: #FFFFFF;
+  border: 2px solid #111111;
+  color: #111111;
   padding: 8px 16px;
-  font-family: 'Space Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 14px;
   outline: none;
-  box-shadow: 4px 4px 0 #005096;
+  box-shadow: 4px 4px 0 #111111;
 }
 
 .brutal-input:focus {
-  border-color: #00FF41;
-  box-shadow: 4px 4px 0 #00FF41;
+  border-color: #FF3366;
+  box-shadow: 4px 4px 0 #FF3366;
 }
 
 .brutal-input::placeholder {
-  color: rgba(0, 255, 65, 0.5);
+  color: rgba(17, 17, 17, 0.4);
 }
 
 .hud {
@@ -320,33 +566,33 @@ async function fetchData() {
   bottom: 20px;
   left: 20px;
   z-index: 10000;
-  color: #00FF41;
-  font-family: 'Space Mono', monospace;
+  color: #111111;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   pointer-events: none;
-  background: rgba(0, 0, 0, 0.8);
+  background: #FFFFFF;
   padding: 10px;
-  border: 1px solid #00FF41;
+  border: 2px solid #111111;
+  box-shadow: 4px 4px 0 #111111;
 }
 
 .hud-stat {
   margin-bottom: 4px;
+  font-weight: bold;
 }
 
-/* NODE PANEL CSS */
+/* NODE PANEL CSS - WHITE BRUTALISM */
 .node-panel {
   position: absolute;
   top: 80px;
   right: 20px;
   width: 500px;
-  background: rgba(10, 10, 10, 0.85);
-  border: 1px solid #005096;
-  border-left: 4px solid #E03C31;
-  color: #F4F4F0;
-  font-family: 'Space Mono', monospace;
+  background: #FFFFFF;
+  border: 4px solid #111111;
+  color: #111111;
+  font-family: 'JetBrains Mono', monospace;
   z-index: 10000;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-  backdrop-filter: blur(5px);
+  box-shadow: 8px 8px 0 rgba(17, 17, 17, 0.2);
   display: flex;
   flex-direction: column;
 }
@@ -355,15 +601,24 @@ async function fetchData() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(0, 80, 150, 0.3);
+  background: #F8F8F8;
   padding: 10px 15px;
-  border-bottom: 1px solid #005096;
+  border-bottom: 4px solid #111111;
 }
 
 .panel-title {
-  font-weight: bold;
-  color: #00FF41;
+  font-weight: 800;
+  color: #111111;
   letter-spacing: 1px;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: bold;
+  cursor: pointer;
+  color: #111111;
 }
 
 .panel-body {
@@ -375,32 +630,37 @@ async function fetchData() {
   display: flex;
   justify-content: space-between;
   margin-bottom: 8px;
-  border-bottom: 1px dotted #333;
+  border-bottom: 2px dotted #111111;
   padding-bottom: 4px;
 }
 
 .data-row strong {
-  color: #888;
+  color: #111111;
+  font-weight: 800;
 }
 
 .node-content-box {
   margin-top: 15px;
-  background: rgba(0,0,0,0.5);
-  border: 1px solid #333;
+  background: #F8F8F8;
+  border: 2px solid #111111;
   padding: 10px;
 }
 
 .content-label {
   font-size: 10px;
-  color: #F2C12E;
+  color: #FF3366;
+  font-weight: bold;
   margin-bottom: 5px;
   text-transform: uppercase;
 }
 
 .content-text {
   line-height: 1.5;
-  color: #FFF;
+  color: #111111;
   word-wrap: break-word;
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
 }
 
 .blink {

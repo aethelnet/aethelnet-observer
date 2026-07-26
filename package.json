@@ -21,9 +21,11 @@
     "@types/markdown-it": "^14.1.2",
     "3d-force-graph": "^1.80.0",
     "chart.js": "^4.4.0",
+    "circomlibjs": "^0.1.7",
     "d3": "^7.9.0",
     "d3-dag": "^1.2.1",
     "echarts": "^6.0.0",
+    "ethers": "^6.17.0",
     "github-markdown-css": "^5.9.0",
     "grid-layout-plus": "^1.1.1",
     "gridstack": "^12.3.3",
@@ -34,10 +36,15 @@
     "markdown-it": "^14.2.0",
     "markdown-it-katex": "^2.0.3",
     "pinia": "^3.0.4",
+    "snarkjs": "^0.7.6",
     "three": "^0.181.2",
+    "three-spritetext": "^1.10.0",
     "uplot": "^1.6.24",
+    "viem": "^2.54.6",
+    "vite-plugin-node-polyfills": "^0.28.0",
     "vue": "^3.3.4",
-    "vue-echarts": "^8.0.1"
+    "vue-echarts": "^8.0.1",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

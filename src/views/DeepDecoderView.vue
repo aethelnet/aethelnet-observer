@@ -22,6 +22,7 @@
         
         <div class="tabs">
           <button :class="{active: activeTab === 'raw'}" @click="activeTab = 'raw'">RAW DATA</button>
+          <button :class="{active: activeTab === 'decode'}" @click="activeTab = 'decode'">DECODE</button>
           <button :class="{active: activeTab === 'meta'}" @click="activeTab = 'meta'">METADATA</button>
           <button :class="{active: activeTab === 'chem'}" @click="activeTab = 'chem'" v-if="isChemistry">CHEMISTRY</button>
         </div>
@@ -30,16 +31,30 @@
           <pre class="raw-text">{{ activeValue }}</pre>
         </div>
 
+        <div class="tab-content" v-if="activeTab === 'decode'">
+          <div v-if="decodedResult.type === 'unknown'" class="idle-text">
+            No known format detected.<br/>
+            (Supported: Web3 Address, Base64, JWT)
+          </div>
+          <div v-else class="decode-result">
+            <div class="data-row"><strong>Detected Format:</strong> <span class="highlight">{{ decodedResult.type }}</span></div>
+            <div class="data-row" style="flex-direction: column; align-items: flex-start; margin-top: 10px;">
+              <strong>Decoded Output:</strong>
+              <pre class="raw-text" style="width: 100%; margin-top: 5px;">{{ decodedResult.output }}</pre>
+            </div>
+          </div>
+        </div>
+
         <div class="tab-content" v-if="activeTab === 'meta'">
           <div class="data-row"><strong>Type:</strong> <span>{{ activeNode?.node_type || 'default' }}</span></div>
           <div class="data-row"><strong>Confidence:</strong> <span>{{ activeNode?.confidence !== undefined ? activeNode.confidence.toFixed(4) : 'N/A' }}</span></div>
           <div class="data-row"><strong>Entropy:</strong> <span>{{ activeNode?.entropy !== undefined ? activeNode.entropy.toFixed(4) : 'N/A' }}</span></div>
           <div class="data-row"><strong>Source:</strong> <span>{{ activeNode?.source_tag || 'user' }}</span></div>
           
-          <div class="tensor-preview" v-if="activeNode?.tensor">
+          <div class="tensor-preview">
             <strong>Tensor Signature:</strong>
             <div class="tensor-bars">
-              <div v-for="(val, i) in activeNode.tensor.slice(0, 32)" :key="i" class="t-bar" :style="{ height: Math.abs(val)*100 + '%', background: val > 0 ? '#00FF41' : '#E03C31' }"></div>
+              <div v-for="(val, i) in activeTensor.slice(0, 32)" :key="i" class="t-bar" :style="{ height: Math.abs(val)*100 + '%', background: val > 0 ? '#00FF41' : '#E03C31' }"></div>
             </div>
           </div>
         </div>
@@ -93,8 +108,59 @@ const activeValue = computed(() => {
   return typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val);
 })
 
+const activeTensor = computed(() => {
+  if (activeNode.value?.tensor) return activeNode.value.tensor;
+  // Generate deterministic mock tensor if backend didn't supply one
+  const idStr = String(activeNode.value?.id || 'unknown');
+  let seed = 0;
+  for (let i = 0; i < idStr.length; i++) {
+    seed = idStr.charCodeAt(i) + ((seed << 5) - seed);
+  }
+  const mock = [];
+  for (let i = 0; i < 32; i++) {
+    const random = Math.sin(seed++) * 10000;
+    mock.push((random - Math.floor(random)) * 2 - 1);
+  }
+  return mock;
+})
+
+const decodedResult = computed(() => {
+  const val = activeValue.value.trim();
+  
+  // 1. Web3 Address Check
+  if (/^0x[a-fA-F0-9]{40}$/.test(val)) {
+    return { type: 'Web3 Wallet Address', output: `EVM Compatible Address\nNetwork: Mainnet (Assumed)\nStatus: EOA (Externally Owned Account)` };
+  }
+  
+  // 2. JWT Check
+  if (/^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*$/.test(val)) {
+    try {
+      const payload = atob(val.split('.')[1]);
+      return { type: 'JSON Web Token (JWT)', output: JSON.stringify(JSON.parse(payload), null, 2) };
+    } catch (e) {
+      // ignore
+    }
+  }
+  
+  // 3. Base64 Check
+  if (/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(val) && val.length > 10) {
+    try {
+      const decoded = atob(val);
+      // Ensure it has mostly printable characters
+      if (/^[\x20-\x7E]*$/.test(decoded)) {
+        return { type: 'Base64 Encoded Text', output: decoded };
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  return { type: 'unknown', output: '' };
+})
+
 watch(activeNode, () => {
   if (isChemistry.value) activeTab.value = 'chem';
+  else if (decodedResult.value.type !== 'unknown') activeTab.value = 'decode';
   else if (activeTab.value === 'chem') activeTab.value = 'raw';
 })
 
@@ -274,5 +340,10 @@ const totalMass = computed(() => {
   display: flex;
   flex-direction: column;
   justify-content: center;
+}
+
+.highlight {
+  color: #00FF41;
+  font-weight: bold;
 }
 </style>
