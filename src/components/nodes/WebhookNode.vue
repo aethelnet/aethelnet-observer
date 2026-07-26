@@ -1,8 +1,10 @@
 <template>
-  <div class="webhook-card" style="padding: 12px; background: #FF9800; color: #1A1A1A; border: 2px solid #1A1A1A; display: flex; flex-direction: column; min-height: 120px;">
-    <div style="font-weight: 900; font-size: 14px; text-transform: uppercase;">[ API HOOK ]</div>
-    <input v-model="localUrl" @blur="saveUrl" @keydown.enter="saveUrl" @mousedown.stop placeholder="https://..." style="margin-top: 8px; padding: 4px; border: 2px solid #1A1A1A; font-family: 'Space Mono', monospace; font-size: 10px;" />
-    <button @mousedown.stop @click.stop="fireRequest" style="margin-top: auto; background: #1A1A1A; color: #FF9800; border: none; padding: 4px 12px; font-weight: 900; cursor: pointer; font-size: 10px;">{{ buttonText }}</button>
+  <div class="webhook-node glass-panel">
+    <div class="header">
+      <span class="icon">🔗</span> WEBHOOK
+    </div>
+    <input v-model="localUrl" @blur="saveUrl" @keydown.enter="saveUrl" @mousedown.stop placeholder="https://..." class="hook-input" spellcheck="false" />
+    <button @mousedown.stop @click.stop="fireRequest" class="hook-btn" :disabled="buttonText !== 'FIRE REQUEST'">{{ buttonText }}</button>
   </div>
 </template>
 
@@ -105,3 +107,75 @@ async function fireRequest() {
   }
 }
 </script>
+
+<style scoped>
+.webhook-node {
+  width: 100%;
+  height: 100%;
+  background: var(--color-bg-primary);
+  border: 2px solid #000000;
+  box-shadow: 4px 4px 0px #000000;
+  font-family: var(--font-family-mono);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  color: #000000;
+  min-height: 160px;
+}
+
+.header {
+  font-weight: 900;
+  font-size: 16px;
+  color: #000000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: uppercase;
+}
+
+.hook-input {
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 0;
+  color: #000000;
+  font-family: var(--font-family-mono);
+  font-size: 14px;
+  padding: 12px;
+  outline: none;
+  margin-top: 8px;
+}
+
+.hook-input:focus {
+  background: #f0f0f0;
+  box-shadow: 4px 4px 0px #000000;
+}
+
+.hook-btn {
+  margin-top: auto;
+  background: #ffffff;
+  color: #000000;
+  border: 2px solid #000000;
+  font-weight: 900;
+  cursor: pointer;
+  padding: 12px;
+  border-radius: 0;
+  font-family: var(--font-family-mono);
+  font-size: 14px;
+  text-transform: uppercase;
+  box-shadow: 2px 2px 0px #000000;
+}
+
+.hook-btn:hover:not(:disabled) {
+  background: #000000;
+  color: #ffffff;
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0px #000000;
+}
+
+.hook-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+</style>

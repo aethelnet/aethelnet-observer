@@ -1,5 +1,5 @@
 <template>
-  <div class="fusion-reactor-node">
+  <div class="fusion-reactor-node glass-panel">
     <div class="reactor-core">
       <div class="plasma-ring" :class="{ 'active': isFusing }"></div>
       <div class="core-center">
@@ -118,84 +118,40 @@ async function ignite() {
 
 <style scoped>
 .fusion-reactor-node {
-  background: rgba(30, 10, 10, 0.75);
-  backdrop-filter: blur(25px) saturate(200%);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  border-radius: 16px;
-  width: 360px;
-  color: #fff;
-  font-family: 'Inter', sans-serif;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), inset 0 0 30px rgba(239, 68, 68, 0.1);
-  overflow: hidden;
-  position: relative;
+  background: var(--color-bg-primary);
+  width: 100%;
+  height: 100%;
+  color: var(--color-text-main);
+  font-family: var(--font-family);
   display: flex;
   flex-direction: column;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .reactor-core {
-  position: absolute;
-  top: -40px;
-  right: -40px;
-  width: 120px;
-  height: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 0;
-  pointer-events: none;
-}
-
-.plasma-ring {
-  position: absolute;
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  border: 2px dashed rgba(255, 60, 0, 0.3);
-  animation: spin 10s linear infinite;
-}
-
-.plasma-ring.active {
-  border-color: #ff3c00;
-  box-shadow: 0 0 30px #ff3c00, inset 0 0 20px #ff3c00;
-  animation: spin 1s linear infinite;
-}
-
-.core-center {
-  font-size: 24px;
-  color: rgba(255, 60, 0, 0.5);
-}
-
-.plasma-ring.active + .core-center {
-  color: #ff3c00;
-  text-shadow: 0 0 10px #ff3c00;
-}
-
-@keyframes spin {
-  100% { transform: rotate(360deg); }
+  display: none; /* Hide the glowing core in brutalism */
 }
 
 .header {
   padding: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  position: relative;
-  z-index: 1;
+  background: #ffffff;
+  border-bottom: 2px solid #000000;
 }
 
 .title {
-  font-weight: 700;
+  font-weight: bold;
   letter-spacing: 1px;
-  font-size: 15px;
-  color: #f8fafc;
-  font-family: 'Space Mono', monospace;
+  font-size: 18px;
+  color: #000000;
+  font-family: var(--font-family-mono);
+  text-transform: uppercase;
 }
 
 .subtitle {
-  font-size: 10px;
-  color: #888;
+  font-size: 12px;
+  color: #000000;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-top: 2px;
+  font-weight: bold;
+  margin-top: 4px;
 }
 
 .content {
@@ -203,8 +159,8 @@ async function ignite() {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  position: relative;
-  z-index: 1;
+  background: #ffffff;
+  flex: 1;
 }
 
 .drop-zones {
@@ -214,87 +170,81 @@ async function ignite() {
 
 .input-chamber {
   flex: 1;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 8px;
-  padding: 10px;
-  min-height: 70px;
-  transition: all 0.3s ease;
+  background: #ffffff;
+  border: 2px solid #000000;
+  padding: 12px;
+  min-height: 80px;
 }
 
 .input-chamber.filled {
-  border-color: rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.1);
+  background: #f0f0f0;
+  box-shadow: 4px 4px 0px #000000;
 }
 
 .chamber-label {
-  font-size: 10px;
-  color: #ff3c00;
+  font-size: 12px;
+  color: #000000;
   text-transform: uppercase;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   font-weight: bold;
 }
 
 .chamber-content {
-  font-size: 11px;
-  color: #ccc;
-  line-height: 1.4;
+  font-size: 14px;
+  color: #000000;
+  line-height: 1.5;
+  word-break: break-word;
 }
 
 .ignite-btn {
   width: 100%;
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(185, 28, 28, 0.1));
-  border: 1px solid rgba(239, 68, 68, 0.6);
-  color: #fecaca;
-  padding: 14px;
-  border-radius: 8px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  color: #000000;
+  padding: 16px;
+  border-radius: 0;
   font-weight: bold;
-  letter-spacing: 2px;
+  font-size: 16px;
   cursor: pointer;
-  transition: all 0.3s;
   text-transform: uppercase;
-  font-family: 'Space Mono', monospace;
-  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.2);
+  font-family: var(--font-family-mono);
+  box-shadow: 2px 2px 0px #000000;
 }
 
 .ignite-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(185, 28, 28, 0.3));
-  box-shadow: 0 0 25px rgba(239, 68, 68, 0.5);
-  border-color: #f87171;
+  background: #000000;
+  color: #ffffff;
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0px #000000;
 }
 
 .ignite-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  border-color: #555;
-  color: #555;
+  box-shadow: none;
 }
 
 .fusion-result {
-  background: rgba(255, 60, 0, 0.1);
-  border-left: 3px solid #ff3c00;
-  padding: 12px;
-  border-radius: 0 8px 8px 0;
-  animation: explodeIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  background: #ffffff;
+  border: 2px solid #000000;
+  padding: 16px;
+  box-shadow: 2px 2px 0px #000000;
+  margin-top: 16px;
 }
 
 .result-label {
-  font-size: 10px;
-  color: #ff3c00;
+  font-size: 12px;
+  color: #000000;
   text-transform: uppercase;
   font-weight: bold;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .result-text {
-  font-size: 12px;
-  color: #fff;
+  font-size: 14px;
+  color: #000000;
   line-height: 1.5;
-  font-weight: 500;
-}
-
-@keyframes explodeIn {
-  0% { transform: scale(0.9); opacity: 0; filter: brightness(2); }
-  100% { transform: scale(1); opacity: 1; filter: brightness(1); }
+  font-weight: bold;
+  word-break: break-word;
 }
 </style>

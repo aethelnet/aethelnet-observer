@@ -5,23 +5,39 @@
       <span class="status" :class="{ active: inputNodes.length > 0 }">{{ inputNodes.length > 0 ? 'FOCUSED' : 'IDLE' }}</span>
     </div>
     <div class="content-panel">
-      <div v-if="inputNodes.length === 0" class="idle-text">
-        Connect a node to visualize its local ego-network.
+      <div v-if="loading" class="idle-text">
+        [ FETCHING NEURAL MANIFOLD... ]
       </div>
-      <div ref="chartContainer" class="chart-container" v-show="inputNodes.length > 0"></div>
+      <div v-else-if="subgraph.nodes.length === 0" class="idle-text">
+        [ NO DATA ]
+      </div>
+      <div ref="chartContainer" class="chart-container" v-show="!loading && subgraph.nodes.length > 0"></div>
+      
+      <!-- DEEP DECODER IN 2D -->
+      <DeepDecoderView 
+        v-if="selectedNode" 
+        :activeData="{ value: selectedNode.value, id: selectedNode.id, label: selectedNode.label }" 
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, defineProps, ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import * as echarts from 'echarts'
+import { API_BASE } from '../shared/api.js'
+import DeepDecoderView from './DeepDecoderView.vue'
 
 const props = defineProps<{
-  inputs: Record<string, any>
-  globalNodes: any[]
-  globalLinks: any[]
+  inputs?: Record<string, any>
+  globalNodes?: any[]
+  globalLinks?: any[]
 }>()
+
+const localNodes = ref<any[]>([])
+const localLinks = ref<any[]>([])
+const loading = ref(false)
+const selectedNode = ref<any>(null)
 
 const chartContainer = ref<HTMLElement | null>(null)
 let chart: echarts.ECharts | null = null
@@ -31,32 +47,41 @@ const inputNodes = computed(() => {
 })
 
 const subgraph = computed(() => {
+  const nodesSource = props.globalNodes?.length ? props.globalNodes : localNodes.value
+  const linksSource = props.globalLinks?.length ? props.globalLinks : localLinks.value
+
+  // If no input nodes are selected, show the entire graph!
+  if (inputNodes.value.length === 0) {
+    return {
+      nodes: nodesSource,
+      links: linksSource
+    }
+  }
+
   const nodesMap = new Map<string, any>()
   const linksSet = new Set<any>()
 
   const sourceIds = new Set(inputNodes.value.map(n => n.id))
 
   // Find all links connected to the source nodes
-  props.globalLinks?.forEach(link => {
+  linksSource.forEach(link => {
     const sId = typeof link.source === 'string' ? link.source : link.source.id
     const tId = typeof link.target === 'string' ? link.target : link.target.id
     
     if (sourceIds.has(sId) || sourceIds.has(tId)) {
       linksSet.add({ source: sId, target: tId, weight: link.weight })
       
-      // We must extract the actual node objects from globalNodes
       if (!nodesMap.has(sId)) {
-        const sn = props.globalNodes?.find(n => n.id === sId)
+        const sn = nodesSource.find(n => n.id === sId)
         if (sn) nodesMap.set(sId, sn)
       }
       if (!nodesMap.has(tId)) {
-        const tn = props.globalNodes?.find(n => n.id === tId)
+        const tn = nodesSource.find(n => n.id === tId)
         if (tn) nodesMap.set(tId, tn)
       }
     }
   })
 
-  // If no links but there is an input node, just show the node itself
   if (linksSet.size === 0) {
     inputNodes.value.forEach(n => nodesMap.set(n.id, n))
   }
@@ -136,6 +161,22 @@ let resizeObserver: ResizeObserver | null = null
 onMounted(() => {
   if (chartContainer.value) {
     chart = echarts.init(chartContainer.value)
+    
+    // Wire up interactive clicks!
+    chart.on('click', (params: any) => {
+      if (params.dataType === 'node') {
+        const fullNode = subgraph.value.nodes.find((n: any) => n.id === params.data.id)
+        if (fullNode) {
+          // Construct the same format expected by the Decoder
+          selectedNode.value = {
+            id: fullNode.id,
+            label: fullNode.label,
+            value: fullNode.content || fullNode.text_content || fullNode.value || fullNode.label
+          }
+        }
+      }
+    })
+
     updateChart()
     
     resizeObserver = new ResizeObserver(() => {
@@ -147,7 +188,28 @@ onMounted(() => {
       chart?.resize()
     })
   }
+  
+  if (!props.globalNodes?.length && inputNodes.value.length === 0) {
+    fetchGraphData()
+  }
 })
+
+async function fetchGraphData() {
+  loading.value = true
+  try {
+    const url = API_BASE ? `${API_BASE}/lgnn/graph` : '/api/lgnn/graph'
+    const res = await fetch(url)
+    const data = await res.json()
+    if (data.nodes) {
+      localNodes.value = data.nodes
+      localLinks.value = data.links || []
+    }
+  } catch (e) {
+    console.error("Failed to load graph for 2D View", e)
+  } finally {
+    loading.value = false
+  }
+}
 
 onUnmounted(() => {
   if (resizeObserver && chartContainer.value) {

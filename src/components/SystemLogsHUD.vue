@@ -328,14 +328,12 @@ defineExpose({
   top: 0;
   bottom: 0;
   width: 480px;
-  background: rgba(20, 20, 20, 0.4);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-left: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.4);
+  background: #ffffff;
+  border-left: 2px solid #000000;
+  box-shadow: -4px 0 0px #000000;
   z-index: 9999;
   transform: translateX(100%);
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), width 0.3s ease;
+  transition: transform 0s, width 0s;
   display: flex;
   flex-direction: column;
 }
@@ -431,8 +429,8 @@ defineExpose({
 
 .terminal-header {
   padding: 16px 20px;
-  background: transparent;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: #ffffff;
+  border-bottom: 2px solid #000000;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -464,7 +462,7 @@ defineExpose({
 }
 
 .badge-text {
-  color: #fff;
+  color: #000000;
   font-size: 13px;
   font-weight: bold;
   letter-spacing: 0.05em;
@@ -489,22 +487,22 @@ defineExpose({
 }
 
 .search-box input {
-  background: rgba(20, 20, 20, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 0;
   padding: 8px 28px 8px 12px;
-  color: var(--color-text-main);
+  color: #000000;
   font-size: 11px;
   font-family: inherit;
   width: 160px;
-  transition: all 0.3s ease;
+  transition: none;
 }
 
 .search-box input:focus {
   width: 220px;
-  border-color: rgba(74, 222, 128, 0.5);
+  border-color: #000000;
   outline: none;
-  box-shadow: 0 0 10px rgba(74, 222, 128, 0.2);
+  box-shadow: 4px 4px 0px #000000;
 }
 
 .clear-search {
@@ -630,7 +628,7 @@ defineExpose({
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  background: rgba(0, 0, 0, 0.4);
+  background: #ffffff;
   display: flex;
   flex-direction: column;
 }
@@ -659,7 +657,7 @@ defineExpose({
 .line-num {
   width: 32px;
   min-width: 32px;
-  color: rgba(255, 255, 255, 0.15);
+  color: #666666;
   user-select: none;
   font-size: 9px;
   padding-top: 2px;
@@ -692,19 +690,20 @@ defineExpose({
 }
 
 .log-info {
-  color: #cbd5e1;
+  color: #000000;
 }
 
 /* Terminal Footer */
 .terminal-footer {
   padding: 12px 20px;
-  background: transparent;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: #ffffff;
+  border-top: 2px solid #000000;
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.5);
+  color: #000000;
+  font-weight: bold;
 }
 
 .footer-left strong.live {

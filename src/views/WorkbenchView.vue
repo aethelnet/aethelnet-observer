@@ -96,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, defineEmits, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 
 const emit = defineEmits(['close', 'save'])
 

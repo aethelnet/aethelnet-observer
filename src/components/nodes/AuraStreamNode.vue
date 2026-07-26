@@ -1,5 +1,5 @@
 <template>
-  <div class="aura-stream-node">
+  <div class="aura-stream-node glass-panel">
     <!-- HUD Header -->
     <div class="hud">
       <div class="aethel-metric">
@@ -348,17 +348,13 @@ function scrollToBottom() {
 
 <style scoped>
 .aura-stream-node {
-  width: 380px;
-  height: 520px;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--color-bg-panel);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  overflow: hidden;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  background: var(--color-bg-primary);
   font-family: var(--font-family-mono);
+  color: var(--color-text-main);
 }
 
 /* HUD */
@@ -367,8 +363,8 @@ function scrollToBottom() {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
-  background: rgba(0, 243, 255, 0.05);
+  border-bottom: 2px solid #000000;
+  background: #ffffff;
 }
 
 .aethel-metric {
@@ -377,39 +373,40 @@ function scrollToBottom() {
 }
 
 .label {
-  font-size: 10px;
+  font-size: 12px;
   text-transform: uppercase;
-  color: var(--color-text-muted);
+  font-weight: bold;
 }
 
 .value {
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   font-weight: bold;
-  color: var(--color-accent);
 }
 
 .audio-btn {
-  background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  box-shadow: 2px 2px 0px #000000;
   padding: 6px 12px;
-  color: var(--color-text-main);
-  font-size: 11px;
+  color: #000000;
+  font-size: 12px;
+  font-weight: bold;
   display: flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  transition: all 0.2s;
 }
 
 .audio-btn:hover {
-  border-color: var(--color-accent);
+  background: #000000;
+  color: #ffffff;
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0px #000000;
 }
 
 .audio-btn.active {
-  background: rgba(0, 243, 255, 0.1);
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  background: #000000;
+  color: #ffffff;
 }
 
 /* Zen Container */
@@ -427,87 +424,83 @@ function scrollToBottom() {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  background: #ffffff;
 }
 
 .message {
   max-width: 85%;
   line-height: 1.4;
+  border: 2px solid #000000;
+  padding: 10px 14px;
+  font-size: 14px;
+  box-shadow: 2px 2px 0px #000000;
 }
 
 .message.system {
   align-self: flex-start;
-  color: var(--color-text-muted);
-  font-size: 11px;
-  font-style: italic;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 8px 8px 8px 0;
+  background: #f0f0f0;
+  color: #000000;
 }
 
 .message.user {
   align-self: flex-end;
-  background: rgba(0, 243, 255, 0.1);
-  border: 1px solid rgba(0, 243, 255, 0.2);
-  padding: 10px 14px;
-  color: var(--color-text-main);
-  font-size: 12px;
-  border-radius: 8px 8px 0 8px;
+  background: #ffffff;
+  color: #000000;
 }
 
 .msg-resonance {
-  font-size: 10px;
-  color: var(--color-accent);
+  font-size: 12px;
+  font-weight: bold;
   margin-top: 6px;
   text-align: right;
-  opacity: 0.8;
 }
 
 /* Input Area */
 .input-area {
-  padding: 12px;
-  border-top: 1px solid var(--border-color);
+  padding: 16px;
+  border-top: 2px solid #000000;
   display: flex;
-  gap: 8px;
-  background: rgba(0, 0, 0, 0.2);
+  gap: 12px;
+  background: #ffffff;
 }
 
 .zen-input {
   flex: 1;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 8px 12px;
-  color: var(--color-text-main);
-  font-size: 12px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  padding: 12px;
+  color: #000000;
+  font-size: 14px;
   font-family: var(--font-family-mono);
   outline: none;
-  transition: all 0.2s;
 }
 
 .zen-input:focus {
-  border-color: var(--color-accent);
-  background: rgba(0, 243, 255, 0.05);
+  background: #f0f0f0;
+  box-shadow: 4px 4px 0px #000000;
 }
 
 .zen-submit-btn {
-  background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--color-accent);
-  padding: 0 16px;
-  border-radius: 6px;
-  font-size: 11px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  color: #000000;
+  padding: 0 24px;
+  font-size: 14px;
   font-weight: bold;
   cursor: pointer;
-  transition: all 0.2s;
+  box-shadow: 2px 2px 0px #000000;
 }
 
 .zen-submit-btn:hover:not(:disabled) {
-  background: rgba(0, 243, 255, 0.1);
-  border-color: var(--color-accent);
+  background: #000000;
+  color: #ffffff;
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0px #000000;
 }
 
 .zen-submit-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.5;
   cursor: not-allowed;
+  box-shadow: none;
 }
 </style>

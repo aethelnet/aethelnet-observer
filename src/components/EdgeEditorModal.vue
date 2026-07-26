@@ -1,6 +1,6 @@
 <template>
   <div class="edge-editor-overlay" @mousedown.self="$emit('close')">
-    <div class="edge-editor-modal">
+    <div class="edge-editor-modal glass-panel">
       <div class="modal-header">
         <span class="modal-title">SYNAPTIC LINK EDITOR</span>
         <button class="close-btn" @click="$emit('close')">✕</button>
@@ -97,12 +97,7 @@ function handleSever() {
 
 .edge-editor-modal {
   width: 400px;
-  background: rgba(20, 20, 20, 0.6);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 24px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  /* Glassmorphism handled by .glass-panel */
   font-family: var(--font-family-mono, monospace);
   color: var(--color-text-main);
   overflow: hidden;

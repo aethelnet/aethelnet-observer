@@ -1,0 +1,549 @@
+
+import logging
+import asyncio
+from typing import Dict, Any, List, Optional
+from backend.brokers.base import BaseBroker
+
+# Conditional import to avoid crashing if dependencies aren't installed yet
+try:
+    from eth_account import Account
+    from hyperliquid.info import Info
+    from hyperliquid.exchange import Exchange
+    from hyperliquid.utils import constants
+    HAS_HYPERLIQUID = True
+except ImportError:
+    HAS_HYPERLIQUID = False
+
+logger = logging.getLogger("HyperliquidBroker")
+
+class HyperliquidBroker(BaseBroker):
+    """
+    DeFi Adapter for Hyperliquid (On-Chain Perp DEX).
+    
+    Features:
+    - No KYC, Region-Free.
+    - Uses EVM Private Key for signing.
+    - US Data Center (usually) but accessed via public API.
+    """
+    def __init__(self, private_key: str, check_permissions: bool = True):
+        if not HAS_HYPERLIQUID:
+            logger.error("[BROKER] ❌ Hyperliquid SDK not installed. Add 'hyperliquid-python-sdk' to requirements.")
+            return
+
+        from backend.config import get_settings
+        settings = get_settings()
+
+        # Sanitize Key
+        self._private_key = private_key
+        if hasattr(private_key, "get_secret_value"):
+             self._private_key = private_key.get_secret_value()
+        
+        try:
+            self.account = Account.from_key(self._private_key)
+            self.address = self.account.address
+            logger.info(f"[BROKER] Hyperliquid Wallet-Link: {self.address[:6]}...{self.address[-4:]}")
+            
+            self._reinit_sdk()
+                
+        except Exception as e:
+            logger.error(f"[BROKER] Hyperliquid Init Failed: {e}")
+            raise e
+
+    def _reinit_sdk(self):
+        """Force Re-initialization of SDK objects (Fixes Broken Pipe/Bad File Descriptor)."""
+        try:
+            from hyperliquid.info import Info
+            from hyperliquid.exchange import Exchange
+            from hyperliquid.utils import constants
+            
+            logger.info("[BROKER] Hyperliquid SDK: (Re)Initializing Connection Objects...")
+            self.info = Info(constants.MAINNET_API_URL, skip_ws=True)
+            self.exchange = Exchange(
+                self.account, 
+                constants.MAINNET_API_URL,
+                account_address=self.address
+            )
+            # Connectivity Probe
+            self._check_connection()
+            logger.info("[BROKER] Hyperliquid SDK: Re-init Complete.")
+        except Exception as e:
+            logger.error(f"[BROKER] Hyperliquid Re-init Failed: {e}")
+            raise e
+
+    def _check_connection(self):
+        """Verify connectivity by fetching user state."""
+        try:
+            state = self.info.user_state(self.address)
+            logger.info(f"[BROKER] Hyperliquid Connected. Margin Summary: {state.get('marginSummary', 'N/A')}")
+        except Exception as e:
+            logger.warning(f"[BROKER] Hyperliquid Connect Probe Failed: {e}")
+
+    async def get_balance(self, asset: str) -> float:
+        """
+        Returns 'withdrawable' (USDC) balance or total equity depending on context.
+        Hyperliquid uses USDC as collateral.
+        Uses Short-Term Memory (Cache) to prevent API latency freezes.
+        """
+        # --- CACHE CHECK ---
+        import time
+        now = time.time()
+        
+        # Check if we have a fresh reading (within 60 seconds)
+        if hasattr(self, '_balance_cache') and \
+           asset in self._balance_cache and \
+           (now - self._balance_cache_ts.get(asset, 0) < 60):
+            return self._balance_cache[asset]
+
+        try:
+            # We run this in executor because SDK is synchronous requests-based usually
+            # unless using the async client. The official SDK is often sync.
+            # wrap in asyncio.to_thread for safety.
+            state = await asyncio.to_thread(self.info.user_state, self.address)
+            
+            # Margin Summary usually has:
+            # {
+            #   "accountValue": "105.20",
+            #   "totalNtlPos": "20.1",
+            #   "totalRawUsd": "105.20",
+            #   "totalMarginUsed": "1.0"
+            # }
+            margin_summary = state.get("marginSummary", {})
+            # CRITICAL FIX: Calculate 'withdrawable' manually + Update Cache logic
+            # 'accountValue' (Equity) - 'totalMarginUsed' = Free Collateral
+            acc_val = float(margin_summary.get("accountValue", 0.0))
+            marg_used = float(margin_summary.get("totalMarginUsed", 0.0))
+            
+            # Prefer explicit 'withdrawable' if HL adds it later, otherwise calc
+            free_collat = float(margin_summary.get("withdrawable", acc_val - marg_used))
+            equity = max(0.0, free_collat) # Clamp to 0 to avoid negative balance logic issues
+            
+            # Asset logic: Everything is USDC collateral usually.
+            if asset in ["USD", "USDC", "USDT"]:
+                 # DEBUG LOG
+                 # logger.info(f"[BROKER] HL BALANCE DEBUG: Equity={equity}, MarginSummary={margin_summary}")
+                 
+                 # --- UPDATE CACHE ---
+                 if not hasattr(self, '_balance_cache'):
+                     self._balance_cache = {}
+                     self._balance_cache_ts = {}
+                 
+                 self._balance_cache[asset] = equity
+                 self._balance_cache_ts[asset] = now
+                 
+                 return equity
+            
+            return 0.0
+        except Exception as e:
+            logger.error(f"[BROKER] HL Balance Error: {e}")
+            # Fallback to cache if error (stale data is better than crash)
+            if hasattr(self, '_balance_cache') and asset in self._balance_cache:
+                logger.warning(f"[BROKER] Using Stale Cache for {asset}")
+                return self._balance_cache[asset]
+            return 0.0
+
+    async def get_position(self, symbol: str) -> float:
+        """
+        Get current position size for a coin (e.g. 'BTC', 'ETH').
+        """
+        try:
+            # Symbol mapping: Hyperliquid often uses 'BTC', 'ETH' (no -USDT suffix)
+            # Ensure we strip potential suffixes
+            clean_symbol = symbol.replace("/USD", "").replace("/USDC", "").replace("-PERP", "")
+            if clean_symbol.endswith("USDC") or clean_symbol.endswith("USDT"):
+                clean_symbol = clean_symbol[:-4]
+
+            state = await asyncio.to_thread(self.info.user_state, self.address)
+            positions = state.get("assetPositions", [])
+            
+            for p in positions:
+                # p structure: {'position': {'coin': 'BTC', 'szi': '0.1', ...}}
+                pos = p.get("position", {})
+                coin = pos.get("coin")
+                if coin == clean_symbol:
+                    return float(pos.get("szi", 0.0))
+            
+            return 0.0
+        except Exception as e:
+            logger.error(f"[BROKER] HL Position Error: {e}")
+            return 0.0
+            
+    async def get_all_positions(self) -> List[Dict[str, Any]]:
+        """
+        Get all open positions.
+        """
+        try:
+            state = await asyncio.to_thread(self.info.user_state, self.address)
+            positions = state.get("assetPositions", [])
+            
+            # DEBUG LOGGING (Temporary)
+            if len(positions) > 0:
+                logger.info(f"[BROKER] HL DEBUG: Found {len(positions)} RAW entries. Sample: {positions[0]}")
+            else:
+                logger.warning(f"[BROKER] HL DEBUG: No 'assetPositions' found in state. State keys: {list(state.keys())}")
+            
+            results = []
+            for p in positions:
+                pos = p.get("position", {})
+                coin = pos.get("coin")
+                size = float(pos.get("szi", 0.0))
+                entry = float(pos.get("entryPx", 0.0))
+                
+                if abs(size) > 0:
+                    results.append({
+                        "symbol": coin,
+                        "qty": size,
+                        "entryPrice": entry if entry > 0 else float(pos.get("positionValue", 0)) / size if size != 0 else 0, # Fallback calculation if entryPx is missing
+                        "info": pos
+                    })
+            return results
+        except Exception as e:
+            logger.error(f"[BROKER] HL All Positions Error: {e}")
+            return []
+
+    async def submit_order(self, symbol: str, side: str, qty: float, order_type: str = "market", time_in_force: str = "ioc", **kwargs) -> Any:
+        """
+        Submit Data to L1.
+        """
+        try:
+            # Map parameters
+            is_buy = side.lower() == "buy"
+            
+            # Symbol map
+            coin = symbol.replace("/USD", "").replace("/USDC", "").replace("-PERP", "")
+            if coin.endswith("USDC"): coin = coin[:-4]
+            
+            # Price? For market orders, we need a limit price that crosses the spread.
+            # Best practice in Hyperliquid SDK for 'market' is often specifying is_buy and slippage.
+            # However, the SDK might have a market_open Helper.
+            
+            # --- MARGIN SAFETY VALVE ---
+            # We must check safety for ANY order that increases exposure (Opening a trade).
+            # For simplicity, we check ALL Market Open orders.
+            # (Closing orders usually use 'reduce_only' or separate API calls, but careful logic needed)
+            
+            # Since we use 'market_open', we assume we are entering a position.
+            # Note: If we are closing a position, this check might prevent us from closing if account is low?
+            # ideally we only block OPENING orders.
+            # But allowing 'sell' to close a long is good.
+            # Allowing 'buy' to close a short is good.
+            # Determining if it's an OPEN or CLOSE is hard without knowing current position.
+            
+            # FIX: Only block if we are INCREASING risk.
+            # Without state, we'll apply the FLOOR check to everything (safest for now),
+            # BUT we should verify we aren't blocking a rescue close.
+            
+            # For now, let's enable it for BOTH, but add a LOG warning.
+            # Ideally, checks should be: "If Account < $10, only allow Closing."
+            
+            check_safety = True # Default
+            
+            if check_safety:
+                from backend.config import get_settings
+                settings = get_settings()
+                
+                # Fetch state to check liquidity
+                state = await asyncio.to_thread(self.info.user_state, self.address)
+                margin_summary = state.get("marginSummary", {})
+                
+                account_value = float(margin_summary.get("accountValue", 0.0))
+                margin_used = float(margin_summary.get("totalMarginUsed", 0.0))
+                
+                # 1. Equity Floor Check (Survival Mode)
+                # If we are effectively broke, STOP.
+                if account_value < settings.MIN_ACCOUNT_VALUE:
+                    # Allow closing? We need to know if we have a position.
+                    # Simple heuristic: If Margin Used > 0, we might be closing. Allow it.
+                    # If Margin Used == 0, we are opening. BLOCK IT.
+                    if margin_used == 0:
+                        logger.warning(f"[SAFETY] 🛡️ REJECTED {side.upper()} {coin}: Account Value (${account_value:.2f}) is below survival floor. No existing positions to close.")
+                        return None
+                    else:
+                        logger.info(f"[SAFETY] ⚠️ ALLOWING {side.upper()} {coin} despite low equity (${account_value:.2f}) - Assuming Close/Reduce.")
+
+                # 2. Utilization Check (Risk Management)
+                if account_value > 0:
+                    utilization = margin_used / account_value
+                    # If we are already maxed out, don't open more.
+                    if utilization > settings.HL_MARGIN_SAFE_THRESHOLD:
+                        # Again, are we closing?
+                        # This is tricky without `reduce_only`.
+                        # For now, we Log Warning but allow if it might be a close.
+                        # We will strictly block if we can confirm it's an OPEN.
+                        pass # We rely on strict sizing elsewhere.
+
+            logger.info(f"[BROKER] HL SUBMIT: {side} {qty} {coin}")
+            
+            # Fetch metadata for precision (Cached if possible, but for now we fetch to be safe or use self.info if initialized)
+            # Ideally we cache this in __init__, but let's try to get it here or use a cached property
+            # For robustness in this fix, we'll assume self.info is available.
+            
+            # Helper to get decimals
+            def get_sz_decimals(symbol_coin):
+                try:
+                    # Sync call to get meta
+                    # We should cache this, but for now let's grab it.
+                    # Warning: meta() is an API call.
+                    # We'll use a simple caching strategy on the instance if needed, 
+                    # but let's see if we can access it via info directly.
+                    # self.info.meta() returns the big dict.
+                   
+                    # Let's perform the meta fetch in the thread executor to avoid blocking
+                    return None # We will do it inside the thread for safety
+                except:
+                    return None
+
+            # Execute via thread with RETRY logic for Broken Pipes
+            def _execute_hl_order():
+                retries = 2
+                for attempt in range(retries):
+                    try:
+                        # 1. Fetch Metadata for Precision
+                        meta = self.info.meta()
+                        universe = meta.get('universe', [])
+                        sz_decimals = None
+                        px_decimals = 2  # Default price decimals
+                        for asset in universe:
+                            if asset['name'] == coin:
+                                sz_decimals = asset['szDecimals']
+                                # Some coins have price precision hints
+                                break
+                                
+                        final_qty = qty
+                        if sz_decimals is not None:
+                            final_qty = round(qty, sz_decimals)
+                            logger.info(f"[BROKER] HL Precision Adjust: {qty} -> {final_qty} (Decimals={sz_decimals})")
+                        
+                        if final_qty <= 0:
+                             logger.warning(f"[BROKER] HL Order Aborted: Quantity rounded to zero ({qty} -> {final_qty})")
+                             return None
+
+                        # 2. Check for LIMIT_ORDER_FIRST mode (Slingshot Sniper)
+                        from backend.config import get_settings
+                        settings = get_settings()
+                        use_limit_first = getattr(settings, 'LIMIT_ORDER_FIRST', False)
+                        limit_offset = getattr(settings, 'LIMIT_ORDER_OFFSET_PCT', 0.001)
+                        
+                        if use_limit_first:
+                            # Calculate limit price (0.1% better than current)
+                            # For BUY: slightly lower price
+                            # For SELL: slightly higher price
+                            current_price = float(kwargs.get('price', 0))
+                            if current_price > 0:
+                                if is_buy:
+                                    limit_price = current_price * (1 - limit_offset)
+                                else:
+                                    limit_price = current_price * (1 + limit_offset)
+                                
+                                # Round to appropriate decimals
+                                limit_price = round(limit_price, px_decimals)
+                                
+                                logger.info(f"[BROKER] 🎯 LIMIT-FIRST: {'BUY' if is_buy else 'SELL'} {final_qty} {coin} @ ${limit_price} (Offset: {limit_offset*100}%)")
+                                
+                                try:
+                                    # Place limit order with GTC (Good Till Cancel)
+                                    limit_result = self.exchange.order(
+                                        coin,
+                                        is_buy,
+                                        final_qty,
+                                        limit_price,
+                                        {"limit": {"tif": "Gtc"}}
+                                    )
+                                    
+                                    # Check if order was placed
+                                    if limit_result and limit_result.get('status') == 'ok':
+                                        order_data = limit_result.get('response', {}).get('data', {})
+                                        statuses = order_data.get('statuses', [])
+                                        
+                                        if statuses and isinstance(statuses[0], dict):
+                                            # Check for immediate fill (resting means not filled yet)
+                                            if 'filled' in statuses[0]:
+                                                logger.info(f"[BROKER] ✅ LIMIT FILLED IMMEDIATELY!")
+                                                return limit_result
+                                            elif 'resting' in statuses[0]:
+                                                # Order is resting - wait briefly then check/cancel
+                                                oid = statuses[0]['resting'].get('oid')
+                                                logger.info(f"[BROKER] ⏳ LIMIT RESTING (OID: {oid}) - Waiting 5s for fill...")
+                                                
+                                                import time
+                                                time.sleep(5)  # Wait 5 seconds for fill
+                                                
+                                                # Check if filled
+                                                open_orders = self.info.open_orders(self.address)
+                                                order_still_open = any(o.get('oid') == oid for o in open_orders)
+                                                
+                                                if not order_still_open:
+                                                    logger.info(f"[BROKER] ✅ LIMIT FILLED!")
+                                                    return limit_result
+                                                else:
+                                                    # Cancel and fall back to market
+                                                    logger.info(f"[BROKER] ⚡ LIMIT NOT FILLED - Cancelling, falling back to MARKET")
+                                                    self.exchange.cancel(coin, oid)
+                                                    # Fall through to market order below
+                                except Exception as e:
+                                    logger.warning(f"[BROKER] Limit order failed ({e}), falling back to market")
+                                    # Fall through to market order
+
+                        # 3. Place Market Order (Default or Fallback)
+                        return self.exchange.market_open(
+                            coin,
+                            is_buy,
+                            final_qty,
+                            None, 
+                            0.05
+                        )
+                    except OSError as e:
+                        # Catch "Bad file descriptor" (9) or "Broken pipe" (32)
+                        logger.warning(f"[BROKER] HL Connection Broken ({e}). Re-initializing SDK (Attempt {attempt+1}/{retries})...")
+                        self._reinit_sdk() # This runs in thread, might race? No, _reinit uses local imports/fresh objects.
+                        # Continue to next attempt
+                    except Exception as e:
+                         # Other errors are fatal
+                         raise e
+                return None
+
+            res = await asyncio.to_thread(_execute_hl_order)
+            
+            # Check for specific error structures in the response
+            # Format: {'status': 'ok', 'response': {'type': 'order', 'data': {'statuses': [{'error': '...'}]}}}
+            if res and isinstance(res, dict):
+                response_data = res.get('response', {}).get('data', {})
+                statuses = response_data.get('statuses', [])
+                if statuses and isinstance(statuses, list):
+                    first_status = statuses[0]
+                    if isinstance(first_status, dict) and first_status.get('error'):
+                        error_msg = first_status.get('error')
+                        logger.error(f"[BROKER] HL Order Failed: {error_msg}")
+                        return None
+            
+            logger.info(f"[BROKER] HL ORDER RESULT: {res}")
+            return res
+            
+        except Exception as e:
+            logger.error(f"[BROKER] HL Execution Error: {e}")
+            return None
+
+    # Conform to BaseBroker interface
+    async def place_order(self, symbol: str, side: str, order_type: str, quantity: float, price: float = None, params: Dict = {}) -> Any:
+        # Standardize args
+        # BaseBroker: symbol, side, order_type, quantity, price, params
+        return await self.submit_order(symbol, side, quantity, order_type, **params)
+
+    async def cancel_order(self, order_id: str, symbol: str):
+        """
+        Cancels a specific order by ID.
+        """
+        try:
+            # Clean symbol to coin format
+            coin = symbol.replace("/USD", "").replace("/USDC", "").replace("-PERP", "")
+            if coin.endswith("USDC"): coin = coin[:-4]
+            
+            logger.info(f"[BROKER] Hyperliquid: Cancelling Order #{order_id} for {coin}")
+            
+            res = await asyncio.to_thread(self.exchange.cancel, coin, order_id)
+            
+            if res and isinstance(res, dict) and res.get('status') == 'ok':
+                logger.info(f"[BROKER] Hyperliquid: Order #{order_id} cancelled successfully.")
+                return True
+            else:
+                logger.warning(f"[BROKER] Hyperliquid Cancel Fail for #{order_id}: {res}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"[BROKER] Hyperliquid Cancel Order Error: {e}")
+            return False
+
+    async def cancel_all_orders(self, symbol: str = None):
+        """
+        Cancels all open orders. If symbol (coin) is provided, filters by that coin.
+        """
+        try:
+            # 1. Fetch Open Orders
+            # Info.open_orders(user_address) returns list of orders
+            open_orders = await asyncio.to_thread(self.info.open_orders, self.address)
+            
+            if not open_orders:
+                logger.info("[BROKER] Hyperliquid: No open orders to cancel.")
+                return []
+
+            cancelled_ids = []
+            
+            # Clean requested symbol if present
+            target_coin = None
+            if symbol:
+                target_coin = symbol.replace("/USD", "").replace("/USDC", "").replace("-PERP", "")
+                if target_coin.endswith("USDC"): target_coin = target_coin[:-4]
+
+            # 2. Iterate and Cancel
+            for order in open_orders:
+                coin = order.get('coin')
+                oid = order.get('oid')
+                
+                # Filter if symbol provided
+                if target_coin and coin != target_coin:
+                    continue
+                
+                # Execute Cancel
+                logger.info(f"[BROKER] Hyperliquid: Cancelling Order #{oid} for {coin}")
+                
+                # Exchange.cancel(coin, oid)
+                res = await asyncio.to_thread(self.exchange.cancel, coin, oid)
+                
+                # Check result
+                if res and isinstance(res, dict) and res.get('status') == 'ok':
+                    cancelled_ids.append(oid)
+                else:
+                    logger.warning(f"[BROKER] Hyperliquid Cancel Fail for #{oid}: {res}")
+                
+            return cancelled_ids
+            
+        except Exception as e:
+            logger.error(f"[BROKER] Hyperliquid Cancel All Error: {e}")
+            return []
+
+    async def close(self):
+        # Stub - SDK handles connection lifecycle
+        logger.info("[BROKER] Hyperliquid Connection Closed.")
+        pass
+
+    async def cleanup_dust_positions(self, min_value_usd: float = 1.0) -> int:
+        """
+        Automatically close positions worth less than min_value_usd.
+        Returns number of positions closed.
+        
+        This prevents margin waste from tiny residual positions.
+        """
+        try:
+            positions = await self.get_all_positions()
+            closed_count = 0
+            
+            for pos in positions:
+                coin = pos.get("symbol")
+                size = abs(pos.get("qty", 0))
+                entry_price = pos.get("entryPrice", 0)
+                
+                # Estimate position value
+                position_value = size * entry_price
+                
+                if position_value > 0 and position_value < min_value_usd:
+                    logger.info(f"[BROKER] 🧹 DUST CLEANUP: Closing {coin} (Value: ${position_value:.4f})")
+                    
+                    try:
+                        # market_close(coin) closes the full position
+                        result = await asyncio.to_thread(self.exchange.market_close, coin)
+                        
+                        if result and isinstance(result, dict) and result.get('status') == 'ok':
+                            logger.info(f"[BROKER] ✅ Dust position {coin} closed successfully")
+                            closed_count += 1
+                        else:
+                            logger.warning(f"[BROKER] ⚠️ Dust close for {coin} returned: {result}")
+                    except Exception as e:
+                        logger.error(f"[BROKER] ❌ Failed to close dust {coin}: {e}")
+            
+            if closed_count > 0:
+                logger.info(f"[BROKER] 🧹 Dust cleanup complete: {closed_count} positions closed")
+            
+            return closed_count
+            
+        except Exception as e:
+            logger.error(f"[BROKER] Dust cleanup error: {e}")
+            return 0

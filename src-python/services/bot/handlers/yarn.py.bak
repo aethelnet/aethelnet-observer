@@ -1,0 +1,128 @@
+from backend.services.bot.handlers.base import BaseHandler
+from backend.services.data_manager import get_data_manager
+from backend.services.brain import get_engine
+import asyncio
+
+class YarnHandler(BaseHandler):
+    async def handle_yarn(self, chat_id: int, symbol: str = None, message_id: int = None):
+        """
+        The 'Thread of Truth' (YARN).
+        Aggregates recent signals, executions, and context into a readable feed.
+        """
+        try:
+            dm = get_data_manager()
+            engine = get_engine()
+            
+            # Fetch recent signals (mock or real if DB has them)
+            # For now, we pull from Engine's active states
+            active_states = engine.states # dict of {symbol: state}
+            
+            # Filter by symbol if specific
+            if symbol:
+                relevant_states = {k:v for k,v in active_states.items() if k == symbol}
+                title = f"[ YARN ] {symbol}"
+            else:
+                relevant_states = active_states
+                title = "[ YARN ] GLOBAL THREAD"
+                
+            # Limit to active/interesting
+            sorted_items = sorted(
+                relevant_states.items(), 
+                key=lambda x: abs(x[1].get('z_score', 0)), 
+                reverse=True
+            )[:5]
+            
+            # 0. PIDGIN POETRY (The Vibe)
+            from backend.services.pidgin_poet import PidginPoet
+            target_sym = symbol if symbol else "BTCUSDT"
+            mood = dm.get_market_mood(target_sym)
+            narrative, exclamation = PidginPoet.compose(
+                volatility=mood.get('volatility', 0.5),
+                trend_strength=mood.get('trend_strength', 0.5),
+                recent_change=mood.get('recent_change', 0.0)
+            )
+            
+            msg = (
+                f"<b>{title}</b>\n"
+                "<code>════════════════════════════════</code>\n"
+                f"<b>{exclamation}</b>\n"
+                f"{narrative}\n"
+                "<code>════════════════════════════════</code>\n\n"
+            )
+
+            # 1. CONTEXTUAL SCOREBOARD LINK
+            # If symbol specific, we show specific scoreboard button below
+            
+            # 2. SOCIAL SENTIMENT (Karma/Votes)
+            if symbol:
+                from backend.services.social_service import get_social_service
+                svc = get_social_service()
+                karma = svc.get_karma(symbol)
+                msg += f"<b>COMMUNITY SENTIMENT</b>\n"
+                msg += f"Karma Score: <code>{karma:+d}</code>\n"
+                msg += f"Consensus: {'BULLISH' if karma > 0 else 'BEARISH' if karma < 0 else 'NEUTRAL'}\n"
+                msg += "<code>────────────────────────</code>\n\n"
+
+            # 3. YARNS (Comments/Signals)
+            # 1. LIVE SIGNAL STREAM REMOVED (Strictly Social Request)
+            # Replaced with purely social context aggregation.
+            
+
+
+            # 2. VOX POPULI (Social / Yarn)
+            yarns = []
+            try:
+                # Reuse the service instance from above if possible, or fetch new
+                if symbol:
+                    yarns = svc.get_yarns(symbol, limit=5)
+                else:
+                    # Global yarns fallback
+                    yarns = svc.get_yarns(None, limit=5) 
+            except: pass
+
+            if yarns:
+                msg += "\n<b>VOX POPULI</b>\n"
+                for y in yarns:
+                    user = y.get('username', 'Anon')[:10]
+                    txt = y.get('text', '')
+                    msg += f"• <b>{user}</b>: {txt}\n"
+
+            msg += (
+                "\n<code>════════════════════════════════</code>\n"
+                "<b>[ HIVE MIND ]</b>\n"
+                "<i>Consensus Intelligence.</i>"
+            )
+            
+            # Navigation
+            lb_cb = f"LEADERBOARD_SYM_{symbol}" if symbol else "LEADERBOARD_GLOBAL"
+            
+            # Use standard cyclical nav for neighbors
+            nav_row = self._get_cyclical_nav("SYMBOL" if symbol else "YARN")
+            
+            # If symbol-specific, we want the CENTER button (^) to lead back to PRICE_{symbol}
+            # instead of PRICE_LANDING or START.
+            if symbol:
+                for btn in nav_row:
+                    if btn["text"] == "○": # The "Up" or "Home" button
+                        btn["text"] = f"« BACK TO {symbol}"
+                        btn["callback_data"] = f"PRICE_{symbol}"
+            
+            keyboard = {
+                "inline_keyboard": [
+                    [{"text": f"[ TOP TRADERS ({symbol if symbol else 'GLOBAL'}) ]", "callback_data": lb_cb}],
+                    nav_row
+                ]
+            }
+            
+            if message_id:
+                try:
+                    await self.bot.edit_message_text(chat_id, message_id, msg, reply_markup=keyboard)
+                except Exception as e:
+                    if "Message is not modified" not in str(e):
+                        await self.bot.send_message(chat_id, msg, reply_markup=keyboard)
+            else:
+                await self.bot.send_message(chat_id, msg, reply_markup=keyboard)
+                
+        except Exception as e:
+            self.logger.error(f"Yarn error: {e}")
+            await self.send_message(chat_id, "[!] Yarn tangled. Try again.")

@@ -1,0 +1,484 @@
+import time
+import uuid
+import random
+import logging
+import os
+import json
+from typing import Dict, List, Optional, Tuple
+from backend.services.wallet import Wallet
+
+logger = logging.getLogger("PaperBroker")
+
+class PaperBroker:
+    """
+    Simulates a Centralized Exchange (CEX) like Binance.
+    Handles Orders, Matching, Fees, and Latency.
+    """
+    def __init__(self, wallet: Wallet, fee_rate: float = 0.001, slippage_std: float = 0.0002, latency_ms: int = 50):
+        from backend.config import get_settings
+        self.settings = get_settings()
+        self.wallet = wallet
+        # Execution Configuration (Tunable)
+        self.execution_params = {
+            "slippage_std": slippage_std, # Standard Deviation for price slippage
+            "latency_ms": latency_ms,      # Network lag simulation
+            "fee_rate": fee_rate
+        }
+        
+        # Order Books (Per Symbol)
+        # For Paper Trading, we don't fully simulate L2/L3 books.
+        # We just store our own open orders and match against incoming OHLCV ticks.
+        self.open_orders: Dict[str, Dict[str, dict]] = {} # {symbol: {order_id: order_dict}}
+        self.filled_orders: List[dict] = []
+        self.positions: Dict[str, dict] = {} # {symbol: {avg_price, quantity}}
+        # Caps to prevent unbounded memory growth in long-running sessions
+        self.MAX_FILLED_HISTORY = 1000
+        # Rate-limit state saves to reduce disk churn (seconds)
+        self._last_save = 0.0
+        self._save_interval = 5.0
+
+    def place_order(self, symbol: str, side: str, order_type: str, quantity: float, price: Optional[float] = None) -> str:
+        """
+        Places a new order.
+        side: 'BUY' or 'SELL'
+        order_type: 'MARKET' or 'LIMIT'
+        """
+        # 1. Validation && Funds Check
+        quote_asset = "USDT" # Assuming USDT pairs for simplicity
+        base_asset = symbol.replace(quote_asset, "")
+        
+        required_funds = 0.0
+        required_asset = ""
+        
+        if side == 'BUY':
+            # Need USDT
+            if order_type == 'MARKET':
+                # Estimate cost (We don't know exact price yet, assume infinite until match?)
+                # Paper Trading: We check funds at Execution time for Market Orders roughly?
+                # Or block 100% of portfolio?
+                # Let's verify 'free' balance exists > 0 at least.
+                required_asset = quote_asset
+                # For Market Buy, we rely on Execution to fail if insufficient.
+            elif order_type == 'LIMIT':
+                if price is None: raise ValueError("Limit Order requires price")
+                required_funds = price * quantity
+                required_asset = quote_asset
+                
+        elif side == 'SELL':
+            # Need Base Asset (BTC, etc.)
+            required_funds = quantity
+            required_asset = base_asset
+
+        # Lock Funds for LIMIT orders
+        if order_type == 'LIMIT':
+            if not self.wallet.lock_funds(required_asset, required_funds):
+                raise ValueError(f"Insufficient {required_asset} for Limit Order")
+
+        # 2. Create Order Object
+        order_id = str(uuid.uuid4())
+        order = {
+            "id": order_id,
+            "symbol": symbol,
+            "side": side,
+            "type": order_type,
+            "quantity": quantity,
+            "price": price, # None for Market
+            "status": "NEW",
+            "created_at": time.time(),
+            "locked_funds": required_funds if order_type == 'LIMIT' else 0.0,
+            "locked_asset": required_asset if order_type == 'LIMIT' else None
+        }
+        
+        # 3. Simulate Latency
+        latency_sec = self.execution_params.get('latency_ms', 50) / 1000.0
+        order['activation_time'] = time.time() + latency_sec
+        
+        if symbol not in self.open_orders:
+            self.open_orders[symbol] = {}
+        self.open_orders[symbol][order_id] = order
+        
+        return order_id
+
+    def cancel_order(self, symbol: str, order_id: str) -> bool:
+        if symbol in self.open_orders and order_id in self.open_orders[symbol]:
+            order = self.open_orders[symbol].pop(order_id)
+            # Unlock funds
+            if order['type'] == 'LIMIT':
+                self.wallet.unlock_funds(order['locked_asset'], order['locked_funds'])
+            order['status'] = 'CANCELLED'
+            # Keep cancelled orders in short history to aid debugging, but cap size
+            self.filled_orders.append(order)
+            if len(self.filled_orders) > self.MAX_FILLED_HISTORY:
+                # Trim oldest entries
+                self.filled_orders = self.filled_orders[-self.MAX_FILLED_HISTORY:]
+            return True
+        return False
+
+    def _update_unrealized_pnl(self, symbol: str, current_price: float):
+        """
+        Calculates unrealized PnL for active positions.
+        """
+        if symbol in self.positions:
+            pos = self.positions[symbol]
+            qty = pos.get('quantity', 0.0)
+            avg = pos.get('avg_price', 0.0)
+            
+            if abs(qty) > 0:
+                if qty > 0: # Long
+                    unrealized = (current_price - avg) * qty
+                else: # Short
+                    unrealized = (avg - current_price) * abs(qty)
+                
+                # Store it in the position dict for UI/Logic to see
+                pos['unrealized_pnl'] = unrealized
+                pos['current_price'] = current_price
+
+
+    def on_tick(self, symbol: str, tick: dict):
+        """
+        Process incoming market data (Tick/Candle) to match orders.
+        tick: {'open', 'high', 'low', 'close', 'timestamp'}
+        We assume this is a 1m candle or 'tick' aggregate.
+        """
+        logger.info(f"[TICK] Received Price: {tick['close']:.2f}")
+        if symbol not in self.open_orders: return
+        
+        # Copy to avoid concurrently modifying loop
+        current_orders = list(self.open_orders[symbol].values())
+        
+        current_time = time.time() # Or use tick timestamp?
+        # Using tick timestamp is better for backtesting, but current time for 'Paper Trading' live?
+        # If 'Paper Trading' is running alongside live feed, use system time.
+        
+        current_price = tick['close']
+        # --- UNREALIZED PnL UPDATE --- 
+        self._update_unrealized_pnl(symbol, current_price)
+        logger.info(f"[PNL DEBUG] Current Price for {symbol}: {current_price:.2f}")
+        high = tick['high']
+        low = tick['low']
+        
+        for order in current_orders:
+            if current_time < order.get('activation_time', 0):
+                continue # Latency simulation
+            
+            executed = False
+            fill_price = 0.0
+            
+            # --- MARKET ORDERS ---
+            if order['type'] == 'MARKET':
+                # Slippage Model: Random walk around 'close'
+                std_dev = self.execution_params.get('slippage_std', 0.0002)
+                slippage = random.gauss(0, std_dev) * current_price
+                if order['side'] == 'BUY':
+                    fill_price = current_price + abs(slippage) # Pay more
+                else:
+                    fill_price = current_price - abs(slippage) # Sell less
+                
+                executed = True
+
+            # --- LIMIT ORDERS ---
+            elif order['type'] == 'LIMIT':
+                limit_price = order['price']
+                if order['side'] == 'BUY':
+                    # Buy if Low <= Limit
+                    if low <= limit_price:
+                        # Assuming we fill at Limit Price (or better if gapped?)
+                        # Optimistic: Fill at Limit.
+                        fill_price = limit_price
+                        executed = True
+                elif order['side'] == 'SELL':
+                    # Sell if High >= Limit
+                    if high >= limit_price:
+                        fill_price = limit_price
+                        executed = True
+
+            # --- EXECUTION ---
+            if executed:
+                self._execute_fill(order, fill_price)
+
+    def _execute_fill(self, order: dict, price: float):
+        """Finalizes the trade, updates wallet (FUTURES LOGIC)."""
+        # Futures: 
+        # BUY = Long (+Qty)
+        # SELL = Short (-Qty) or Close Long
+        # PnL is realized when closing/reducing position.
+        
+        cost = price * order['quantity']
+        cost = price * order['quantity']
+        fee_rate = self.execution_params.get('fee_rate', 0.001)
+        fee = cost * fee_rate
+        quote_asset = "USDT"
+        
+        # Deduct Fee immediately from USDT Free
+        self.wallet.balances[quote_asset]['free'] -= fee
+        
+        # Release Locks if Limit
+        if order['type'] == 'LIMIT':
+             self.wallet.unlock_funds(quote_asset, order['locked_funds'])
+
+        # Update Position State
+        current_pos = self.positions.get(order['symbol'], {'quantity': 0.0, 'avg_price': 0.0})
+        curr_qty = current_pos['quantity']
+        curr_avg = current_pos['avg_price']
+        
+        fill_qty = order['quantity']
+        side_mult = 1.0 if order['side'] == 'BUY' else -1.0
+        signed_fill_qty = fill_qty * side_mult
+        
+        new_qty = curr_qty + signed_fill_qty
+        new_avg = curr_avg
+        
+        # Logic: 
+        # 1. Increasing Position (Open/Add): Update Avg Entry.
+        # 2. Decreasing Position (Close/Reduce): Realize PnL. Keep Avg Entry same.
+        # 3. Flipping (Close + Open): Realize PnL on closed portion, Start new Avg on remainder.
+        
+        # Case A: Same Sign or Zero (Increasing exposure)
+        if (curr_qty == 0) or (curr_qty > 0 and signed_fill_qty > 0) or (curr_qty < 0 and signed_fill_qty < 0):
+            # Weighted Average
+            total_val = (abs(curr_qty) * curr_avg) + (fill_qty * price)
+            total_qty = abs(curr_qty) + fill_qty
+            new_avg = total_val / total_qty
+            
+        # Case B: Opposite Sign (Closing / Flipping)
+        else:
+            # We are closing some/all of existing pos.
+            # 1. Determine how much is closed
+            closed_qty = min(abs(curr_qty), fill_qty)
+            
+            # 2. Calculate PnL on closed portion
+            # Long Close: (Price - Entry) * Qty
+            # Short Close: (Entry - Price) * Qty
+            if curr_qty > 0: # Closing Long
+                pnl = (price - curr_avg) * closed_qty
+            else: # Closing Short
+                pnl = (curr_avg - price) * closed_qty
+                
+            # 3. Credit PnL to Wallet
+            # 3. Credit PnL to Wallet (PROFIT SPLIT)
+            # Logic: 
+            # If PnL > 0: Split = PnL * Ratio -> Vault. Rest -> Wallet.
+            # If PnL < 0: Full Loss -> Wallet.
+            
+            if pnl > 0:
+                ratio = getattr(self.wallet, 'profit_secure_ratio', 0.5)
+                vault_share = pnl * ratio
+                pool_share = pnl * (1.0 - ratio)
+                
+                # Credit Pool
+                self.wallet.credit(quote_asset, pool_share)
+                
+                # Credit Vault
+                if quote_asset not in self.wallet.vault:
+                    self.wallet.vault[quote_asset] = 0.0
+                self.wallet.vault[quote_asset] += vault_share
+                
+                logger.info(f"[VAULT] WIN! +{pnl:.2f} USDT. Secured: {vault_share:.2f} (Vault) | Reinvest: {pool_share:.2f} (Pool)")
+            else:
+                # Loss comes out of Pool
+                self.wallet.credit(quote_asset, pnl) # pnl is negative
+                logger.info(f"[VAULT] LOSS. {pnl:.2f} USDT deducted from Pool.")
+
+            # logger.info(f"[FUTURES] PnL Realized: {pnl:.2f} USDT")
+            
+            # SAVE PnL TO ORDER
+            order['pnl'] = pnl
+
+            
+            # 4. Handle Flip (if fill > curr)
+            if fill_qty > abs(curr_qty):
+                # Remainder is new position (flip)
+                remainder = fill_qty - abs(curr_qty)
+                new_avg = price # New entry for the flip
+                # new_qty is already calculated properly by simple addition
+            else:
+                 # Just reducing. Avg stays same (FIFO/Weighted assumption)
+                 pass
+        
+        self.positions[order['symbol']] = {'quantity': new_qty, 'avg_price': new_avg}
+        
+        # Logging
+        order['status'] = 'FILLED'
+        order['fill_price'] = price
+        order['filled_at'] = time.time()
+        
+        self.filled_orders.append(order)
+        if len(self.filled_orders) > self.MAX_FILLED_HISTORY:
+            self.filled_orders = self.filled_orders[-self.MAX_FILLED_HISTORY:]
+        if order['id'] in self.open_orders[order['symbol']]:
+            del self.open_orders[order['symbol']][order['id']]
+
+        # Log the "Cost of Doing Business"
+        logger.info(f"Order {order['id']} Filled. Fee: {fee:.4f} USD. The house always wins.")
+        
+        # --- ATOMIC PERSISTENCE (FAILSAFE) ---
+        # Rate-limited save: avoid writing to disk on every fill for high-frequency/backtests.
+        now = time.time()
+        if (now - getattr(self, "_last_save", 0)) >= getattr(self, "_save_interval", 5.0):
+            try:
+                self.save_state(os.path.join(self.settings.DATA_DIR, "broker_state.json"))
+                self.wallet.save_state(os.path.join(self.settings.DATA_DIR, "wallet_state.json"))
+                self._last_save = now
+            except Exception:
+                logger.exception("Failed to persist broker/wallet state")
+
+    def get_open_orders(self, symbol: str) -> List[dict]:
+        # logger.info(f"[TICK] Received Price: {tick['close']:.2f}") - REMOVE spurious log
+        if symbol not in self.open_orders: return []
+        return list(self.open_orders[symbol].values())
+
+    def get_trade_history(self) -> List[dict]:
+        """
+        Returns list of filled orders.
+        """
+        # Sort by fill time descending
+        return sorted(self.filled_orders, key=lambda x: x.get('filled_at', 0), reverse=True)
+
+    def get_positions(self) -> Dict[str, dict]:
+        """
+        Returns all active positions.
+        """
+        return self.positions
+
+    def get_position(self, symbol: str) -> float:
+        """
+        Returns quantity for specific symbol.
+        """
+        pos = self.positions.get(symbol, {})
+        return pos.get('quantity', 0.0)
+
+    def save_state(self, filepath: str):
+        state = {
+            "open_orders": self.open_orders,
+            "filled_orders": self.filled_orders,
+            "positions": self.positions
+        }
+        with open(filepath, 'w') as f:
+            json.dump(state, f, indent=4)
+        # logger.info(f"State saved to {filepath}")
+
+    def load_state(self, filepath: str):
+        if not os.path.exists(filepath):
+            return False
+        try:
+            with open(filepath, 'r') as f:
+                state = json.load(f)
+            self.open_orders = state.get("open_orders", {})
+            self.filled_orders = state.get("filled_orders", [])
+            self.positions = state.get("positions", {})
+            # logger.info(f"State loaded from {filepath}")
+            return True
+            logger.error(f"Failed to load state: {e}")
+            return False
+
+    # --- GAME MODE API (For TerminalHandler) ---
+    # These methods bypass the Order Book simulation to provide 
+    # instant gratification for the UI "Trading Game".
+    
+    def get_balance(self, user_id: int = None) -> float:
+        """Get USDT Balance (Free)."""
+        # Ignoring user_id for Singleton Wallet
+        return self.wallet.get_balance("USDT")
+        
+    def get_position(self, user_id: int, symbol: str) -> Optional[Dict]:
+        """
+        Returns rich position data for UI. 
+        Note: The class method get_position(symbol) returns float qty.
+        This one returns the Dict or None.
+        """
+        # Method overloading hack or distinct name? 
+        # Terminal calls get_position(chat, sym). 
+        # Original was get_position(sym).
+        # Let's support the dict return here.
+        symbol = symbol.upper()
+        if symbol in self.positions:
+            pos = self.positions[symbol]
+            if pos['quantity'] == 0: return None
+            return {
+                "entry_price": pos.get('avg_price', 0.0),
+                "size": pos.get('quantity', 0.0)
+            }
+        return None
+
+    def open_position(self, user_id: int, symbol: str, quantity: float, price: float) -> Tuple[bool, str]:
+        """
+        Instant Market Execution.
+        """
+        try:
+            # Bypass Order Book. Direct State Mutation.
+            # Create a synthetic "Filled Market Order"
+            side = "BUY" if quantity > 0 else "SELL"
+            order = {
+                "id": f"game_{int(time.time()*1000)}",
+                "symbol": symbol,
+                "side": side,
+                "type": "MARKET",
+                "quantity": abs(quantity), # logic uses absolute for calc, sign for direction?
+                # Wait, _execute_fill expects order['quantity'] to be positive, and uses side to determine math.
+                # My logic in _execute_fill: signed_fill_qty = fill_qty * side_mult
+                # So order quantity should be ABSOLUTE.
+                "status": "FILLED",
+                "created_at": time.time(),
+                "filled_at": time.time(),
+                "locked_funds": 0
+            }
+            # Wait, execute_fill calculates cost/fees.
+            # Does it have funds?
+            cost = abs(quantity) * price
+            if side == "BUY":
+                free = self.wallet.get_balance("USDT")
+                if free < cost:
+                    return False, f"Insufficient USDT. Need ${cost:.2f}"
+            
+            # Execute
+            self._execute_fill(order, price)
+            return True, "Executed"
+        except Exception as e:
+            logger.error(f"Open Pos Error: {e}")
+            return False, str(e)
+
+    def close_position(self, user_id: int, symbol: str, price: float) -> Tuple[bool, str]:
+        """
+        Instant Close.
+        """
+        try:
+            if symbol not in self.positions or self.positions[symbol]['quantity'] == 0:
+                return False, "No Position"
+            
+            qty = self.positions[symbol]['quantity']
+            # To close, we execute opposite
+            # If Qty is +10 (Long), we need to SELL 10.
+            # If Qty is -10 (Short), we need to BUY 10.
+            
+            side = "SELL" if qty > 0 else "BUY"
+            
+            order = {
+                "id": f"game_close_{int(time.time()*1000)}",
+                "symbol": symbol,
+                "side": side,
+                "type": "MARKET",
+                "quantity": abs(qty),
+                "status": "FILLED",
+                "created_at": time.time(),
+                "filled_at": time.time(),
+                "locked_funds": 0
+            }
+            
+            self._execute_fill(order, price)
+            return True, "Closed"
+        except Exception as e:
+            return False, str(e)
+
+_broker_instance = None
+
+def get_broker(wallet: Optional[Wallet] = None) -> PaperBroker:
+    global _broker_instance
+    if _broker_instance is None:
+        if wallet is None:
+            from backend.services.wallet import get_wallet
+            wallet = get_wallet()
+        _broker_instance = PaperBroker(wallet)
+        from backend.config import get_settings
+        settings = get_settings()
+        _broker_instance.load_state(os.path.join(settings.DATA_DIR, "broker_state.json"))
+    return _broker_instance

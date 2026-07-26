@@ -1,0 +1,270 @@
+import asyncio
+import logging
+import hashlib
+import time
+from datetime import datetime
+from typing import Optional, List, Dict
+import random
+
+from backend.services.bot.handlers.base import BaseHandler
+from backend.services.data_manager import get_data_manager
+from backend.services.brain import get_engine
+from backend.services.bot.formatters import format_config, format_system_status
+from backend.services.aesthetic_service import ASCIIArt, get_ascii_factory
+from backend.services.bot.fractal_weaver import FractalWeaver
+from backend.services.wallet import get_wallet
+
+class StatsHandler(BaseHandler):
+    
+    async def handle_stats(self, chat_id: int, args: List[str], message_id: int = None):
+        """Detailed stats command (replaces old /stats)."""
+        # Case 1: Admin Stats (Wallet/System) - No Args
+        try:
+            from backend.config import get_settings
+            settings = get_settings()
+            admin_id_str = getattr(settings, "TELEGRAM_CHAT_ID", "0")
+            admin_id = int(admin_id_str) if admin_id_str and admin_id_str.isdigit() else 0
+        except:
+            admin_id = 0
+            
+        if (not args or len(args) == 0) and str(chat_id) == str(admin_id):
+            status_msg = await self.bot.send_message(chat_id, "<i>Computing holistic portfolio analytics...</i>")
+            msg_id = status_msg.get("result", {}).get("message_id") if status_msg else None
+            await self._send_admin_wallet_dashboard(chat_id, message_id_to_edit=msg_id)
+            return
+
+        # Case 2: Symbol Stats
+        symbol = "BTCUSDC" # Default to USDC if possible
+        timeframe = "1D"
+        
+        if args and len(args) > 0:
+            raw_symbol = args[0].upper()
+            
+            # Special Case: PNL Analysis request from Wallet
+            if raw_symbol == "PNL":
+                await self._send_admin_wallet_dashboard(chat_id, message_id_to_edit=message_id)
+                return
+                
+            from backend.services.symbol_normalizer import get_symbol_normalizer
+            normalizer = get_symbol_normalizer()
+            symbol = normalizer.normalize(raw_symbol)
+            
+            if len(args) > 1:
+                timeframe = args[1].upper()
+        
+        try:
+            await self._send_stats_report(chat_id, symbol, timeframe=timeframe, message_id=message_id)
+        except Exception as e:
+            self.logger.error(f"Stats Error: {e}")
+            await self.send_message(chat_id, f"[!] Intelligence Sync Failed for {symbol}. Ticker may be offline.")
+
+    async def _send_admin_wallet_dashboard(self, chat_id: int, message_id_to_edit: Optional[int] = None):
+        wallet = get_wallet()
+        dm = get_data_manager()
+        
+        from backend.services.aesthetic_service import ASCIIArt
+        fractal = ASCIIArt.generate_mandelbrot(width=32, height=6)
+        
+        msg = f"<pre>{fractal}</pre>\n\n"
+        msg += "<b>[ COMMAND CENTER :: ADMIN ]</b>\n"
+        msg += "<code>════════════════════════════════</code>\n\n"
+        msg += "<b>[ PERFORMANCE ]</b>\n"
+            
+        total_usd = 0.0
+        weighted_change_sum = 0.0
+        
+        try:
+            balances = await wallet.get_all_balances()
+            all_prices = await dm.get_all_ticker_prices()
+            all_24h = {}
+            try:
+                all_stats_list = await self.fetch_api("/api/dashboard/market-data")
+                if isinstance(all_stats_list, list):
+                    all_24h = {d['symbol']: d.get('change_pct', d.get('change_24h', 0)) for d in all_stats_list}
+            except: pass
+ 
+            for w_key, bals in balances.items():
+                for asset, bal in bals.items():
+                     qty = bal.get('free', 0) + bal.get('locked', 0)
+                     if qty <= 0.0001: continue
+                     
+                     price = 1.0
+                     change = 0.0
+                     if asset not in ["USDT", "USDC", "USD"]:
+                         symbol = f"{asset}USDT"
+                         price = all_prices.get(symbol, 0)
+                         change = all_24h.get(symbol, 0)
+                         
+                         if price == 0:
+                            t_stats = dm.get_ticker_stats(symbol)
+                            if t_stats: price = t_stats.get('price', 0)
+                     
+                     val = qty * price
+                     total_usd += val
+                     weighted_change_sum += (val * change)
+ 
+            portfolio_change = (weighted_change_sum / total_usd) if total_usd > 0 else 0.0
+            change_icon = "[+]" if portfolio_change >= 0 else "[-]"
+            
+            self.logger.info(f"[Stats] Equity: ${total_usd:.2f}, WeightedSum: {weighted_change_sum:.4f}, Pulse: {portfolio_change:.2f}%")
+            
+            msg += f"Equity: <code>${total_usd:,.2f}</code>\n"
+            msg += f"Pulse:  <code>{change_icon} {portfolio_change:+.2f}%</code>\n\n"
+            
+            if 'binance_spot' in balances:
+                msg += "<b>[ SPOT ]</b>\n"
+                count = 0
+                for asset, bal in balances['binance_spot'].items():
+                    total = bal.get('free', 0) + bal.get('locked', 0)
+                    if total > 0.0001:
+                         msg += f"> {asset}: <code>{total:.4f}</code>\n"
+                         count += 1
+                    if count >= 6:
+                        msg += "<i>...more</i>\n"
+                        break
+                        
+        except Exception as e:
+            msg += f"[!] Error calc equity: {e}\n"
+ 
+        msg += "\n<b>[ ACTIVE HANDS ]</b>\n"
+        try:
+            raw_positions = await wallet.get_all_positions()
+            if raw_positions:
+                for sym, data in raw_positions.items():
+                     pnl = 0.0 # simplified
+                     msg += f"• {sym}: <code>{data.get('quantity')}</code>\n"
+            else:
+                msg += "<i>(No active trades)</i>\n"
+        except:
+             msg += "<i>(Error fetching positions)</i>\n"
+             
+        msg += "\n"
+        risk_params = wallet.get_risk_params()
+        icon = risk_params.get('icon', '>>').replace('⚖️', '||').replace('▸▸', '>>')
+        desc = risk_params.get('description', 'Standard')
+        est = risk_params.get('est_trades_per_hour', 0.0)
+        msg += f"<b>[ ENGINE ]</b> {icon} {desc}\n"
+        msg += f"{ASCIIArt.metric_indicator('EST. TRADES/HR', est, 5.0)}\n"
+        msg += f"<i>(Est. {est} trades/hr at this pace)</i>\n"
+        
+        keyboard = {
+            "inline_keyboard": [
+                [
+                    {"text": "◂ RISK-", "callback_data": "RISK_DOWN"},
+                    {"text": "⟳ REFRESH", "callback_data": "STATS_REFRESH_WALLET"},
+                    {"text": "RISK+ ▸", "callback_data": "RISK_UP"}
+                ],
+                self._get_cyclical_nav("WALLET")
+            ]
+        }
+        
+        if message_id_to_edit:
+            await self.bot.edit_message_text(chat_id, message_id_to_edit, msg, reply_markup=keyboard)
+        else:
+            await self.bot.send_message(chat_id, msg, reply_markup=keyboard)
+
+    async def _send_stats_report(self, chat_id: int, symbol: str, timeframe: str = "1D", message_id: int = None):
+        dm = get_data_manager()
+        eng = get_engine()
+        
+        # 1. Map Timeframe to Lookahead (Hours)
+        tf_map = {
+            "15M": 0.25,
+            "1H": 1.0,
+            "4H": 4.0,
+            "1D": 24.0,
+            "1W": 168.0
+        }
+        lookahead = tf_map.get(timeframe, 24.0)
+        
+        # 2. Basic Stats
+        t_stats = dm.get_ticker_stats(symbol)
+        price = t_stats.get('price', 0) if t_stats else 0
+        chg = t_stats.get('change_pct', 0) if t_stats else 0
+        price_str = f"${price:,.2f}" if price > 1 else f"${price:,.4f}"
+        
+        # 3. Brain Stats (Advanced)
+        proj = eng.compute_projection(lookahead=lookahead, symbol=symbol)
+        z_score = proj.get('signal', 0)
+        regime = proj.get('regime', 'STABLE')
+        volatility = proj.get('volatility', 0.0)
+        target = proj.get('target_price', price)
+        stop = proj.get('stop_loss', price * 0.95)
+        conf = proj.get('confidence', 0.0) * 100
+        phase = proj.get('phase', 0.0)
+        
+        rsi = eng.calculate_rsi(symbol=symbol)
+        
+        # 4. Text-Only Formatting (No Emojis)
+        bias = "NEUTRAL"
+        if z_score > 1.0: bias = "BULLISH"
+        elif z_score < -1.0: bias = "BEARISH"
+        
+        # Consciousness Fractal (Ascii only)
+        # Seeded by symbol for consistent identity
+        # Consciousness Fractal (Ascii only)
+        # Seeded by symbol for consistent identity but evolved by metrics
+        fractal = FractalWeaver.evolve(
+            interaction_count=random.randint(10, 50), 
+            unique_tabs=5, 
+            height=12, # Giving it more space as requested
+            seed_key=symbol,
+            z_score=z_score,
+            regime=regime,
+            rsi=rsi
+        )
+        
+        msg = (
+            f"<pre>{fractal}</pre>\n\n"
+            f"<b>[ COCKPIT :: {symbol} :: {timeframe} ]</b>\n"
+            f"PRICE    : <code>{price_str}</code>\n"
+            f"24H CHG  : <code>{chg:+.2f}%</code>\n"
+            "<code>════════════════════════════════</code>\n"
+            f"<b>[ ANALYSIS ]</b>\n"
+            f"BIAS     : <b>{bias}</b> ({conf:.0f}%)\n"
+            f"REGIME   : {regime}\n"
+            f"{ASCIIArt.metric_indicator('RSI', rsi, 100)}\n"
+            "<code>────────────────────────────────</code>\n"
+            f"<b>[ PROJECTION (+{timeframe}) ]</b>\n"
+            f"TARGET   : <code>${target:,.2f}</code>\n"
+            f"STOP     : <code>${stop:,.2f}</code>\n"
+            f"PHASE    : <code>{phase:.2f} rad</code>\n"
+            "<code>────────────────────────────────</code>\n"
+            f"<b>[ ENGINE METRICS ]</b>\n"
+            f"{ASCIIArt.metric_indicator('Z-SCORE', z_score, 4.0)}\n"
+            f"{ASCIIArt.metric_indicator('VOLATILITY', volatility*100, 5.0)}\n"
+            f"DRIFT    : <code>{proj.get('drift', 0):+.4f}</code>\n\n"
+            f"<i>Sync: {datetime.utcnow().strftime('%H:%M:%S')} UTC</i>"
+        )
+        
+        # 5. Buttons (Text Only)
+        tfs = ["15M", "1H", "4H", "1D", "1W"]
+        tf_row = []
+        for tf in tfs:
+            label = f"[{tf}]" if tf == timeframe else tf
+            tf_row.append({"text": label, "callback_data": f"STATS_{symbol}_{tf}"})
+            
+        keyboard = {
+            "inline_keyboard": [
+                tf_row,
+                [
+                    {"text": "UPDATE", "callback_data": f"STATS_{symbol}_{timeframe}"},
+                    {"text": "CHART", "callback_data": f"CHART_{symbol}"}
+                ],
+                [
+                    {"text": "EXECUTE", "callback_data": f"EXECUTE_HUB_{symbol}"},
+                    {"text": f"< BACK TO {symbol}", "callback_data": f"PRICE_{symbol}"} 
+                ]
+            ]
+        }
+        
+        if message_id:
+            try:
+                # User asked for "New Window" transition.
+                # Format with HTML to allow bold/code tags
+                await self.bot.edit_message_text(chat_id, message_id, msg, parse_mode="HTML", reply_markup=keyboard)
+            except Exception as e:
+                # If edit fails (e.g. message too old or same content), send new
+                await self.bot.send_message(chat_id, msg, parse_mode="HTML", reply_markup=keyboard)
+        else:
+            await self.bot.send_message(chat_id, msg, parse_mode="HTML", reply_markup=keyboard)

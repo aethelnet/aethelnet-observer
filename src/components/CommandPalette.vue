@@ -54,9 +54,16 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 
+import { useGraphStore } from '../stores/useGraphStore'
+import { useAgentStore } from '../stores/agentStore'
+import { storeToRefs } from 'pinia'
+
+const graphStore = useGraphStore()
+const agentStore = useAgentStore()
+const { nodes } = storeToRefs(graphStore)
+
 const props = defineProps<{
-  isOpen: boolean,
-  nodes?: any[]
+  isOpen: boolean
 }>()
 
 const emit = defineEmits(['close', 'navigate', 'command'])
@@ -67,7 +74,7 @@ const inputRef = ref<HTMLInputElement | null>(null)
 const marketResults = ref<any[]>([])
 let searchTimeout: any = null
 
-const commands = [
+const commands: any[] = [
   { id: 'cmd-fresh', label: 'Fresh Canvas', description: 'Dive into a brand new empty dimension', icon: '[+]', type: 'command', value: 'fresh-canvas', shortcut: '↵' },
   { id: 'cmd-subgraph', label: 'Spawn Subgraph', description: 'Create a new nested subgraph dimension', icon: '[SUB]', type: 'command', value: 'spawn-subgraph' },
   { id: 'cmd-diary', label: 'Toggle Diary', description: 'Open/Close the System Diary', icon: '[D]', type: 'command', value: 'toggle-diary', shortcut: 'Ctrl+Shift+D' },
@@ -79,35 +86,45 @@ const commands = [
   { id: 'cmd-vault', label: 'Spawn Vault', description: 'Create a secure credential storage node', icon: '[V]', type: 'command', value: 'spawn-vault' },
   { id: 'cmd-evolve', label: 'Evolve Command', description: 'Mutate a node via the Network', icon: '[NET]', type: 'command', value: 'spawn-evolve' },
   { id: 'cmd-anomaly', label: 'Spawn Anomaly', description: 'Create a gravitational anomaly', icon: '[O]', type: 'command', value: 'spawn-anomaly' },
-  { id: 'cmd-pattern-matcher', label: 'Spawn Pattern Matcher', description: 'Episode Pattern Matcher', icon: '[🦂]', type: 'command', value: 'spawn-app', payload: 'PatternMatcher' },
-  { id: 'cmd-prisma', label: 'Spawn Prisma', description: 'Research Commenter Node', icon: '[PR]', type: 'command', value: 'spawn-app', payload: 'Prisma' },
-  { id: 'cmd-fusion', label: 'Spawn Fusion Reactor', description: 'Concept Synthesis Engine', icon: '[FU]', type: 'command', value: 'spawn-app', payload: 'Fusion' },
-  { id: 'cmd-repulsor', label: 'Spawn Repulsor', description: 'Noise Filter Shield', icon: '[RP]', type: 'command', value: 'spawn-app', payload: 'Repulsor' },
-  { id: 'cmd-graviton', label: 'Spawn Graviton', description: 'Concept Attractor', icon: '[GR]', type: 'command', value: 'spawn-app', payload: 'Graviton' },
-  { id: 'cmd-entropy', label: 'Spawn Entropy Chamber', description: 'Concept Decay Engine', icon: '[EN]', type: 'command', value: 'spawn-app', payload: 'EntropyChamber' },
-  { id: 'cmd-incubator', label: 'Spawn Incubator', description: 'Concept Greenhouse', icon: '[IN]', type: 'command', value: 'spawn-app', payload: 'Incubator' },
-  { id: 'cmd-chronosphere', label: 'Spawn Chronosphere', description: 'Predictive Extrapolation', icon: '[CH]', type: 'command', value: 'spawn-app', payload: 'Chronosphere' },
   { id: 'cmd-blueprint', label: 'Load System Blueprint', description: 'Fetch and visualize the CodeSpider architecture', icon: '[BP]', type: 'command', value: 'load-blueprint' },
   { id: 'cmd-clear', label: 'Clear Graph', description: 'Reset the local graph visualization', icon: '[X]', type: 'command', value: 'clear-graph' },
 ]
+
+const dynamicCommands = computed(() => {
+  const base = [...commands]
+  // Add installed agents dynamically
+  const installed = agentStore.agents.filter(a => a.installed)
+  installed.forEach(agent => {
+    base.push({
+      id: `cmd-${agent.id}`,
+      label: `Spawn ${agent.name}`,
+      description: agent.description,
+      icon: agent.icon,
+      type: 'command',
+      value: 'spawn-app',
+      payload: agent.id // Backend needs to match this ID
+    })
+  })
+  return base
+})
 
 const filteredResults = computed(() => {
   const query = searchQuery.value.toLowerCase()
   let results: any[] = []
 
-  // 1. Static Commands
+  // 1. Static & Dynamic Commands
   if (!query) {
-    results = [...commands]
+    results = [...dynamicCommands.value]
   } else {
-    results = commands.filter(c => 
+    results = dynamicCommands.value.filter(c => 
       c.label.toLowerCase().includes(query) || 
       c.description.toLowerCase().includes(query)
     )
   }
 
   // 2. Local Nodes
-  if (query && props.nodes) {
-    const localNodes = props.nodes
+  if (query && nodes.value) {
+    const localNodes = nodes.value
       .filter(n => n.text_content?.toLowerCase().includes(query) || (n.meta_data && typeof n.meta_data === 'string' && n.meta_data.toLowerCase().includes(query)))
       .slice(0, 5)
       .map(n => ({
@@ -117,7 +134,7 @@ const filteredResults = computed(() => {
         icon: '[N]',
         type: 'node',
         value: 'focus-node',
-        color: '#00BCD4',
+        color: '#000000',
         node: n
       }))
     results = [...results, ...localNodes]
@@ -270,35 +287,40 @@ onBeforeUnmount(() => {
 }
 
 .palette-container {
-  width: 600px;
+  width: 650px;
   max-width: 90vw;
-  background: #1a1a1a;
-  border: 1px solid #333;
-  border-radius: 12px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 255, 128, 0.1);
+  background: rgba(18, 18, 20, 0.45);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.6), 0 0 40px rgba(0, 255, 255, 0.05);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes slideDown {
-  from { transform: translateY(-20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from { transform: translateY(-30px) scale(0.98); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
 }
 
 .palette-input-wrapper {
   display: flex;
   align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid #333;
-  background: #222;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .palette-icon {
   font-size: 20px;
-  margin-right: 15px;
-  filter: drop-shadow(0 0 5px rgba(0, 255, 128, 0.5));
+  margin-right: 16px;
+  color: #00e5ff;
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
 }
 
 input {
@@ -306,89 +328,105 @@ input {
   background: transparent;
   border: none;
   color: #fff;
-  font-size: 18px;
+  font-size: 20px;
   outline: none;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-family);
+  font-weight: 300;
+}
+input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
 }
 
 .palette-results {
-  max-height: 400px;
+  max-height: 450px;
   overflow-y: auto;
-  padding: 8px;
+  padding: 12px;
 }
 
 .palette-item {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
-  border-radius: 8px;
+  padding: 14px 20px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.1s ease;
-  margin-bottom: 2px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-bottom: 4px;
+  border: 1px solid transparent;
 }
 
-.palette-item.active {
-  background: rgba(0, 255, 128, 0.1);
-  border-left: 3px solid #00ff80;
+.palette-item.active,
+.palette-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.02);
 }
 
 .item-icon {
   font-size: 20px;
-  margin-right: 15px;
+  margin-right: 16px;
   width: 24px;
   text-align: center;
+  opacity: 0.9;
 }
 
 .item-info {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
 .item-label {
   font-size: 15px;
-  font-weight: 600;
-  color: #eee;
+  font-weight: 500;
+  color: #fff;
+  letter-spacing: 0.2px;
 }
 
 .item-desc {
-  font-size: 12px;
-  color: #888;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.item-shortcut {
+.item-shortcut, .item-type-badge {
   margin-left: auto;
   font-size: 11px;
-  color: #555;
-  background: #111;
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid #333;
+  font-family: var(--font-family-mono);
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  letter-spacing: 1px;
 }
 
 .palette-no-results {
-  padding: 30px;
+  padding: 40px;
   text-align: center;
-  color: #666;
+  color: rgba(255, 255, 255, 0.4);
   font-style: italic;
+  font-size: 14px;
 }
 
 .palette-footer {
-  padding: 10px 20px;
-  background: #111;
-  border-top: 1px solid #333;
+  padding: 14px 24px;
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
-  gap: 20px;
-  font-size: 11px;
-  color: #555;
+  gap: 24px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 500;
 }
 
 kbd {
-  background: #222;
-  border: 1px solid #444;
-  border-radius: 3px;
-  padding: 1px 4px;
-  color: #888;
-  margin: 0 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: #fff;
+  margin: 0 4px;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.2);
+  font-family: var(--font-family-mono);
 }
 
 .fade-enter-active, .fade-leave-active {

@@ -12,6 +12,38 @@
     </div>
     
     <div class="editor-container" :class="{ 'split-view': mode === 'ui' }">
+      <!-- VERSION CONTROL SIDEBAR -->
+      <div class="version-sidebar" v-if="showVersionControl">
+        <div class="sidebar-header">REALITY BRANCHES</div>
+        
+        <div class="branch-selector">
+          <select v-model="currentBranch" @change="checkoutBranch" class="brutal-select">
+            <option v-for="b in branches" :key="b.name" :value="b.name">
+              {{ b.name }}
+            </option>
+          </select>
+          <button class="icon-btn" @click="promptNewBranch">[+] FORK</button>
+        </div>
+
+        <div class="commits-list">
+          <div 
+            v-for="commit in currentCommits" 
+            :key="commit.id" 
+            class="commit-item"
+            :class="{ active: commit.id === currentCommitId }"
+            @click="checkoutCommit(commit.id)"
+          >
+            <div class="commit-hash">{{ commit.id.substring(0,6) }}</div>
+            <div class="commit-msg">{{ commit.message }}</div>
+          </div>
+        </div>
+        
+        <div class="commit-action">
+          <input v-model="commitMessage" class="brutal-input" placeholder="Commit message..." @keyup.enter="makeCommit" />
+          <button class="run-btn" @click="makeCommit">COMMIT</button>
+        </div>
+      </div>
+
       <div class="editor-pane">
         <vue-monaco-editor
           v-model:value="code"
@@ -49,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, defineProps, defineEmits, onMounted, shallowRef } from 'vue'
+import { ref, watch, onMounted, shallowRef, computed } from 'vue'
 import VueMonacoEditor from '@guolao/vue-monaco-editor'
 
 const props = defineProps<{
@@ -71,6 +103,98 @@ const lastOutput = ref<any>(null)
 const error = ref<string | null>(null)
 const previewFrame = ref<HTMLIFrameElement | null>(null)
 const editorRef = shallowRef()
+
+// --- REALITY BRANCHING (MINI-GIT) ---
+const showVersionControl = ref(true)
+
+interface Commit {
+  id: string
+  message: string
+  code: string
+  timestamp: number
+  parentId: string | null
+}
+
+interface Branch {
+  name: string
+  head: string | null
+}
+
+const commits = ref<Commit[]>([])
+const branches = ref<Branch[]>([{ name: 'main', head: null }])
+const currentBranch = ref('main')
+const currentCommitId = ref<string | null>(null)
+const commitMessage = ref('')
+
+const currentCommits = computed(() => {
+  // Trace back from current branch head
+  const b = branches.value.find(b => b.name === currentBranch.value)
+  if (!b || !b.head) return []
+  
+  const history: Commit[] = []
+  let curr = commits.value.find(c => c.id === b.head)
+  while (curr) {
+    history.push(curr)
+    curr = commits.value.find(c => c.id === curr!.parentId)
+  }
+  return history
+})
+
+function makeCommit() {
+  if (!commitMessage.value.trim()) {
+    commitMessage.value = `Update ${new Date().toLocaleTimeString()}`
+  }
+  const newId = Math.random().toString(36).substring(2, 10)
+  const c: Commit = {
+    id: newId,
+    message: commitMessage.value,
+    code: code.value,
+    timestamp: Date.now(),
+    parentId: currentCommitId.value
+  }
+  commits.value.push(c)
+  currentCommitId.value = newId
+  
+  // Update branch head
+  const b = branches.value.find(b => b.name === currentBranch.value)
+  if (b) {
+    b.head = newId
+  }
+  
+  commitMessage.value = ''
+}
+
+function promptNewBranch() {
+  const name = prompt("Enter new branch name:")
+  if (name && !branches.value.find(b => b.name === name)) {
+    branches.value.push({ name, head: currentCommitId.value })
+    currentBranch.value = name
+  }
+}
+
+function checkoutBranch() {
+  const b = branches.value.find(b => b.name === currentBranch.value)
+  if (b && b.head) {
+    checkoutCommit(b.head)
+  }
+}
+
+function checkoutCommit(id: string) {
+  const c = commits.value.find(c => c.id === id)
+  if (c) {
+    currentCommitId.value = c.id
+    code.value = c.code
+  }
+}
+
+// Initial commit
+onMounted(() => {
+  if (commits.value.length === 0) {
+    commitMessage.value = 'Initial commit'
+    makeCommit()
+  }
+})
+// ------------------------------------
 
 function handleEditorMount(editor: any) {
   editorRef.value = editor
@@ -217,6 +341,107 @@ function runScript() {
   display: flex;
   min-height: 0;
   overflow: hidden;
+}
+
+.version-sidebar {
+  width: 280px;
+  background: #111;
+  color: #00FF41;
+  display: flex;
+  flex-direction: column;
+  border-right: 2px solid #1A1A1A;
+}
+
+.sidebar-header {
+  padding: 8px;
+  background: #E03C31;
+  color: #FFF;
+  font-weight: 900;
+  font-size: 12px;
+  text-align: center;
+}
+
+.branch-selector {
+  display: flex;
+  padding: 8px;
+  gap: 8px;
+  border-bottom: 1px solid #333;
+}
+
+.brutal-select {
+  flex: 1;
+  background: #000;
+  color: #00FF41;
+  border: 1px solid #00FF41;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.icon-btn {
+  background: #333;
+  color: #FFF;
+  border: 1px solid #555;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 4px 8px;
+  font-family: inherit;
+}
+.icon-btn:hover { background: #555; }
+
+.commits-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.commit-item {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  background: #222;
+  border: 1px solid #333;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.commit-item:hover {
+  border-color: #00FF41;
+}
+
+.commit-item.active {
+  background: rgba(0, 255, 65, 0.1);
+  border-left: 4px solid #00FF41;
+}
+
+.commit-hash {
+  color: #E03C31;
+  font-weight: bold;
+}
+
+.commit-msg {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commit-action {
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid #333;
+}
+
+.brutal-input {
+  flex: 1;
+  background: #000;
+  color: #FFF;
+  border: 1px solid #555;
+  padding: 4px;
+  font-family: inherit;
+  font-size: 11px;
 }
 
 .split-view .editor-pane {
