@@ -3,8 +3,10 @@
     <div class="starfield-brutal"></div>
     <div class="hud">
       <h2>OBSERVER</h2>
+      <p>STATUS: <span :style="{ color: isConnected ? '#00FF00' : '#FF0000' }">{{ isConnected ? 'CONNECTED' : 'DISCONNECTED' }}</span></p>
       <p>CONSENSUS: {{ consensusScore.toFixed(1) }}%</p>
-      <p>PEERS: {{ peers.length }}</p>
+      <p>SWARM SIZE: {{ swarmSize }}</p>
+      <p>AETHEL REWARDS: {{ aethelRewards.toFixed(4) }} $AETHEL</p>
     </div>
     <svg class="radar" width="100%" height="100%" viewBox="0 0 600 600" preserveAspectRatio="xMidYMid meet">
       <g transform="translate(300, 300)">
@@ -37,6 +39,9 @@ const containerRef = ref<HTMLElement | null>(null)
 const width = ref(600)
 const height = ref(400)
 const consensusScore = ref(94.2)
+const aethelRewards = ref(0.0)
+const swarmSize = ref(0)
+const isConnected = ref(false)
 
 interface Peer {
   id: string
@@ -51,32 +56,89 @@ interface Peer {
 const peers = ref<Peer[]>([])
 let simInterval: any;
 let resizeObserver: ResizeObserver | null = null;
+let ws: WebSocket | null = null;
 
-async function fetchGossip() {
-  try {
-    const res = await fetch('/aethelnet/graph/public')
-    if (!res.ok) return
-    const data = await res.json()
-    
-    const gossipArray = Array.isArray(data) ? data : (data.gossip || []);
-    if (gossipArray.length > 0) {
-      const newPeers = gossipArray.map((g: any, index: number) => {
-        const existing = peers.value.find(p => p.id === g.id)
-        return {
-          id: g.id,
-          name: g.source_peer || `Peer_${index}`,
-          topic: g.thought_topic || 'Data',
-          angle: existing ? existing.angle : Math.random() * 360,
-          distance: existing ? existing.distance : 80 + Math.random() * 150,
-          radius: existing ? existing.radius : 8 + Math.random() * 8,
-          syncing: true
+function connectSwarm() {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  // Fallback to local dev if no backend is specified, assuming Prime runs on 8000
+  const wsUrl = `ws://127.0.0.1:8000/ws/swarm`;
+  
+  ws = new WebSocket(wsUrl);
+
+  ws.onopen = () => {
+    isConnected.value = true;
+    console.log("[SWARM] Connected to Auratic Prime!");
+    // Handshake
+    ws?.send(JSON.stringify({
+      type: "JOIN_SWARM",
+      node_id: "ObserverNode_" + Math.floor(Math.random() * 10000),
+      capabilities: ["compute", "gossip"]
+    }));
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "WELCOME") {
+        console.log(`[SWARM] Welcome received! Node ID: ${msg.node_id}, Swarm Size: ${msg.swarm_size}`);
+        swarmSize.value = msg.swarm_size;
+      }
+      else if (msg.type === "COMPUTE_TENSOR") {
+        console.log(`[SWARM] 🧠 Received Tensor compute request: ${msg.tensor_id}`);
+        // Simulate heavy math: sum of payload
+        const data = msg.data || [];
+        const result = data.reduce((a: number, b: number) => a + b, 0);
+        
+        // Show visual feedback that this node is doing something!
+        const existing = peers.value.find(p => p.id === 'local_compute');
+        if (existing) {
+          existing.syncing = true;
+          existing.topic = `TSR: ${msg.tensor_id.substring(0, 8)}`;
+        } else {
+          peers.value.push({
+            id: 'local_compute',
+            name: 'COMPUTING...',
+            topic: `TSR: ${msg.tensor_id.substring(0, 8)}`,
+            angle: Math.random() * 360,
+            distance: 120,
+            radius: 10,
+            syncing: true
+          });
         }
-      })
-      peers.value = newPeers
+        
+        setTimeout(() => {
+          ws?.send(JSON.stringify({
+            type: "TENSOR_RESULT",
+            tensor_id: msg.tensor_id,
+            result: result
+          }));
+        }, 800); // fake computation time
+      }
+      else if (msg.type === "TENSOR_ACK") {
+        console.log(`[SWARM] 💰 Tensor accepted! Reward: ${msg.reward_aethel}`);
+        aethelRewards.value += msg.reward_aethel;
+        
+        // Turn off syncing visual
+        const existing = peers.value.find(p => p.id === 'local_compute');
+        if (existing) {
+          existing.syncing = false;
+          existing.name = 'STANDBY';
+        }
+      }
+      else if (msg.type === "SWARM_UPDATE" && msg.payload && msg.payload.peers) {
+         // Optionally parse swarm state
+         swarmSize.value = Object.keys(msg.payload.peers).length;
+      }
+    } catch (e) {
+      console.error("[SWARM] Failed to parse message", e);
     }
-  } catch (err) {
-    console.error("Failed to fetch gossip:", err)
-  }
+  };
+
+  ws.onclose = () => {
+    isConnected.value = false;
+    console.log("[SWARM] Disconnected from Prime. Retrying in 5s...");
+    setTimeout(connectSwarm, 5000);
+  };
 }
 
 onMounted(() => {
@@ -90,10 +152,9 @@ onMounted(() => {
     resizeObserver.observe(containerRef.value)
   }
   
-  fetchGossip()
+  connectSwarm();
   
   simInterval = setInterval(() => {
-    fetchGossip()
     peers.value.forEach(p => {
       p.syncing = false;
       p.angle += (Math.random() - 0.5) * 5; // Faster rotation for brutalism
@@ -105,6 +166,7 @@ onMounted(() => {
 onUnmounted(() => {
   if (resizeObserver) resizeObserver.disconnect()
   clearInterval(simInterval)
+  if (ws) ws.close()
 })
 </script>
 
