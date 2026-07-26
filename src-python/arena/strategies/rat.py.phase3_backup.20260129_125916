@@ -1,0 +1,521 @@
+from typing import Dict, Any
+from backend.arena.api import IStrategy
+import pandas as pd
+import numpy as np
+import logging
+
+logger = logging.getLogger("Strategy.Rat")
+
+class TheRat(IStrategy):
+    """
+    Metaphor: The Scavenger / The Rat
+    Zodiac: Libra Rising, 29° Scorpio Cusp (Intensity).
+    
+    Description:
+    The Rat ostensibly hides in plain sight (Libra Balance), appearing harmless and fair.
+    However, at critical moments of volatility (The Cusp), it unleashes hidden stinging power (Scorpio).
+    
+    It thrives on:
+    1. Panic Wicks: Rapid price moves that lack volume support (Fat Fingers).
+    2. Scorpio Sting: When Volatility > 2.9 Sigma, aggression maxes out.
+    
+    Logic:
+    - Calculates 'Velocity' (Price Change / Time).
+    - If Velocity > Threshold (Panic) AND Reversal detected -> Fade (Counter-trade).
+    - Quick entries, quick exits (Scalping).
+    """
+    @property
+    def name(self) -> str:
+        return "The Rat"
+
+    @property
+    def class_type(self) -> str:
+        return "Rogue"
+
+    def default_skills(self) -> Dict[str, Any]:
+        from backend.config import get_settings
+        settings = get_settings()
+        
+        return {
+            'wick_lookback': 5, # How far back to look for the "base" of the wick
+            'wick_sensitivity': 2.0, # USER INPUT (Knob 0-5). Deep Clean Protocol.
+            'mean_reversion_strength': 3.18, 
+            # Use SYSTEM settings instead of hardcoded values!
+            'profit_target': getattr(settings, 'PROFIT_TARGET', 0.50), # System default 50%
+            'libra_balance': True, # Hides in plain sight (Filters noise)
+            'velocity_threshold': 1.2, # Relaxed from 0.8 to allow more volatility
+            'confidence_threshold': 0.4 # Relaxed from 0.7 to allow weaker pattern matches
+        }
+        
+    def _get_effective_skills(self):
+        """
+        AIRWINDOWS PROTOCOL:
+        The "Knobs" (Inputs) are calibrated to only produce "Sweet Spot" results.
+        User Input 0.0 -> Safe Minimum.
+        User Input Max -> Safe Maximum.
+        "You cannot dial in failure."
+        """
+        s = self.skills
+        
+        # 1. SENSITIVITY CALIBRATION
+        # Raw Input: 0.0 to 10.0
+        # Target Range: 2.0 (Safe) to 5.0 (Sniper)
+        # Formula: Base 2.0 + (Input * 0.4)
+        # Default (1.0) -> 2.4 (Perfect Balance)
+        # Default (1.0) -> 2.4 (Perfect Balance)
+        raw_sens = float(s.get('wick_sensitivity', 1.0))
+        eff_sens = 1.5 + (raw_sens * 0.4)
+        eff_sens = max(1.5, min(5.0, eff_sens)) # Clamp [1.5, 5.0]
+        
+        # 2. PROFIT TARGET CALIBRATION
+        # Use system settings - no more hardcoded strategy overrides!
+        raw_profit = float(s.get('profit_target', 0.50))  # Default to system 50%
+        eff_profit = max(0.015, min(0.50, raw_profit)) # Allow range 1.5% to 50%
+        
+        # 3. TRAUMA CALIBRATION
+        # We enforce a hard floor of 30s for recovery
+        # "Unshackled" means "Ready", not "Suicidal".
+        
+        return {
+            'sensitivity': eff_sens,
+            'profit': eff_profit
+        }
+
+    def equip_void_daggers(self):
+        """
+        LEGENDARY GEAR: Void Daggers.
+        Now calibrated for the "Airwindows" pipeline.
+        """
+        logger.info("[Rat] Equipping Void Daggers (Calibrated). Speed Optimized.")
+        # We increase the input "knob", knowing the calibration layer handles the safety.
+        # We increase the input "knob", knowing the calibration layer handles the safety.
+        # Deep Clean: Set to 2.0
+        self.skills['wick_sensitivity'] = 2.0 
+        self.skills['mean_reversion_strength'] = 1.5 
+
+    def equip_mortismal_protocol(self):
+        """
+        LEGENDARY TUNING: The Mortismal Mastering.
+        Effect: "The Shortest Path" (100% Completion).
+        """
+        logger.info("[Rat] MASTERING: Mortismal Gaming has entered the studio.")
+        logger.info("[Rat] COMPRESSOR: Dynamic Range clamped to Sweet Spot.")
+        
+        # [DISABLED] Stop lobotomizing trained models!
+        # The Shortest Path: Get in, Get Out.
+        # Use SYSTEM settings - no more hardcoded overrides!
+        # self.skills['wick_sensitivity'] = 2.0 # Deep Clean
+        # self.skills['libra_balance'] = False 
+        
+        logger.info("[Rat] Protocol: 100% Completion Initiated (Trained Skills Preserved).")
+        
+    # --- PHASE 10: TRAUMA MECHANICS ---
+    def __init__(self, skills: Dict[str, Any] = None):
+        super().__init__(skills) # Initialize Base Strategy with injected skills
+        self.trauma_cooldown_until = 0
+
+# [NEW] Voice Discipline
+        self.last_god_mode_ts = 0 
+
+
+        self.equip_mortismal_protocol() # Forced Discipline
+        self.equip_void_daggers() # Void Daggers Check (Unshackled)
+        logger.info("[Rat] CHAINS BROKEN. The Rat is Unshackled (But Calibrated).")
+        
+    def reset_cooldowns(self):
+        """Magic Bean Effect"""
+        self.trauma_cooldown_until = 0
+        logger.info("[Rat] *Crunch* I feel brave again!")
+        
+    def inflict_trauma(self, duration_seconds: int = 30): # MINIMUM 30s
+        """Called when a trade goes bad"""
+        import time
+        # Hard floor enforcement
+        final_duration = max(30, duration_seconds)
+        self.trauma_cooldown_until = time.time() + final_duration
+        logger.info(f"[Rat] Ouch! Hiding in the sewers for {final_duration}s (Resilience).")
+
+    def on_tick(self, market_state: Dict[str, Any]) -> float:
+        # Check Trauma
+        import time
+        # if time.time() < self.trauma_cooldown_until: # [NEUTRALIZED] Trauma Loop
+        #      return 0.0 # Too scared.
+             
+        # CALIBRATION LAYER (Airwindows)
+        eff = self._get_effective_skills()
+        effective_sensitivity = eff['sensitivity']
+        
+        # Connect to Brain's Cortex
+        z_score = market_state.get('z_score', 0.0)
+        
+        if np.isnan(z_score):
+             return 0.0
+
+        # Logic: If Z-Score > Effective Sensitivity -> Fade
+        if abs(z_score) > effective_sensitivity:
+             # Intensity
+             intensity = 1.0
+             # If EXTREMELY high (Sensitivity + 1.0), double down
+             if abs(z_score) > (effective_sensitivity + 1.0):
+                 intensity = 2.0
+             
+             # Direction
+             direction = -1.0 if z_score > 0 else 1.0
+             
+             # Apply Morale Buff
+             buff = getattr(self, 'morale_multiplier', 1.0)
+             
+             return direction * intensity * buff
+                 
+        return 0.0
+
+    def next_candle(self, df: pd.DataFrame) -> float:
+        """
+        Analyzes the last few candles to detect 'Panic Wicks'.
+        """
+        if len(df) < 5:
+            return 0.0
+            
+        # CALIBRATION LAYER
+        eff = self._get_effective_skills()
+        effective_sensitivity = eff['sensitivity']
+
+        # 1. Calculate Volatility
+        closes = df['close']
+        recent_volatility = closes.pct_change().std()
+        
+        # 2. Analyze the latest candle
+        current = df.iloc[-1]
+        prev = df.iloc[-2]
+        
+        change_pct = (current['close'] - prev['close']) / prev['close']
+        
+        # 3. The Wick Hunter Logic
+        sigma = abs(change_pct) / (recent_volatility + 1e-9)
+        
+        if sigma > effective_sensitivity:
+            # We found a tasty crumb (Panic Move)
+            
+            # CUSP INTENSITY
+            intensity = 1.0
+            if sigma > (effective_sensitivity + 1.0):
+                intensity = 2.0 
+                logger.info(f"[Rat] SCORPIO CUSP TRIGGERED (Sigma: {sigma:.2f}). MAX INTENSITY.")
+            
+            if change_pct > 0:
+                return -1.0 * intensity
+            else:
+                return 1.0 * intensity
+                
+        return 0.0 
+
+    def receive_buff(self, multiplier: float):
+        """
+        The Crowd Roars!
+        The Rat feels the energy of the Board.
+        """
+        self.morale_multiplier = multiplier
+        if multiplier > 1.0:
+            logger.info(f"[Rat] The Board Cheers! Morale High! (Dimensions x{multiplier:.2f})")
+
+    def consult_thoth(self, market_state: Dict[str, Any]) -> float:
+        """
+        THE EYE OF THOTH.
+        The Rat consults the Prophit Engine's dream of the future.
+        Now upgraded to consume HEAVY ARTILLERY (ProphitNet) probabilities.
+        """
+        # 1. HEAVY ARTILLERY (Deep Learning Probability)
+        # 0.0 (Bearish) -> 1.0 (Bullish). 0.5 is Neutral.
+        ml_prob = market_state.get('ml_probability')
+        
+        if ml_prob is not None:
+            # We found a Heavy Weapon signal.
+            
+            # Confidence Thresholds
+            # We need high confidence to act solely on ML
+            BULL_THRESH = 0.70
+            BEAR_THRESH = 0.30
+            
+            direction = 0.0
+            intensity = 1.0
+            
+            if ml_prob > BULL_THRESH:
+                direction = 1.0
+                # GOD MODE: If extreme confidence
+                if ml_prob > 0.90:
+                    intensity = 2.0
+                    logger.info(f"[Thoth] 🚀 HEAVY ARTILLERY: Strong BUY Signal (Prob: {ml_prob:.4f}). TOTAL WAR.")
+                else:
+                    logger.info(f"[Thoth] Heavy Artillery: Buy Signal (Prob: {ml_prob:.4f})")
+                    
+            elif ml_prob < BEAR_THRESH:
+                direction = -1.0
+                # GOD MODE: If extreme confidence
+                if ml_prob < 0.10:
+                    intensity = 2.0
+                    logger.info(f"[Thoth] 📉 HEAVY ARTILLERY: Strong SELL Signal (Prob: {ml_prob:.4f}). TOTAL WAR.")
+                else:
+                    logger.info(f"[Thoth] Heavy Artillery: Sell Signal (Prob: {ml_prob:.4f})")
+            
+            if direction != 0.0:
+                return direction * intensity
+
+        # 2. LEGACY PREDICTION (Time Series Trajectory)
+        prediction = market_state.get('prediction')
+        if not prediction: return 0.0
+        
+        try:
+            current_price = market_state.get('price', 0)
+            if current_price <= 0: return 0.0
+            
+            # Look into the future
+            projected_prices = prediction.get('prices', [])
+            if not projected_prices: return 0.0
+            
+            # TRUTH CHECK (Resonance)
+            resonance = prediction.get('resonance', 1.0) # Default to 1.0 if missing
+            confidence_threshold = self.skills.get('confidence_threshold', 0.4)
+            
+            if resonance < confidence_threshold:
+                 return 0.0
+            
+            # The Horizon
+            horizon_idx = min(len(projected_prices) - 1, 20)
+            future_price = projected_prices[horizon_idx]
+            
+            # Calculate Predicted Return
+            if current_price < 0.0001: return 0.0
+            
+            predicted_pnl = (future_price - current_price) / current_price
+            
+            # SANITY CHECK: Clamp Prediction (Max 50% move in 50 blocks is unlikely)
+            if abs(predicted_pnl) > 0.5:
+                # logger.warning(f"[THOTH] Hallucination Suppressed: {predicted_pnl*100:.2f}%")
+                return 0.0
+            
+            # CALIBRATION LAYER
+            eff = self._get_effective_skills()
+            target = eff['profit'] # Use Calibrated Target
+            
+            if abs(predicted_pnl) > target:
+                direction = 1.0 if predicted_pnl > 0 else -1.0
+                intensity = 1.0
+                
+                # If prediction is HUGE (> 1.5% but < 50%), we go MAX
+                # If Resonance is HUGE (> 0.9), we also go MAX
+                if abs(predicted_pnl) > 0.015 or resonance > 0.9:
+                    intensity = 2.0
+                    logger.info(f"[Thoth] PROPHECY: Major Move Detected ({predicted_pnl*100:.2f}%). Resonance: {resonance:.2f}. MAX INTENSITY.")
+                else:
+                    # Log only reasonable moves
+                    logger.info(f"[Thoth] I see the path. Front-running ({predicted_pnl*100:.2f}%). Resonance: {resonance:.2f}")
+                    
+                return direction * intensity
+                
+        except Exception as e:
+            # print(f"[Rat] Thoth Error: {e}")
+            pass
+            
+        return 0.0
+
+    # --- ANALOG GAIN STAGE ---
+    def _soft_saturation(self, x: float, threshold: float = 0.0, max_add: float = 2.0) -> float:
+        """
+        Analog saturation curve.
+        Compresses 'x' (excess signal) into a smooth curve up to 'max_add'.
+        Returns: 0.0 to max_add
+        """
+        import math
+        if x <= threshold: return 0.0
+        
+        # Driven past threshold
+        overdrive = x - threshold
+        # Tanh compresses overdrive to 0.0-1.0 range
+        # We scale that by max_add
+        compressed = math.tanh(overdrive) * max_add
+        return compressed
+
+    def on_tick(self, market_state: Dict[str, Any]) -> float:
+        # Check Trauma
+        import time
+        # if time.time() < self.trauma_cooldown_until: # [NEUTRALIZED] Trauma Loop II
+        #      return 0.0 # Too scared.
+             
+        # 1. CONSULT THOTH (Prediction)
+        # Returns: (Direction * Intensity * Confidence)
+        thoth_signal = self.consult_thoth(market_state)
+        
+        # 2. STANDARD SENSES (Z-Score)
+        z_score = market_state.get('z_score', 0.0)
+        if np.isnan(z_score): z_score = 0.0
+        
+        standard_signal = 0.0
+        
+        # CALIBRATION LAYER
+        eff = self._get_effective_skills()
+        effective_sensitivity = eff['sensitivity']
+        
+        # Logic: Analog Response Curve
+        if abs(z_score) > effective_sensitivity:
+             overdrive = abs(z_score) - effective_sensitivity
+             
+             # VELOCITY FILTER (Don't stand in front of a train)
+             # If price is moving FAST in the direction of the extension, we wait.
+             velocity = market_state.get('velocity', 0.0)
+             vel_thresh = self.skills.get('velocity_threshold', 0.8)
+             
+             # Logic:
+             # If Z > 0 (High) AND Vel > Threshold (Shooting Up) -> Danger (Don't Short)
+             # If Z < 0 (Low) AND Vel < -Threshold (Crashing Down) -> Danger (Don't Buy)
+             
+             is_suicide = False
+             if z_score > 0 and velocity > vel_thresh: is_suicide = True
+             if z_score < 0 and velocity < -vel_thresh: is_suicide = True
+             
+             # CRASH PROTECTION (Global Trend Filter)
+             # If the Global Trend (Turtle) is crashing (<-0.95), do NOT Buy the Dip.
+             # Relaxed from -0.8 to -0.95.
+             trend = market_state.get('trend_strength', 0.0)
+             if z_score < 0 and trend < -0.95:
+                 is_suicide = True 
+                 # print(f"[RAT] 🛡️ CRASH PROTOCOL: Ignoring Buy Signal (Trend={trend:.2f})")
+
+             # GOD MODE OVERRIDE: If Z-Score is EXTREME (> 3.5), we attack partially anyway.
+             # The anomaly is too big to ignore.
+             if abs(z_score) > 3.5:
+                 is_suicide = False
+                 
+                 # [NEW] Voice Discipline: Only scream once every 10 seconds
+                 if time.time() - self.last_god_mode_ts > 10:
+                     logger.warning(f"[Rat] GOD MODE: Ignoring Velocity Guard (Z={z_score:.2f})!")
+                     self.last_god_mode_ts = time.time()
+
+             if is_suicide:
+                 # We can either return 0.0 or drastically reduce intensity
+                 # Let's return 0.0 to be safe (Wait for exhaustion)
+                 # print(f"[RAT] 🚄 VELOCITY GUARD: Holding Fire (Z={z_score:.1f}, V={velocity:.1f})")
+                 return 0.0
+                 
+             
+             # Base Intensity is 1.0 (Entry)
+             # Max Additional Intensity is 2.0 (Total 3.0)
+             # Curve: Smoothly ramp up as overdrive increases
+             dynamic_intensity = 1.0 + self._soft_saturation(overdrive, max_add=2.0)
+             
+             # Direction
+             direction = -1.0 if z_score > 0 else 1.0
+             standard_signal = direction * dynamic_intensity
+             
+        # 3. FUSION (Analog Mixing)
+        final_signal = standard_signal
+        
+        if thoth_signal != 0.0:
+            # Get Thoth's metadata if possible (stored in state? no, complex to retrieve here)
+            # We'll rely on the signal strength itself
+            
+            # FRONT RUNNING
+            if standard_signal == 0.0:
+                 final_signal = thoth_signal
+            
+            # AMPLIFY (Constructive Interference)
+            elif np.sign(standard_signal) == np.sign(thoth_signal):
+                 # Get Resonance from memory or estimate
+                 # If Thoth is triggering, it has confidence.
+                 # We simply add the signals constructively, capped by saturation.
+                 
+                 # Mix: Standard + (Thoth * 0.5)
+                 mix_weight = 0.5
+                 mix = standard_signal + (thoth_signal * mix_weight)
+                 
+                 # Final Saturation to prevent blown speakers
+                 # Cap at 5.0 (Absolute Max)
+                 import math
+                 final_signal = math.tanh(mix / 3.0) * 5.0
+                 
+                 logger.info(f"[Rat] HARMONY: Analog Mix {final_signal:.2f} (Std {standard_signal:.1f} + Thoth {thoth_signal:.1f})")
+                 
+            # CONFLICT - RESOLVED
+            else:
+                 # Logic Reform: If signals conflict, TRUST THE Z-SCORE (User Request).
+                 # Previously: return 0.0 (Block).
+                 # Now: Return standard signal but slightly dampened? No, full trust.
+                 logger.info(f"[Rat] CONFLICT IGNORED: Eyes {standard_signal:.1f} vs Thoth {thoth_signal:.1f}. Trusting Eyes.")
+                 final_signal = standard_signal 
+
+        # Apply Morale Buff (if any)
+        buff = getattr(self, 'morale_multiplier', 1.0)
+        
+        return final_signal * buff
+
+    def calculate_optimality(self) -> Dict[str, Any]:
+        """
+        Calculates the "Tuning Efficiency" of the current settings.
+        100% = The Golden Mean (Sens 2.6, Profit 0.8%).
+        """
+        eff = self._get_effective_skills()
+        current_sens = eff['sensitivity']
+        current_profit = eff['profit']
+        
+        # IDEAL CONSTANTS
+        IDEAL_SENS = 2.6
+        IDEAL_PROFIT = 0.008
+        
+        # 1. SENSITIVITY SCORE
+        # Deviation
+        sens_dev = abs(current_sens - IDEAL_SENS)
+        
+        # Penalty Logic
+        # If Sens < Ideal (Noise Risk): Heavy Penalty.
+        # If Sens > Ideal (Opportunity Cost): Light Penalty.
+        if current_sens < IDEAL_SENS:
+            # 2.0 vs 2.6 = 0.6 delta. Max penalty (at 2.0) should be ~30%.
+            # 0.6 * 50 = 30.
+            sens_penalty = sens_dev * 50.0 
+        else:
+            # 5.0 vs 2.6 = 2.4 delta. Max penalty (at 5.0) should be ~20%.
+            # 2.4 * 8 = 19.2.
+            sens_penalty = sens_dev * 8.0
+            
+        sens_score = max(0.0, 100.0 - sens_penalty)
+        
+        # 2. PROFIT SCORE
+        # Deviation
+        profit_dev = abs(current_profit - IDEAL_PROFIT)
+        
+        # Penalty Logic
+        # If Profit < Ideal (Fee Burn): Heavy Penalty.
+        # If Profit > Ideal (Greed): Light Penalty.
+        if current_profit < IDEAL_PROFIT:
+            # 0.005 vs 0.008 = 0.003 delta. Max penalty ~30%.
+            # 0.003 * 10000 = 30.
+            profit_penalty = profit_dev * 10000.0
+        else:
+            # 0.03 vs 0.008 = 0.022 delta. Max penalty ~20%.
+            # 0.022 * 900 = 19.8.
+            profit_penalty = profit_dev * 900.0
+            
+        profit_score = max(0.0, 100.0 - profit_penalty)
+        
+        # 3. AGGREGATE
+        total_score = (sens_score + profit_score) / 2.0
+        
+        # 4. FEEDBACK GENERATION
+        feedback = "Optimized."
+        if total_score >= 98.0:
+            feedback = "✨ PERFECT RESONANCE"
+        elif total_score < 80.0:
+             if current_sens < IDEAL_SENS: feedback = "⚠️ RISK: NOISE CHURN"
+             elif current_profit < IDEAL_PROFIT: feedback = "⚠️ RISK: FEE BURN"
+             elif current_sens > 4.0: feedback = "💤 TOO PASSIVE"
+             else: feedback = "SUB-OPTIMAL"
+        elif sens_score < 90.0:
+             feedback = "Sensitivity Drift"
+        elif profit_score < 90.0:
+             feedback = "Profit Drift"
+             
+        return {
+            "total_score": round(total_score, 1),
+            "sens_score": round(sens_score, 1),
+            "profit_score": round(profit_score, 1),
+            "feedback": feedback
+        }

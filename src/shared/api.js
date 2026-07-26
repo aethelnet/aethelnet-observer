@@ -13,13 +13,16 @@ const getApiBase = () => {
         const host = window.location.host; // includes port
         if (host) {
             if (host.includes('localhost') || host.includes('127.0.0.1')) {
-                return `http://127.0.0.1:8001/api`;
+                return `http://localhost:8001/api`;
             }
-            // If they are accessing via LAN IP, use that IP on port 8001
-            return `http://${window.location.hostname}:8001/api`;
+            if (host.includes('192.168.') || host.includes('10.0.')) {
+                return `http://${window.location.hostname}:8001/api`;
+            }
+            // In production (aethelburg.network), use relative path so NGINX can proxy it
+            return '/api';
         }
     }
-    return 'http://127.0.0.1:8001/api';
+    return '/api';
 };
 
 const API_BASE = getApiBase();

@@ -43,10 +43,10 @@ export class ThreeGraphRenderer {
   public triggerShockwave(node: any) {
     const geo = new THREE.RingGeometry(4.5, 5.5, 32)
     const mat = new THREE.MeshBasicMaterial({ 
-      color: 0x00F3FF, 
+      color: 0x0ea5e9, // Subtle Sky Blue
       transparent: true, 
-      opacity: 1.0, 
-      blending: THREE.AdditiveBlending 
+      opacity: 0.8, 
+      blending: THREE.NormalBlending 
     })
     const mesh = new THREE.Mesh(geo, mat)
     
@@ -103,11 +103,8 @@ export class ThreeGraphRenderer {
     this.controls.enabled = false // Only active in Galaxy mode
     
     this.raycaster = new THREE.Raycaster()
-    // Increase threshold to make clicking tiny dots easier
     this.raycaster.params.Points.threshold = 10
     this.raycaster.params.Line.threshold = 10
-    // Wait, InstancedMesh with CircleGeometry uses mesh intersection. Circle is small (radius 5).
-    // Let's just use standard mesh intersection.
     
     this.mouse = new THREE.Vector2()
     
@@ -121,15 +118,13 @@ export class ThreeGraphRenderer {
   
   private initMeshes() {
     // 1. Instanced Mesh for Nodes
-    // Max nodes buffer: let's say 10000
     const maxNodes = 10000
-    // Use a PlaneGeometry instead of CircleGeometry for the shader
     const geometry = new THREE.PlaneGeometry(10, 10)
     const material = new THREE.MeshBasicMaterial({ 
       color: 0xffffff, 
       transparent: true, 
       opacity: 1.0, 
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
       depthWrite: false
     })
     
@@ -152,18 +147,15 @@ export class ThreeGraphRenderer {
          float dist = distance(vMyUv, vec2(0.5));
          if (dist > 0.5) discard;
          
-         // Smooth outer glow
-         float alpha = smoothstep(0.5, 0.2, dist);
+         // Clean flat circle with subtle border
+         float alpha = smoothstep(0.5, 0.45, dist);
+         float border = smoothstep(0.48, 0.45, dist) - smoothstep(0.45, 0.42, dist);
          
-         // Inner bright core
-         float core = smoothstep(0.25, 0.0, dist);
+         // Darken the border slightly for crispness in light mode
+         vec3 finalColor = mix(diffuseColor.rgb, diffuseColor.rgb * 0.8, border);
          
-         // Edge ring (glass-like rim lighting)
-         float rim = smoothstep(0.4, 0.45, dist) * smoothstep(0.5, 0.45, dist);
-         
-         vec3 coreColor = mix(diffuseColor.rgb, vec3(1.0), core);
-         diffuseColor.rgb = coreColor * 1.5 + (diffuseColor.rgb * rim * 3.0); // Boost intensity and rim
-         diffuseColor.a *= (alpha * 0.7 + rim + core);
+         diffuseColor.rgb = finalColor;
+         diffuseColor.a *= alpha;
         `
       )
     }
@@ -181,7 +173,7 @@ export class ThreeGraphRenderer {
     // 2. Line Segments for Links
     const maxLinks = 20000
     const lineGeo = new THREE.BufferGeometry()
-    const positions = new Float32Array(maxLinks * 2 * 3) // 2 vertices per line, 3 coords per vertex
+    const positions = new Float32Array(maxLinks * 2 * 3)
     const progress = new Float32Array(maxLinks * 2)
     for (let i = 0; i < maxLinks; i++) {
         progress[i * 2] = 0.0
@@ -192,10 +184,10 @@ export class ThreeGraphRenderer {
     lineGeo.setAttribute('aProgress', new THREE.BufferAttribute(progress, 1))
     
     const lineMat = new THREE.LineBasicMaterial({ 
-      color: 0x4ade80, // Base accent color
+      color: 0xcbd5e1, // Light slate border color
       transparent: true, 
       opacity: 0.6,
-      blending: THREE.AdditiveBlending
+      blending: THREE.NormalBlending
     })
     
     this.lineUniforms = {
@@ -222,22 +214,18 @@ export class ThreeGraphRenderer {
       `.replace(
         '#include <color_fragment>',
         `#include <color_fragment>
-         // Create a flowing pulse effect along the line (Spider-silk data transfer)
          float speed = uTime * 1.5;
          float pulse1 = sin((vProgress - speed) * 30.0);
          float pulse2 = sin((vProgress + speed * 0.5) * 15.0);
          
-         // Make the edges fade out at the very ends so they blend smoothly into the nodes
          float edgeFade = smoothstep(0.0, 0.15, vProgress) * smoothstep(1.0, 0.85, vProgress);
+         float glow = max(0.0, pulse1 * 0.5 + pulse2 * 0.5);
          
-         // Boost brightness on pulse
-         float glow = max(0.0, pulse1 * 0.7 + pulse2 * 0.3);
+         // Subtle blueish pulse on grey lines
+         vec3 pulseColor = mix(diffuseColor.rgb, vec3(0.0, 0.7, 0.9), glow * 0.5);
          
-         // Color shifting
-         vec3 pulseColor = mix(diffuseColor.rgb, vec3(0.0, 1.0, 0.8), glow);
-         
-         diffuseColor.rgb = pulseColor + (vec3(1.0) * glow * 0.8);
-         diffuseColor.a *= (0.2 + 0.8 * glow) * edgeFade;
+         diffuseColor.rgb = pulseColor;
+         diffuseColor.a *= (0.3 + 0.7 * glow) * edgeFade;
         `
       )
     }
@@ -245,13 +233,13 @@ export class ThreeGraphRenderer {
     this.linkLines = new THREE.LineSegments(lineGeo, lineMat)
     this.scene.add(this.linkLines)
     
-    // 3. Planeswalker Synapses (Particles moving on links)
-    const synapseGeo = new THREE.PlaneGeometry(6, 6)
+    // 3. Synapses (Data Packets)
+    const synapseGeo = new THREE.PlaneGeometry(3, 3)
     const synapseMat = new THREE.MeshBasicMaterial({ 
-      color: 0x00FFCC, 
+      color: 0x0ea5e9, // Subtle Blue
       transparent: true, 
-      opacity: 1.0, 
-      blending: THREE.AdditiveBlending,
+      opacity: 0.9, 
+      blending: THREE.NormalBlending,
       depthWrite: false
     })
     
@@ -274,13 +262,8 @@ export class ThreeGraphRenderer {
          float dist = distance(vMyUv, vec2(0.5));
          if (dist > 0.5) discard;
          
-         // Intense neon spark
-         float core = smoothstep(0.1, 0.0, dist);
-         float flare = 0.05 / (dist + 0.001);
-         float alpha = clamp(flare, 0.0, 1.0) * smoothstep(0.5, 0.0, dist);
-         
-         diffuseColor.rgb = mix(diffuseColor.rgb * flare, vec3(1.0), core);
-         diffuseColor.a *= alpha + core;
+         float alpha = smoothstep(0.5, 0.3, dist);
+         diffuseColor.a *= alpha;
         `
       )
     }
@@ -289,7 +272,7 @@ export class ThreeGraphRenderer {
     this.synapseMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
     this.scene.add(this.synapseMesh)
     
-    // 4. Background Starfield
+    // 4. Background Starfield (Subtle dark dots for light theme)
     const starGeo = new THREE.BufferGeometry()
     const starPositions = new Float32Array(5000 * 3)
     const starColors = new Float32Array(5000 * 3)
@@ -298,10 +281,11 @@ export class ThreeGraphRenderer {
       starPositions[i+1] = (Math.random() - 0.5) * 4000
       starPositions[i+2] = (Math.random() - 0.5) * 4000
       
-      // Slight blueish tint for stars
-      starColors[i] = 0.5 + Math.random() * 0.5
-      starColors[i+1] = 0.7 + Math.random() * 0.3
-      starColors[i+2] = 0.9 + Math.random() * 0.1
+      // Subtle slate/grey dots
+      const shade = 0.5 + Math.random() * 0.3
+      starColors[i] = shade
+      starColors[i+1] = shade
+      starColors[i+2] = shade + 0.1
     }
     starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3))
     starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3))
@@ -312,11 +296,10 @@ export class ThreeGraphRenderer {
       transparent: true,
       opacity: 0,
       sizeAttenuation: true,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
       depthWrite: false
     })
     
-    // Starfield Shader to make stars round
     starMat.onBeforeCompile = (shader) => {
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <color_fragment>',
@@ -331,14 +314,14 @@ export class ThreeGraphRenderer {
     this.starfield = new THREE.Points(starGeo, starMat)
     this.scene.add(this.starfield)
 
-    // Add Wireframe Cyber-Globe
+    // Wireframe Globe (Subtle light grey)
     const globeGeo = new THREE.SphereGeometry(300, 32, 32)
     const globeMat = new THREE.MeshBasicMaterial({
-      color: 0x10b981,
+      color: 0xe2e8f0,
       wireframe: true,
       transparent: true,
-      opacity: 0.15,
-      blending: THREE.AdditiveBlending,
+      opacity: 0.1,
+      blending: THREE.NormalBlending,
       depthWrite: false
     })
     this.globeMesh = new THREE.Mesh(globeGeo, globeMat)
@@ -356,8 +339,6 @@ export class ThreeGraphRenderer {
     this.isGalaxyMode = enabled
     this.controls.enabled = enabled
     this.activeCamera = enabled ? this.perspCamera : this.orthoCamera
-    
-    // Reset warp
     this.warpProgress = enabled ? 0 : 1; 
   }
 
@@ -396,7 +377,6 @@ export class ThreeGraphRenderer {
     
     this.raycaster.setFromCamera(this.mouse, this.activeCamera)
     
-    // Check nodes first
     const intersects = this.raycaster.intersectObject(this.nodeMesh)
     
     if (intersects.length > 0) {
@@ -406,11 +386,8 @@ export class ThreeGraphRenderer {
       }
     }
     
-    // Check links
     const linkIntersects = this.raycaster.intersectObject(this.linkLines)
     if (linkIntersects.length > 0) {
-      // For LineSegments, the faceIndex isn't used, but index gives the vertex index.
-      // Since there are 2 vertices per segment, the segment index is Math.floor(index / 2)
       const vertexIndex = linkIntersects[0].index
       if (vertexIndex !== undefined) {
         const lineIdx = Math.floor(vertexIndex / 2)
@@ -429,11 +406,6 @@ export class ThreeGraphRenderer {
     
     const { x: tx, y: ty, k } = this.globalTransform
     
-    // The OrthographicCamera is centered at (0,0), but CSS/DOM translates from top-left.
-    // We map D3 coordinates (x,y) to WebGL coordinates.
-    // WebGL: (0,0) is center. x right, y up.
-    // DOM: (0,0) is top-left. x right, y down.
-    
     if (this.warpProgress > 0) {
       if (this.warpProgress < 1 && !this.isGalaxyMode) {
         this.warpProgress = Math.max(0, this.warpProgress - 0.02)
@@ -445,7 +417,7 @@ export class ThreeGraphRenderer {
     }
     
     if (this.starfield) {
-      (this.starfield.material as THREE.PointsMaterial).opacity = this.warpProgress * 0.8
+      (this.starfield.material as THREE.PointsMaterial).opacity = this.warpProgress * 0.4
       this.starfield.rotation.y += 0.0002
       this.starfield.rotation.x += 0.0001
     }
@@ -465,33 +437,28 @@ export class ThreeGraphRenderer {
     for (let i = 0; i < this.nodes.length; i++) {
       const node = this.nodes[i]
       
-      // Calculate 2D position (Graph Mode)
       const px2d = tx + (node.x || 0) * k
       const py2d = ty + (node.y || 0) * k
       const wx2d = px2d - this.width / 2
       const wy2d = -(py2d - this.height / 2)
       
-      // Calculate 3D position (Galaxy Mode)
-      // Generate a stable pseudo-random z-depth based on node ID
       if (node.z3d === undefined) {
         let hash = 0;
         const str = node.id || 'unknown';
         for (let j = 0; j < str.length; j++) hash = Math.imul(31, hash) + str.charCodeAt(j) | 0;
-        node.z3d = (hash % 1000) - 500; // -500 to 500 spread
+        node.z3d = (hash % 1000) - 500;
       }
       
       let wx3d = (node.x || 0) * 6.0
       let wy3d = -(node.y || 0) * 6.0
       let wz3d = node.z3d * 8.0
 
-      // Map Geo-Anchors to the 3D Sphere
       let isGeoNode = false;
       if (node.source_tag === 'geo' && node.meta_data?.spatial) {
         isGeoNode = true;
         const lat = node.meta_data.spatial.lat * (Math.PI / 180);
         const lng = node.meta_data.spatial.lng * (Math.PI / 180);
         const radius = 300;
-        // Standard spherical coordinate projection (Three.js coordinates: Y is up)
         wx3d = radius * Math.cos(lat) * Math.sin(lng);
         wy3d = radius * Math.sin(lat);
         wz3d = radius * Math.cos(lat) * Math.cos(lng);
@@ -499,64 +466,60 @@ export class ThreeGraphRenderer {
       
       if (isGeoNode) hasGeoNodes = true;
       
-      // Interpolate based on warpProgress
       const wx = wx2d * (1 - this.warpProgress) + wx3d * this.warpProgress
       const wy = wy2d * (1 - this.warpProgress) + wy3d * this.warpProgress
       const wz = 0 * (1 - this.warpProgress) + wz3d * this.warpProgress
       
-      // Scale interpolates too (we don't want D3 transform 'k' to apply in 3D)
       const currentK = k * (1 - this.warpProgress) + 1.0 * this.warpProgress
       
       dummy.position.set(wx, wy, wz)
       
-      // Billboard to face active camera
       if (this.isGalaxyMode) {
         dummy.quaternion.copy(this.activeCamera.quaternion)
       } else {
         dummy.quaternion.identity()
       }
       
-      // Vektorfield Alignment: Dynamic glowing sizes and colors
-      const baseScale = node.size ? Math.min(node.size * 0.5, 3.0) : 1.2; // Slightly larger base scale, capped at 3.0
+      const baseScale = node.size ? Math.min(node.size * 0.5, 3.0) : 1.2;
       
-      // Setup dynamic coloring with premium neon colors
+      // Light Theme Colors
       if (node.isSelected) {
-        const pulse = 2.0 + Math.sin(Date.now() / 150 + i) * 0.4
+        const pulse = 1.2 + Math.sin(Date.now() / 150 + i) * 0.2
         dummy.scale.set(currentK * pulse * baseScale, currentK * pulse * baseScale, 1)
-        this.nodeMesh.setColorAt(count, new THREE.Color(0x00f3ff)) // Neon Cyan
+        this.nodeMesh.setColorAt(count, new THREE.Color(0x0ea5e9)) // Sky Blue
       } else if (node.meta_data?.is_shielded) {
         dummy.scale.set(currentK * baseScale, currentK * baseScale, 1)
-        this.nodeMesh.setColorAt(count, new THREE.Color(0x14b8a6)) // Teal for shielded Incubator nodes
+        this.nodeMesh.setColorAt(count, new THREE.Color(0x0d9488)) // Darker Teal
       } else if (node.node_type === 'gravity_well') {
-        const pulse = 3.0 + Math.sin(Date.now() / 200 + i) * 1.0
+        const pulse = 1.2 + Math.sin(Date.now() / 200 + i) * 0.2
         dummy.scale.set(currentK * pulse * baseScale, currentK * pulse * baseScale, 1)
-        this.nodeMesh.setColorAt(count, new THREE.Color(0xb5179e)) // Deep Neon Purple
+        this.nodeMesh.setColorAt(count, new THREE.Color(0x8b5cf6)) // Violet
       } else if (node.source_tag === 'ghost') {
-        const pulse = 1.0 + Math.sin(Date.now() / 100 + i) * 0.8
+        const pulse = 1.0 + Math.sin(Date.now() / 100 + i) * 0.2
         dummy.scale.set(currentK * pulse * baseScale, currentK * pulse * baseScale, 1)
-        this.nodeMesh.setColorAt(count, new THREE.Color(0xff0a54)) // Hot Pink / Neon Red
+        this.nodeMesh.setColorAt(count, new THREE.Color(0xf43f5e)) // Rose
       } else if (node.source_tag === 'spider' || node.source_tag === 'spider_swarm') {
         dummy.scale.set(currentK * baseScale, currentK * baseScale, 1)
-        this.nodeMesh.setColorAt(count, new THREE.Color(0x34d399)) // Emerald Teal
+        this.nodeMesh.setColorAt(count, new THREE.Color(0x10b981)) // Emerald
       } else if (node.node_type === 'abstract' || node.id.startsWith('Hub_') || node.id.startsWith('Core_') || node.id.startsWith('Mechanism_') || node.id.startsWith('Metaphor_')) {
         dummy.scale.set(currentK * baseScale * 0.8, currentK * baseScale * 0.8, 1)
-        this.nodeMesh.setColorAt(count, new THREE.Color(0x94a3b8)) // Slate Glass (dimmer engine nodes)
+        this.nodeMesh.setColorAt(count, new THREE.Color(0x64748b)) // Slate
       } else if (node.source_tag === 'app' || node.source_tag === 'tool') {
         dummy.scale.set(currentK * baseScale * 1.2, currentK * baseScale * 1.2, 1)
-        this.nodeMesh.setColorAt(count, new THREE.Color(0x818cf8)) // Indigo Glass
+        this.nodeMesh.setColorAt(count, new THREE.Color(0x6366f1)) // Indigo
       } else if (node.meta_data?.color) {
         dummy.scale.set(currentK * baseScale, currentK * baseScale, 1)
         this.nodeMesh.setColorAt(count, new THREE.Color(node.meta_data.color))
       } else if (node.source_tag === 'arxiv' || node.source_tag === 'concept') {
         dummy.scale.set(currentK * baseScale, currentK * baseScale, 1)
-        this.nodeMesh.setColorAt(count, new THREE.Color(0x38bdf8)) // Sky Teal
+        this.nodeMesh.setColorAt(count, new THREE.Color(0x0284c7)) // Light Sky Blue
       } else if (node.source_tag === 'identity' || node.id.startsWith('identity_')) {
-        const pulse = 1.5 + Math.sin(Date.now() / 250 + i) * 0.3
+        const pulse = 1.2 + Math.sin(Date.now() / 250 + i) * 0.1
         dummy.scale.set(currentK * pulse * baseScale, currentK * pulse * baseScale, 1)
-        this.nodeMesh.setColorAt(count, new THREE.Color(0xfee440)) // Neon Gold (keep identity prominent)
+        this.nodeMesh.setColorAt(count, new THREE.Color(0xf59e0b)) // Amber
       } else {
         dummy.scale.set(currentK * baseScale, currentK * baseScale, 1)
-        this.nodeMesh.setColorAt(count, new THREE.Color(0x2dd4bf)) // Base Light Glass Teal
+        this.nodeMesh.setColorAt(count, new THREE.Color(0x94a3b8)) // Subtle Slate Base
       }
       
       dummy.updateMatrix()
@@ -565,17 +528,15 @@ export class ThreeGraphRenderer {
       count++
     }
     
-    // Toggle globe visibility
     if (this.globeMesh) {
       this.globeMesh.visible = hasGeoNodes && this.warpProgress > 0;
-      (this.globeMesh.material as THREE.MeshBasicMaterial).opacity = 0.15 * this.warpProgress;
+      (this.globeMesh.material as THREE.MeshBasicMaterial).opacity = 0.1 * this.warpProgress;
     }
     
     this.nodeMesh.count = count
     this.nodeMesh.instanceMatrix.needsUpdate = true
     if (this.nodeMesh.instanceColor) this.nodeMesh.instanceColor.needsUpdate = true
     
-    // Update Links
     const positions = this.linkLines.geometry.attributes.position.array as Float32Array
     let lineIdx = 0
     
@@ -588,7 +549,6 @@ export class ThreeGraphRenderer {
       
       this.linkIndexMap[lineIdx] = link
       
-      // 2D Line coords
       const spx = tx + source.x * k
       const spy = ty + source.y * k
       const tpx = tx + target.x * k
@@ -599,7 +559,6 @@ export class ThreeGraphRenderer {
       const twx2d = tpx - this.width / 2
       const twy2d = -(tpy - this.height / 2)
       
-      // 3D Line coords
       const swx3d = source.x * 6.0
       const swy3d = -source.y * 6.0
       const swz3d = source.z3d * 8.0
@@ -608,7 +567,6 @@ export class ThreeGraphRenderer {
       const twy3d = -target.y * 6.0
       const twz3d = target.z3d * 8.0
       
-      // Interpolate
       const swx = swx2d * (1 - this.warpProgress) + swx3d * this.warpProgress
       const swy = swy2d * (1 - this.warpProgress) + swy3d * this.warpProgress
       const swz = 0 * (1 - this.warpProgress) + swz3d * this.warpProgress
@@ -631,7 +589,6 @@ export class ThreeGraphRenderer {
     this.linkLines.geometry.setDrawRange(0, lineIdx * 2)
     this.linkLines.geometry.attributes.position.needsUpdate = true
     
-    // Update Synapses (Data Packets)
     const maxActiveSynapses = Math.min(1000, this.links.length)
     if (this.activeSynapses.length < maxActiveSynapses && this.links.length > 0) {
       for (let i = 0; i < 5; i++) {
@@ -713,13 +670,12 @@ export class ThreeGraphRenderer {
     this.synapseMesh.count = synapseCount
     this.synapseMesh.instanceMatrix.needsUpdate = true
     
-    // Render shockwaves (Synaptic Pulse)
     for (let i = this.shockwaves.length - 1; i >= 0; i--) {
       const sw = this.shockwaves[i]
       sw.scale += (sw.maxScale - sw.scale) * 0.05 + 0.2
       sw.mesh.scale.set(sw.scale, sw.scale, 1)
       const opacity = 1.0 - (sw.scale / sw.maxScale)
-      ;(sw.mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, opacity)
+      ;(sw.mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, opacity * 0.5) // Reduced intensity
       
       if (opacity <= 0.05) {
         this.scene.remove(sw.mesh)

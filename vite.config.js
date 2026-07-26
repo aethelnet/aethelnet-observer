@@ -1,12 +1,14 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
+import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import { fileURLToPath, URL } from 'node:url'
 
 // https://vitejs.dev/config/
 export default defineConfig({
     plugins: [
         vue(),
+        nodePolyfills(),
         VitePWA({
             registerType: 'autoUpdate',
             injectRegister: 'auto',
@@ -69,17 +71,17 @@ export default defineConfig({
                 secure: false
             },
             '/api': {
-                target: 'http://127.0.0.1:8001',
+                target: 'http://127.0.0.1:1421',
                 changeOrigin: true,
                 ws: true
             },
             '/aethelnet': {
-                target: 'http://127.0.0.1:8001',
+                target: 'http://127.0.0.1:1421',
                 changeOrigin: true,
                 ws: true
             },
             '/ws': {
-                target: 'ws://127.0.0.1:8001',
+                target: 'ws://127.0.0.1:1421',
                 ws: true
             }
         }

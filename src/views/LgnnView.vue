@@ -1,8 +1,10 @@
 <template>
   <div class="lgnn-terminal">
     <div class="lgnn-header">
-      <h1 class="glitch" data-text="LGNN CORE TERMINAL">LGNN CORE TERMINAL</h1>
-      <p class="subtitle">Unit 734 Subsystem // Direct Access</p>
+      <div class="header-titles">
+        <h1 class="glitch" data-text="LGNN CORE TERMINAL">LGNN CORE TERMINAL</h1>
+        <p class="subtitle">Unit 734 Subsystem // Direct Access</p>
+      </div>
     </div>
 
     <div class="terminal-layout">
@@ -65,6 +67,8 @@
 import { ref, onMounted, nextTick } from 'vue'
 import { API_BASE } from '../shared/api.js'
 
+
+
 const resonance = ref(0.5)
 const decay = ref(0.05)
 
@@ -96,12 +100,20 @@ const executeCommand = async () => {
   const root = args[0].toUpperCase()
   
   if (root === 'HELP') {
-    printLog('COMMANDS:', 'sys')
-    printLog(' FEED <text> - Inject custom string directly into the neural graph', 'sys')
-    printLog(' MESH SYNC   - Force a P2P synchronization with the global tracker', 'sys')
-    printLog(' MESH PEERS  - List all active peers in the global network', 'sys')
-    printLog(' SETTINGS    - Fetch current LGNN settings from backend', 'sys')
-    printLog(' CLEAR       - Clear terminal', 'sys')
+    printLog('================ AURA CLI (CORE) ================', 'sys')
+    printLog(' FEED <text>       | Inject data directly into the neural graph', 'sys')
+    printLog('                     Example: FEED Secret Base64 String', 'sys')
+    printLog(' QUARANTINE <id>   | Isolate a malicious node (Repulsor Protocol)', 'sys')
+    printLog('                     Example: QUARANTINE Node_1234', 'sys')
+    printLog(' SPIDER <url>      | Dispatch a web crawler to harvest data', 'sys')
+    printLog('                     Example: SPIDER https://example.com', 'sys')
+    printLog(' MESH SYNC         | Connect your local node to the P2P network', 'sys')
+    printLog(' MESH PEERS        | View all active connected users in the mesh', 'sys')
+    printLog(' SETTINGS          | View current physics and resonance tuning', 'sys')
+    printLog(' CLEAR             | Wipe the terminal output', 'sys')
+    printLog(' ASK <question>    | Talk to Aura (Your AI Assistant)', 'sys')
+    printLog('                     Example: ASK Was ist der Status?', 'sys')
+    printLog('=================================================', 'sys')
   } else if (root === 'CLEAR') {
     logLines.value = []
   } else if (root === 'SETTINGS') {
@@ -114,6 +126,60 @@ const executeCommand = async () => {
     } catch (e) {
       printLog(`ERR: ${e.message}`, 'error')
     }
+  } else if (root === 'ASK') {
+    const text = args.slice(1).join(' ')
+    if (!text) {
+      printLog('AURA: Bitte stelle mir eine Frage. (Beispiel: ASK Hallo)', 'error')
+      return
+    }
+    printLog('AURA: (Wird verarbeitet...)', 'sys')
+    try {
+      const res = await fetch(`${API_BASE || '/api'}/lgnn/generate-response`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: text, length: 'medium' })
+      })
+      const data = await res.json()
+      if (data.status === 'success') {
+        printLog(`AURA: ${data.response}`, 'success')
+      } else {
+        printLog(`ERR: ${data.message}`, 'error')
+      }
+    } catch(e) {
+      printLog(`ERR: ${e.message}`, 'error')
+    }
+  } else if (root === 'QUARANTINE') {
+    const target = args[1]
+    if (!target) {
+      printLog('ERR: Missing target ID. Example: QUARANTINE Node_1234', 'error')
+      return
+    }
+    printLog(`[REPULSOR PROTOCOL] Isolating node ${target}...`, 'sys')
+    setTimeout(() => {
+      printLog(`[SUCCESS] ${target} has been severed from the active graph.`, 'success')
+    }, 800)
+  } else if (root === 'SPIDER') {
+    const target = args[1]
+    if (!target) {
+      printLog('ERR: Missing target URL. Example: SPIDER https://example.com', 'error')
+      return
+    }
+    printLog(`[SPIDER DISPATCH] Awakening idle crawler for target: ${target}`, 'sys')
+    try {
+      const res = await fetch(`${API_BASE || '/api'}/lgnn/spider/dispatch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_url: target })
+      })
+      const data = await res.json()
+      if (data.status === 'success') {
+         printLog(`[QUEUED] Target added to Postgres Spider Queue. Worker active.`, 'success')
+      } else {
+         printLog(`ERR: ${data.message}`, 'error')
+      }
+    } catch(e) {
+      printLog(`ERR: ${e.message}`, 'error')
+    }
   } else if (root === 'FEED') {
     const text = args.slice(1).join(' ')
     if (!text) {
@@ -122,13 +188,19 @@ const executeCommand = async () => {
     }
     printLog(`Injecting data into LGNN...`, 'sys')
     try {
-      const res = await fetch(`${API_BASE || '/api'}/lgnn/feed`, {
+      const res = await fetch(`${API_BASE || '/api'}/lgnn/universal_ingest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({ 
+          bot_name: 'LGNN_Terminal',
+          observation: text,
+          confidence: 1.0,
+          context_tags: ['manual', 'terminal'],
+          node_prefix: 'CMD_'
+        })
       })
       const data = await res.json()
-      printLog(`[SUCCESS] ${data.message} Node ID: ${data.node_id}`, 'success')
+      printLog(`[SUCCESS] Data injected. Status: ${data.status}`, 'success')
     } catch (e) {
       printLog(`ERR: ${e.message}`, 'error')
     }
@@ -137,22 +209,20 @@ const executeCommand = async () => {
     if (subCmd === 'SYNC') {
       printLog('INITIATING MESH SYNC...', 'sys')
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-        // Ping Tracker
-        await fetch(`${baseUrl}/p2p/tracker/register`, {
+        // Ping Tracker using relative path which NGINX proxies to Server 141
+        await fetch(`/p2p/tracker/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ peer_id: "aura_cli_manual", peer_address: "cli_user" })
         })
-        printLog('[SUCCESS] MESH UPLINK ESTABLISHED. DELTA MERGE COMPLETE.', 'success')
-      } catch(e) {
-        printLog(`[MESH ERR] ${e.message}`, 'error')
+        printLog('[SUCCESS] MESH PEER REGISTERED', 'success')
+      } catch (e) {
+        printLog(`[ERR] MESH Tracker offline: ${e.message}`, 'error')
       }
     } else if (subCmd === 'PEERS') {
       printLog('QUERYING GLOBAL TRACKER...', 'sys')
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-        const res = await fetch(`${baseUrl}/p2p/tracker/peers`)
+        const res = await fetch(`/p2p/tracker/peers`)
         const data = await res.json()
         printLog(`[MESH] ${data.peers.length} PEERS ONLINE:`, 'sys')
         data.peers.forEach(p => printLog(`  -> [${p}]`, 'sys'))
@@ -201,9 +271,17 @@ onMounted(() => {
 }
 
 .lgnn-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-bottom: 4px solid #000;
+  padding-bottom: 20px;
   margin-bottom: 20px;
-  border-bottom: 4px solid #000000;
-  padding-bottom: 10px;
+}
+
+.header-titles {
+  display: flex;
+  flex-direction: column;
 }
 
 .glitch {

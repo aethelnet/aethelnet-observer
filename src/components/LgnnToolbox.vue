@@ -99,17 +99,29 @@
 
         <div class="category-group">
           <div class="category-title">5. SYSTEM & META</div>
-          <button class="tool-btn" @click="$emit('toggle-forge')" style="color: #E03C31;">
+          <button class="tool-btn" @click="$emit('toggle-forge')" style="color: #000000;">
             <span class="btn-icon">F</span> The Forge (OS Builder)
           </button>
-          <button class="tool-btn" @click="$emit('toggle-logs')" style="color: #4CAF50;">
+          <button class="tool-btn" @click="$emit('toggle-logs')" style="color: #000000;">
             <span class="btn-icon">L</span> System Logs (HUD)
           </button>
-          <button class="tool-btn" @click="$emit('toggle-diary')" style="color: #FF5722;">
+          <button class="tool-btn" @click="$emit('toggle-diary')" style="color: #000000;">
             <span class="btn-icon">D</span> The Diary (Journal)
           </button>
           <button class="tool-btn" @click="$emit('spawn-anomaly')">
             <span class="btn-icon">O</span> Anomaly
+          </button>
+        </div>
+
+        <div class="category-group">
+          <div class="category-title" style="color: #000000;">6. INSTALLED AGENTS</div>
+          <button 
+            v-for="agent in agentStore.agents.filter(a => a.installed)" 
+            :key="agent.id"
+            class="tool-btn" 
+            @click="$emit('spawn-app', agent.id)"
+          >
+            <span class="btn-icon">[{{ agent.icon }}]</span> {{ agent.name }}
           </button>
         </div>
       </template>
@@ -187,7 +199,10 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps, defineEmits, ref, onUnmounted, computed, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useAgentStore } from '../stores/agentStore'
+
+const agentStore = useAgentStore()
 
 const props = defineProps<{
   customBlueprints: any[];
@@ -204,6 +219,8 @@ const emits = defineEmits([
   'focus-node',
   'toggle-diary',
   'toggle-forge',
+  'toggle-logs',
+  'spawn-anomaly',
   'toggle-sensor',
   'close'
 ])
@@ -309,64 +326,67 @@ const handleImageUpload = (event: Event) => {
 <style scoped>
 .toolbox {
   position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 280px;
-  background: var(--color-bg-panel);
-  border-right: 1px solid var(--border-color);
-  box-shadow: 4px 0 15px rgba(0,0,0,0.5);
+  top: 16px;
+  left: 16px;
+  bottom: 16px;
+  width: 300px;
+  background: rgba(18, 18, 20, 0.6);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(0, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
   z-index: 1500;
+  overflow: hidden;
 }
 
 .toolbox-top {
-  padding: 16px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--color-bg-primary);
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  cursor: grab;
+}
+
+.toolbox-top:active {
+  cursor: grabbing;
 }
 
 .toolbox-tabs {
   display: flex;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--color-bg-primary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .tab-btn {
   flex: 1;
   background: transparent;
   border: none;
-  color: var(--color-text-muted);
-  font-family: var(--font-family-mono);
-  font-size: 10px;
-  font-weight: bold;
-  padding: 8px 0;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 12px 0;
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .tab-btn:hover {
-  color: var(--color-text-main);
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .tab-btn.active {
-  color: var(--color-accent);
-  border-bottom: 2px solid var(--color-accent);
-}
-
-.toolbox-top {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--color-bg-primary);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: grab;
+  color: #00e5ff;
+  border-bottom: 2px solid #00e5ff;
+  background: rgba(0, 229, 255, 0.05);
 }
 
 .toolbox-top:active {

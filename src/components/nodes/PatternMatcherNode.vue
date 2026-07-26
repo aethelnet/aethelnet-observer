@@ -1,5 +1,5 @@
 <template>
-  <div class="pattern-matcher-node">
+  <div class="pattern-matcher-node glass-panel">
     <div class="header">
       <span class="icon">🦂</span>
       <span class="title">EPISODE PATTERN MATCHER</span>
@@ -191,14 +191,15 @@ onUnmounted(() => {
 <style scoped>
 .pattern-matcher-node {
   width: 320px;
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid rgba(236, 72, 153, 0.3);
-  border-radius: 16px;
+  border-radius: 12px;
   color: #fff;
-  font-family: 'Space Mono', monospace;
+  font-family: 'Inter', 'Space Mono', monospace;
   overflow: hidden;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(236, 72, 153, 0.05);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(236, 72, 153, 0.1);
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -277,8 +278,8 @@ onUnmounted(() => {
 .action-btn:hover:not(:disabled) {
   background: linear-gradient(135deg, rgba(236, 72, 153, 0.3), rgba(190, 24, 93, 0.2));
   color: #fff;
-  box-shadow: 0 0 20px rgba(236, 72, 153, 0.3);
-  transform: translateY(-2px);
+  box-shadow: 0 0 15px rgba(236, 72, 153, 0.4);
+  transform: translateY(-1px);
 }
 
 .action-btn:disabled {

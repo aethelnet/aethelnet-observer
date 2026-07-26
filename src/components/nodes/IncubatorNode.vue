@@ -1,5 +1,5 @@
 <template>
-  <div class="incubator-node">
+  <div class="incubator-node glass-panel">
     <div class="greenhouse-glass"></div>
     
     <div class="header">
@@ -75,15 +75,18 @@ function harvest() {
 
 <style scoped>
 .incubator-node {
-  background: rgba(5, 20, 10, 0.95);
-  border: 1px solid rgba(0, 255, 128, 0.4);
-  border-radius: 16px 16px 4px 4px;
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(0, 255, 128, 0.3);
+  border-radius: 12px;
   width: 290px;
   color: #fff;
   font-family: 'Inter', sans-serif;
-  box-shadow: 0 10px 30px rgba(0, 255, 128, 0.1), inset 0 0 40px rgba(0, 255, 128, 0.05);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(0, 255, 128, 0.1);
   position: relative;
   overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .greenhouse-glass {
@@ -116,11 +119,11 @@ function harvest() {
 .seed-input textarea { width: 100%; height: 60px; background: rgba(0,0,0,0.5); border: 1px solid #00ff80; border-radius: 4px; color: #fff; padding: 8px; font-size: 12px; resize: none; margin-bottom: 12px; }
 
 .plant-btn, .harvest-btn {
-  width: 100%; background: transparent; border: 1px solid #00ff80; color: #00ff80;
-  padding: 10px; border-radius: 4px; font-weight: bold; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;
+  width: 100%; background: rgba(0, 255, 128, 0.1); border: 1px solid rgba(0, 255, 128, 0.4); color: #00ff80;
+  padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 1px;
 }
-.plant-btn:hover:not(:disabled), .harvest-btn:hover { background: rgba(0, 255, 128, 0.2); box-shadow: 0 0 15px rgba(0, 255, 128, 0.4); }
-.plant-btn:disabled { opacity: 0.5; }
+.plant-btn:hover:not(:disabled), .harvest-btn:hover { background: rgba(0, 255, 128, 0.2); box-shadow: 0 0 15px rgba(0, 255, 128, 0.4); transform: translateY(-1px); }
+.plant-btn:disabled { opacity: 0.5; border-color: #555; color: #888; }
 
 .growing-state { display: flex; flex-direction: column; align-items: center; }
 

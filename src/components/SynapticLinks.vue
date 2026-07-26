@@ -38,9 +38,9 @@
         :x2="link.sx2"
         :y2="link.sy2"
         class="synapse-link base-link"
-        :stroke-width="Math.max(link.weight * 2, 4)"
-        :stroke="link.is_manual ? '#1A1A1A' : '#E03C31'"
-        :stroke-dasharray="link.is_manual ? 'none' : '6,4'"
+        :stroke-width="Math.max(link.weight, 1)"
+        :stroke="link.is_manual ? '#D0D0D0' : '#FF9999'"
+        :stroke-dasharray="link.is_manual ? 'none' : '4,4'"
         style="pointer-events: none;"
       />
       

@@ -1,5 +1,5 @@
 /* =========================================
-   AURATIC SYSTEMS PRIME - CLEAN BASE STYLES
+   AURATIC SYSTEMS PRIME - BRUTALISM THEME
    ========================================= */
 
 * {
@@ -9,106 +9,46 @@
 }
 
 :root {
-  /* =========================================
-     SWISS DATA PRO (Default)
-     ========================================= */
-  --color-bg-primary: #0a0a0c;
-  --color-bg-panel: #121214;
-  --color-bg-glass: rgba(18, 18, 20, 0.85);
-  --color-bg-metric: #1a1a1c;
+  /* Brutalism Color Palette */
+  --color-bg-primary: #ffffff;
+  --color-bg-panel: #ffffff;
+  --color-bg-glass: #ffffff;
+  --color-bg-metric: #f0f0f0;
   
-  --color-text-main: #f0f0f0;
-  --color-text-muted: #8a8a8e;
-  --color-text-accent: #ffffff;
+  --color-text-main: #000000;
+  --color-text-muted: #333333;
+  --color-text-accent: #000000;
   
-  /* Borders & Shadows (Structured, not blurry) */
-  --border-color: #333336;
-  --border-color-hover: #66666a;
-  --shadow-node: 4px 4px 0px rgba(0, 0, 0, 0.8);
-  --shadow-neon: none; /* No glow by default */
-  --shadow-glass: 0 4px 24px rgba(0, 0, 0, 0.5);
+  /* Hard Borders & Solid Shadows */
+  --border-color: #000000;
+  --border-color-hover: #000000;
+  --shadow-node: 4px 4px 0px #000000;
+  --shadow-neon: none;
+  --shadow-glass: 4px 4px 0px #000000;
   
   /* Accents */
-  --color-accent: #e5e5e5;
-  --color-accent-hover: #ffffff;
-  --color-accent-active: #444448;
+  --color-accent: #000000;
+  --color-accent-hover: #e0e0e0;
+  --color-accent-active: #cccccc;
   
   /* Typography */
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-family: 'Space Mono', 'Courier New', monospace, sans-serif;
   --font-family-header: var(--font-family);
-  --font-family-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  --font-family-mono: var(--font-family);
   
-  --transition-smooth: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-fast: 0.1s ease-out;
+  /* No Smooth Transitions */
+  --transition-smooth: 0s;
+  --transition-fast: 0s;
 
   /* Legacy Aliases */
   --color-bg: var(--color-bg-primary);
   --color-bg-card: var(--color-bg-panel);
   --color-text: var(--color-text-main);
-  --color-text-inverse: #0a0a0c;
-  --color-danger: #ff453a;
-  --color-success: #32d74b;
-}
-
-/* =========================================
-   CYBERPUNK ALTER-EGO (Toggled via .cyberpunk-mode on body)
-   ========================================= */
-body.cyberpunk-mode {
-  --color-bg-primary: #030a05;
-  --color-bg-panel: #05140a;
-  --color-bg-glass: rgba(5, 20, 10, 0.85);
-  --color-bg-metric: #0a2914;
-  
-  --color-text-main: #00ff41;
-  --color-text-muted: #008f11;
-  --color-text-accent: #f2c12e;
-  
-  --border-color: #00ff41;
-  --border-color-hover: #f2c12e;
-  --shadow-node: 0 0 10px rgba(0, 255, 65, 0.2), inset 0 0 5px rgba(0, 255, 65, 0.1);
-  --shadow-neon: 0 0 15px rgba(0, 255, 65, 0.5);
-  
-  --color-accent: #f2c12e;
-  --color-accent-hover: #ffea00;
-  --font-family: 'Space Mono', 'JetBrains Mono', monospace;
-  --font-family-header: 'Space Mono', monospace;
-}
-
-.light-theme {
-  /* =========================================
-     LIGHT MODE (Rhein-Kultur Zen)
-     ========================================= */
-  --color-bg-primary: #fdfbf7;
-  --color-bg-panel: rgba(255, 255, 255, 0.85);
-  --color-bg-glass: rgba(255, 255, 255, 0.85);
-  --color-bg-metric: #f1f5f9;
-  
-  --color-text-main: #0f172a;
-  --color-text-muted: #64748b;
-  --color-text-accent: #0284c7;
-  
-  /* Borders & Shadows (Soft & Clean) */
-  --border-color: #e2e8f0;
-  --border-color-hover: #cbd5e1;
-  --shadow-node: 0 8px 24px rgba(0, 0, 0, 0.06);
-  --shadow-neon: none; /* No neon in light mode */
-  --shadow-glass: 0 -4px 30px rgba(0, 0, 0, 0.05);
-  
-  /* Accents */
-  --color-accent: #0284c7;
-  --color-accent-hover: rgba(2, 132, 199, 0.1);
-  --color-accent-active: rgba(2, 132, 199, 0.15);
-
-  /* Legacy Aliases for HomeView.vue */
-  --color-bg: var(--color-bg-primary);
-  --color-bg-card: var(--color-bg-panel);
-  --color-text: var(--color-text-main);
   --color-text-inverse: #ffffff;
-  --color-danger: #ef4444;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.15);
+  --color-danger: #000000;
+  --color-success: #000000;
+  --shadow-sm: 2px 2px 0px #000000;
+  --shadow-md: 4px 4px 0px #000000;
 }
 
 body {
@@ -116,25 +56,98 @@ body {
   background: var(--color-bg-primary);
   color: var(--color-text-main);
   overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: none;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
+  border-left: 2px solid #000;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-bg);
+  background: #fff;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #444;
-  border-radius: 4px;
+  background: #000;
+  border: 2px solid #fff;
+  border-radius: 0;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #666;
+  background: #333;
 }
+
+/* =========================================
+   BRUTALIST UTILITIES
+   ========================================= */
+.glass-panel {
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 2px solid #000000;
+  box-shadow: 4px 4px 0px #000000;
+  border-radius: 0;
+  color: var(--color-text-main);
+  transition: none;
+}
+
+.glass-panel:hover {
+  background: #f4f4f4;
+  border-color: #000000;
+  box-shadow: 6px 6px 0px #000000;
+}
+
+.glass-header {
+  border-bottom: 2px solid #000000;
+  background: #ffffff;
+  padding: 12px 20px;
+  border-radius: 0;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.btn-glass, .nav-btn, button {
+  background: #ffffff;
+  backdrop-filter: none;
+  border: 2px solid #000000;
+  border-radius: 0;
+  color: #000000;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: none;
+  font-family: var(--font-family);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: bold;
+  text-transform: uppercase;
+  box-shadow: 2px 2px 0px #000000;
+}
+
+.btn-glass:hover, .nav-btn:hover, button:hover {
+  background: #000000;
+  color: #ffffff;
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0px #000000;
+}
+
+.btn-glass:active, .nav-btn:active, button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0px 0px 0px #000000;
+}
+
+/* Overrides for Light Theme & Cyberpunk if they still exist on body */
+body.cyberpunk-mode, body.light-theme {
+  --color-bg-primary: #ffffff !important;
+  --color-bg-panel: #ffffff !important;
+  --color-bg-glass: #ffffff !important;
+  --color-text-main: #000000 !important;
+  --border-color: #000000 !important;
+  --shadow-node: 4px 4px 0px #000000 !important;
+  --shadow-neon: none !important;
+  --color-accent: #000000 !important;
+}
+

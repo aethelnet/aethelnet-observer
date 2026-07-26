@@ -1,0 +1,371 @@
+import logging
+import asyncio
+from typing import Dict, Any, Optional
+from backend.brokers.base import BaseBroker
+from backend.brokers.binance import BinanceBroker
+from backend.brokers.alpaca import AlpacaBroker
+from backend.brokers.hyperliquid import HyperliquidBroker
+from backend.config import get_settings
+
+logger = logging.getLogger("OmniRouter")
+
+class OmniRouter:
+    """
+    Central multi-venue router for order execution.
+
+    Responsibilities:
+    - Route orders to the correct broker (heuristics + explicit routing).
+    - Provide a unified get_balance/get_position/get_funding_rate interface across brokers.
+    - Offer non-invasive telemetry snapshots for health checks and diagnostics.
+    - Maintain a small last-error buffer (_last_error) for upstream services to include in logs.
+    - Prevent re-entrant auto-finance checks between wallet and router (reentrancy guard).
+
+    The router is intentionally defensive: routing failures raise clearly worded RuntimeError
+    so callers can take explicit remediation actions rather than silently continuing.
+    """
+    def __init__(self):
+        self.brokers: Dict[str, BaseBroker] = {}
+        # Reentrancy guard to prevent recursive auto-finance checks between router and wallet
+        self._auto_finance_running: bool = False
+        self._last_error = None  # Store last error for propagation
+        self._init_brokers()
+
+    def reload(self):
+        """
+         HOT-RELOAD: Re-reads keys and re-initializes brokers.
+        """
+        logger.info("[ROUTER] 🔄 RELOADING BROKER CONNECTIONS...")
+        # Close existing
+        for name, broker in self.brokers.items():
+            try:
+                # We can't await in sync method, but reload is likely called from async context.
+                # However, OmniRouter is often used in sync/async mix.
+                # Ideally, reload should be async.
+                pass 
+            except: pass
+        
+        self.brokers = {}
+        self._init_brokers()
+        logger.info("[ROUTER] ✅ RELOAD COMPLETE.")
+
+    def _init_brokers(self):
+        settings = get_settings()
+        from backend.services.keychain import get_keychain
+        kc = get_keychain()
+        
+        # 1. Initialize Binance (Crypto)
+        # Use testnet keys if BINANCE_TESTNET is enabled, otherwise use live keys
+        if settings.BINANCE_TESTNET:
+            # Use testnet keys if available, fallback to regular keys
+            binance_keys = kc.get_keys('binance_testnet') or kc.get_keys('BINANCE_TESTNET')
+            api_key = binance_keys.get('api_key') if binance_keys else settings.BINANCE_TESTNET_API_KEY or settings.BINANCE_API_KEY
+            secret_key = binance_keys.get('secret_key') if binance_keys else settings.BINANCE_TESTNET_SECRET_KEY or settings.BINANCE_SECRET_KEY
+        else:
+            # Use live keys
+            binance_keys = kc.get_keys('binance') or kc.get_keys('BINANCE')
+            api_key = binance_keys.get('api_key') if binance_keys else settings.BINANCE_API_KEY
+            secret_key = binance_keys.get('secret_key') if binance_keys else settings.BINANCE_SECRET_KEY
+        
+        # UNLOCK SECRETS (Fix for -2008 Error)
+        if hasattr(api_key, 'get_secret_value'):
+            api_key = api_key.get_secret_value()
+        if hasattr(secret_key, 'get_secret_value'):
+            secret_key = secret_key.get_secret_value()
+        
+        if api_key and secret_key:
+            # --- PHASE 14: THE BIFROST (Twin Engines) ---
+            # Try to start BOTH Spot and Futures engines
+            
+            # Engine 1: SPOT
+            try:
+                self.brokers['binance_spot'] = BinanceBroker(api_key, secret_key, auto_detect=False, force_mode='spot')
+                logger.info("[ROUTER] 🟢 Binance Spot Engine: ONLINE")
+            except Exception as e:
+                logger.warning(f"[ROUTER] 🟡 Binance Spot Init Failed: {e}")
+
+            # Engine 2: FUTURES
+            # Only start if NOT in strict SPOT mode (to avoid -2015 errors in restricted regions)
+            if settings.TRADING_MODE.upper() != "SPOT":
+                try:
+                    self.brokers['binance_future'] = BinanceBroker(api_key, secret_key, auto_detect=False, force_mode='future')
+                    logger.info("[ROUTER] 🟣 Binance Futures Engine: ONLINE")
+                except Exception as e:
+                    logger.warning(f"[ROUTER] 🟡 Binance Futures Init Failed: {e}")
+            else:
+                logger.info("[ROUTER] ⚪ Futures Engine Disabled (SPOT Mode Active).")
+
+            # Set Primary Alias 'binance' to Spot (Default) or Futures (Fallback)
+            if 'binance_spot' in self.brokers:
+                self.brokers['binance'] = self.brokers['binance_spot']
+            elif 'binance_future' in self.brokers:
+                self.brokers['binance'] = self.brokers['binance_future']
+            else:
+                logger.error("[ROUTER] 🔴 CRITICAL: Could not start ANY Binance Engine.")
+        
+        # 2. Initialize Alpaca (Stocks)
+        alpaca_keys = kc.get_keys('alpaca') or kc.get_keys('ALPACA')
+        # Try keychain first, then settings, then .env via settings
+        alpaca_key = None
+        alpaca_secret = None
+        
+        if alpaca_keys:
+            alpaca_key = alpaca_keys.get('api_key')
+            alpaca_secret = alpaca_keys.get('secret_key')
+        else:
+            # Get from settings (which loads from .env)
+            alpaca_key = getattr(settings, 'ALPACA_API_KEY', None)
+            alpaca_secret = getattr(settings, 'ALPACA_SECRET_KEY', None)
+            # Unwrap SecretStr if needed
+            if hasattr(alpaca_key, 'get_secret_value'):
+                alpaca_key = alpaca_key.get_secret_value()
+            if hasattr(alpaca_secret, 'get_secret_value'):
+                alpaca_secret = alpaca_secret.get_secret_value()
+        
+        if alpaca_key and alpaca_secret:
+            try:
+                self.brokers['alpaca'] = AlpacaBroker(alpaca_key, alpaca_secret)
+                logger.info("[ROUTER] Alpaca Uplink Established.")
+            except Exception as e:
+                logger.error(f"[ROUTER] Alpaca Init Failed: {e}")
+        else:
+            logger.warning("[ROUTER] No Alpaca Keys found. Stock trading disabled.")
+
+        # 3. Initialize Hyperliquid (DeFi)
+        # Check settings or env for key
+        hl_key = getattr(settings, "HYPERLIQUID_PRIVATE_KEY", None)
+        if not hl_key:
+            import os
+            hl_key = os.getenv("HYPERLIQUID_PRIVATE_KEY")
+            
+        # Initialize if mode fits OR explicit key provided
+        is_defi_mode = settings.TRADING_MODE.upper() in ["DEFI", "HYPERLIQUID"]
+        
+        if hl_key:
+            try:
+                self.brokers['hyperliquid'] = HyperliquidBroker(hl_key)
+                logger.info("[ROUTER] ⚡ Hyperliquid Bridge: ONLINE")
+            except Exception as e:
+                logger.error(f"[ROUTER] Hyperliquid Init Failed: {e}")
+        elif is_defi_mode:
+            logger.error("[ROUTER] ❌ DEFI Mode enabled but HYPERLIQUID_PRIVATE_KEY missing.")
+
+    def _route(self, symbol: str) -> Optional[BaseBroker]:
+        """
+        Determines the correct broker for a given symbol.
+        """
+        # Heuristic 1: Explicit Futures Suffix (e.g., BTC/USDT:USDT)
+        if ':' in symbol:
+            return self.brokers.get('binance_future')
+            
+        # Heuristic 1b: Hyperliquid Suffix (-PERP) or DeFi Mode override
+        if symbol.endswith("-PERP") or self.brokers.get('hyperliquid'):
+            # If we have Hyperliquid, we prefer it for generic crypto execution if in DEFI mode
+            # But let's be specific: -PERP forces it.
+            if symbol.endswith("-PERP") or symbol.endswith("-SPOT"):
+                return self.brokers.get('hyperliquid')
+            
+            # If TRADING_MODE is DEFI, route generic crypto to Hyperliquid
+            settings = get_settings()
+            if settings.TRADING_MODE.upper() in ["DEFI", "HYPERLIQUID"]:
+                # Broad Crypto Match for Hyperliquid
+                # This catches BTCUSDC, ETHUSDC, SOLUSDC, etc.
+                if symbol.endswith(("USDC", "USDT", "BUSD", "BTC", "ETH", "EUR")):
+                     return self.brokers.get('hyperliquid')
+                
+                # Tighten catch-all: Only alphabetic symbols that are NOT likely stocks
+                # Stocks like AAPL, MSFT, COIN, MSTR are alphabetic <= 5 chars.
+                if len(symbol) <= 5 and symbol.isalpha():
+                     # Exclude known stock tickers and indices
+                     STOCKS = ["AAPL", "MSFT", "COIN", "MSTR", "NVDA", "TSLA", "AMD", "META", "AMZN", "NFLX", "SMCI", "GOOGL", "ARKK", "BITO"]
+                     if symbol in STOCKS or symbol.startswith('^'):
+                         return self.brokers.get('alpaca')
+                     return self.brokers.get('hyperliquid')
+
+        # Heuristic 2: Crypto usually ends in USDT, BUSD, USDC, BTC, ETH, EUR
+        # Note: Binance supports EUR pairs (BTCEUR, ETHEUR, etc.) on spot
+        if symbol.endswith("USDC") or symbol.endswith("USDT") or symbol.endswith("BUSD") or symbol.endswith("BTC") or symbol.endswith("EUR"):
+            # Default to Spot if available, else Futures (Smart Fallback)
+            return self.brokers.get('binance_spot') or self.brokers.get('binance_future')
+            
+        # Heuristic 3: Stocks are usually 1-4 chars, or Indices (^)
+        # Fallback to Alpaca
+        return self.brokers.get('alpaca')
+
+    async def get_balance(self, asset: str) -> float:
+        """
+        Get balance. If asset='USD', checks Alpaca. 'USDT', checks Binance (Total).
+        """
+        if asset == 'USDC':
+            # Sum of Spot and Futures USDC
+            spot = await self.brokers['binance_spot'].get_balance(asset) if 'binance_spot' in self.brokers else 0.0
+            future = await self.brokers['binance_future'].get_balance(asset) if 'binance_future' in self.brokers else 0.0
+            hl = await self.brokers['hyperliquid'].get_balance(asset) if 'hyperliquid' in self.brokers else 0.0
+            return spot + future + hl
+            
+        elif asset == 'USD':
+            broker = self.brokers.get('alpaca')
+            alpaca_bal = await broker.get_balance(asset) if broker else 0.0
+            # Hyperliquid treats USD/USDC fungibly mostly, but we track equity in USDC
+            return alpaca_bal
+        return 0.0
+
+    async def get_total_equity(self) -> float:
+        """
+        Aggregates Total Equity in USD/USDT.
+        """
+        total = 0.0
+        # Binance Spot
+        if 'binance_spot' in self.brokers:
+            total += await self.brokers['binance_spot'].get_balance('USDC')
+        # Binance Future (Only add if distinct wallet, usually Futures wallet is separate)
+        if 'binance_future' in self.brokers:
+             total += await self.brokers['binance_future'].get_balance('USDC')
+             
+        if 'alpaca' in self.brokers:
+            total += await self.brokers['alpaca'].get_balance('USD')
+            
+        # Hyperliquid
+        if 'hyperliquid' in self.brokers:
+             total += await self.brokers['hyperliquid'].get_balance('USDC')
+             
+        return total
+
+    async def get_funding_rate(self, symbol: str) -> float:
+        """
+        Get funding rate for a symbol.
+        """
+        broker = self._route(symbol)
+        if broker and hasattr(broker, 'get_funding_rate'):
+            return await broker.get_funding_rate(symbol)
+        return 0.0
+
+    async def get_position(self, symbol: str) -> Optional[float]:
+        broker = self._route(symbol)
+        if broker:
+            return await broker.get_position(symbol)
+        return None # Return None to signal "Unknown/No Route" rather than flat.
+
+    async def get_all_positions(self) -> list:
+        """
+        Aggregate all open positions across ALL brokers.
+        Returns unified list of dicts.
+        """
+        all_positions = []
+        for name, broker in self.brokers.items():
+            if hasattr(broker, 'get_all_positions'):
+                try:
+                    positions = await broker.get_all_positions()
+                    if positions:
+                        # decorate with source broker name if useful, or just extend
+                        for p in positions:
+                            p['broker'] = name
+                        all_positions.extend(positions)
+                except Exception as e:
+                    logger.warning(f"[ROUTER] Failed to get positions from {name}: {e}")
+        return all_positions
+
+    async def place_order(self, symbol: str, side: str, order_type: str, quantity: float, price: float = None, params: Dict = {}) -> Any:
+        broker = self._route(symbol)
+        if not broker:
+            msg = f"No route for {symbol} (missing broker or API keys)"
+            self._last_error = msg
+            logger.error(f"[ROUTER] {msg}")
+            # Fail-fast: raise so callers can handle routing failures instead of assuming orders succeeded.
+            raise RuntimeError(msg)
+        
+        # Check if we need auto-financing before placing order (non-invasive snapshot)
+        try:
+            from backend.services.wallet import get_wallet
+            wallet = get_wallet()
+
+            # Prevent re-entrant auto-finance checks that can cause recursion between wallet and router.
+            if getattr(self, "_auto_finance_running", False):
+                logger.debug("[ROUTER] Auto-finance check already running; skipping to avoid recursion.")
+            else:
+                self._auto_finance_running = True
+                try:
+                    # Use a read-only snapshot to decide whether to warn/log about low balances.
+                    snap = wallet.get_snapshot()
+                    target_key = None
+                    if 'binance_spot' in self.brokers and broker == self.brokers['binance_spot']:
+                        target_key = 'binance_spot'
+                    elif 'binance_future' in self.brokers and broker == self.brokers['binance_future']:
+                        target_key = 'binance_future'
+                    elif 'alpaca' in self.brokers and broker == self.brokers['alpaca']:
+                        target_key = 'alpaca'
+
+                    if target_key:
+                        wallets = snap.get('wallets', {})
+                        tw = wallets.get(target_key, {})
+                        base_bal = None
+                        if tw:
+                            balances = tw.get('balances', {})
+                            # Check common stablecoins / fiat keys for a best-effort available balance
+                            for coin in ('USDC', 'USDT', 'USD', 'EUR', 'BUSD'):
+                                if coin in balances:
+                                    val = balances[coin]
+                                    # Support both dict shapes and simple numeric shapes
+                                    if isinstance(val, dict):
+                                        base_bal = val.get('free')
+                                    else:
+                                        try:
+                                            base_bal = float(val)
+                                        except Exception:
+                                            base_bal = None
+                                    break
+                        logger.debug(f"[ROUTER] Pre-order snapshot for {target_key}: base_free={base_bal}")
+                finally:
+                    self._auto_finance_running = False
+        except Exception as e:
+            logger.warning(f"[ROUTER] Auto-finance check failed: {e}")
+        
+        try:
+            result = await broker.place_order(symbol, side, order_type, quantity, price, params)
+            # If order failed (returned None), capture broker error if available
+            if result is None and hasattr(broker, '_last_error') and broker._last_error:
+                self._last_error = broker._last_error
+            return result
+        except Exception as e:
+            self._last_error = str(e)
+            raise
+
+    async def cancel_all_orders(self, symbol: str) -> bool:
+        broker = self._route(symbol)
+        if broker:
+            return await broker.cancel_all_orders(symbol)
+        return False
+
+    async def close(self):
+        for name, broker in self.brokers.items():
+            await broker.close()
+
+    async def get_telemetry_snapshot(self) -> Dict[str, Any]:
+        """
+        Returns a snapshot of real balances for UI telemetry.
+        Structure matches OmniWallet.wallets keys (binance_spot, binance_future, alpaca).
+        """
+        snapshot = {}
+        # Binance Spot
+        if 'binance_spot' in self.brokers:
+            # Full Asset List (EUR, BTC, etc.)
+            snapshot['binance_spot'] = await self.brokers['binance_spot'].get_all_balances()
+            
+        # Binance Futures
+        if 'binance_future' in self.brokers:
+            # Full Asset List (USDT, BNB, etc.)
+            snapshot['binance_future'] = await self.brokers['binance_future'].get_all_balances()
+            
+        # Alpaca
+        if 'alpaca' in self.brokers:
+             usd_bal = await self.brokers['alpaca'].get_balance('USD')
+             snapshot['alpaca'] = {'USD': {'free': usd_bal, 'locked': 0.0}}
+             
+        return snapshot
+
+_omni_router = None
+
+def get_omni_router():
+    global _omni_router
+    if _omni_router is None:
+        _omni_router = OmniRouter()
+    return _omni_router

@@ -1,5 +1,5 @@
 <template>
-  <div class="chronosphere-node">
+  <div class="chronosphere-node glass-panel">
     <div class="time-rings" :class="{ spinning: isExtrapolating }">
       <div class="ring r1"></div>
       <div class="ring r2"></div>
@@ -87,16 +87,19 @@ async function extrapolate() {
 
 <style scoped>
 .chronosphere-node {
-  background: rgba(10, 15, 25, 0.95);
-  border: 1px solid rgba(255, 215, 0, 0.4);
-  border-radius: 50% 50% 10px 10px;
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  border-radius: 50% 50% 12px 12px;
   width: 320px;
   color: #fff;
   font-family: 'Inter', sans-serif;
-  box-shadow: 0 0 40px rgba(255, 215, 0, 0.1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(255, 215, 0, 0.1);
   position: relative;
   overflow: hidden;
   padding-top: 40px;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .time-rings {
@@ -144,11 +147,11 @@ async function extrapolate() {
 .dial-value { font-size: 14px; font-weight: 900; color: #fff; width: 80px; text-align: right; }
 
 .extrapolate-btn {
-  width: 100%; margin-top: 16px; background: transparent; border: 1px solid #ffd700; color: #ffd700;
-  padding: 10px; border-radius: 4px; font-weight: bold; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 2px;
+  width: 100%; margin-top: 16px; background: rgba(255, 215, 0, 0.1); border: 1px solid rgba(255, 215, 0, 0.4); color: #ffd700;
+  padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 2px;
 }
-.extrapolate-btn:hover:not(:disabled) { background: rgba(255, 215, 0, 0.2); box-shadow: 0 0 20px rgba(255, 215, 0, 0.4); }
-.extrapolate-btn:disabled { opacity: 0.5; border-color: #666; color: #888; }
+.extrapolate-btn:hover:not(:disabled) { background: rgba(255, 215, 0, 0.2); box-shadow: 0 0 15px rgba(255, 215, 0, 0.4); transform: translateY(-1px); }
+.extrapolate-btn:disabled { opacity: 0.5; border-color: #666; color: #888; cursor: wait; }
 
 .prediction-box { margin-top: 16px; background: rgba(0, 212, 255, 0.1); border-top: 2px solid #00d4ff; padding: 12px; animation: fadeIn 0.5s; }
 .pred-header { font-size: 10px; color: #00d4ff; margin-bottom: 6px; font-weight: bold; letter-spacing: 1px; }

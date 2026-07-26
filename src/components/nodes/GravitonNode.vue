@@ -1,5 +1,5 @@
 <template>
-  <div class="graviton-node">
+  <div class="graviton-node glass-panel">
     <div class="gravity-waves" :class="{ active: isPulling }">
       <div class="wave w1"></div>
       <div class="wave w2"></div>
@@ -63,16 +63,19 @@ async function pullConcepts() {
 
 <style scoped>
 .graviton-node {
-  background: rgba(10, 0, 20, 0.95);
-  border: 1px solid rgba(138, 43, 226, 0.5);
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(138, 43, 226, 0.3);
   border-radius: 50% 50% 12px 12px;
   width: 280px;
   color: #fff;
   font-family: 'Inter', sans-serif;
-  box-shadow: 0 0 30px rgba(138, 43, 226, 0.2);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(138, 43, 226, 0.1);
   position: relative;
   overflow: hidden;
   padding-top: 20px;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .gravity-waves {
@@ -137,12 +140,12 @@ async function pullConcepts() {
 
 .controls { margin-top: 16px; }
 .pull-btn {
-  width: 100%; background: rgba(138, 43, 226, 0.2); border: 1px solid #8a2be2; color: #d4a5ff;
-  padding: 10px; border-radius: 4px; font-weight: bold; cursor: pointer; transition: all 0.2s;
+  width: 100%; background: rgba(138, 43, 226, 0.1); border: 1px solid rgba(138, 43, 226, 0.5); color: #d4a5ff;
+  padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: all 0.3s;
   text-transform: uppercase; letter-spacing: 1px;
 }
-.pull-btn:hover:not(:disabled) { background: #8a2be2; color: #fff; box-shadow: 0 0 15px #8a2be2; }
-.pull-btn:disabled { opacity: 0.5; }
+.pull-btn:hover:not(:disabled) { background: rgba(138, 43, 226, 0.2); color: #fff; box-shadow: 0 0 15px rgba(138, 43, 226, 0.4); transform: translateY(-1px); }
+.pull-btn:disabled { opacity: 0.5; border-color: #555; color: #888; }
 
 .pulled-nodes { margin-top: 16px; border-top: 1px dashed rgba(138, 43, 226, 0.3); padding-top: 12px; }
 .pulled-title { font-size: 10px; color: #888; margin-bottom: 8px; text-transform: uppercase; }

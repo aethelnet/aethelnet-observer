@@ -14,7 +14,7 @@ export function forceLennardJones() {
   
   function force(alpha: number) {
     const epsilon = 0.5 // Depth of the potential well
-    const sigma = 50.0  // Distance at which intermolecular potential is zero
+    const sigma = 350.0  // Distance at which intermolecular potential is zero (MASSIVELY increased for clean UI breathing room)
     
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
