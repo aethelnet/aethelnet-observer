@@ -52,6 +52,13 @@
            <div>[ {{ (Math.random()).toFixed(2) }} ]</div>
            <div>[ {{ (Math.random()).toFixed(2) }} ]</div>
         </div>
+        <div style="margin-top: 10px; margin-bottom: 10px;">
+          <strong>TACTICAL LLM SYNTHESIS:</strong>
+          <input type="text" v-model="llmPrompt" placeholder="Prompt (e.g. Momentum strat...)" style="width: 100%; background: transparent; color: #fff; border: 1px solid #555; padding: 4px; font-family: inherit; margin-top: 5px; margin-bottom: 5px;" />
+          <button @click="synthesizeStrategy" class="brutal-btn-small" style="width: 100%; border-color: #00aaff; color: #00aaff;" :disabled="isSynthesizing">
+            {{ isSynthesizing ? 'SYNTHESIZING...' : 'SYNTHESIZE STRATEGY' }}
+          </button>
+        </div>
         <button v-if="focusedNodeId !== 'local_compute'" @click="decommissionNode" class="brutal-btn" style="margin-bottom: 10px; background: transparent; border-color: #E03C31; color: #E03C31;">[ DECOMMISSION NODE ]</button>
         <button v-else disabled class="brutal-btn" style="margin-bottom: 10px; background: transparent; border-color: #555; color: #555; cursor: not-allowed;">[ CORE NODE: PROTECTED ]</button>
         <button @click="focusedNodeId = null" class="brutal-btn">CLOSE SUBGRAPH</button>
@@ -130,6 +137,8 @@ const injectChaos = () => {
 
 const peers = ref<Peer[]>([])
 const draftSpecialization = ref("")
+const llmPrompt = ref("")
+const isSynthesizing = ref(false)
 
 const focusedNode = computed(() => peers.value.find(p => p.id === focusedNodeId.value))
 
@@ -185,6 +194,31 @@ async function saveSpecialization() {
     }
   } catch(e) {
     console.error("Failed to set specialization:", e);
+  }
+}
+
+async function synthesizeStrategy() {
+  if (!focusedNodeId.value || !llmPrompt.value) return;
+  const nodeId = focusedNodeId.value;
+  isSynthesizing.value = true;
+  try {
+    const baseUrl = 'http://127.0.0.1:8000';
+    const res = await fetch(`${baseUrl}/api/llm/synthesize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: llmPrompt.value, node_id: nodeId })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      console.log("[LLM] Synthesis complete:", data.code);
+      llmPrompt.value = '';
+      godModeMessage.value = `Strategy Synthesized for node ${nodeId}!`;
+      setTimeout(() => godModeMessage.value = "", 4000);
+    }
+  } catch(e) {
+    console.error("[LLM] Request error:", e);
+  } finally {
+    isSynthesizing.value = false;
   }
 }
 
