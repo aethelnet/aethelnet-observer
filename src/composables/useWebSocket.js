@@ -38,7 +38,7 @@ const getWsUrl = () => {
                 urlObj.pathname = '/ws/stream';
                 targetUrl = urlObj.toString();
             } catch (e) {
-                targetUrl = 'ws://127.0.0.1:8000/ws/stream';
+                targetUrl = 'ws://130.61.202.29:8000/ws/stream';
             }
             return targetUrl;
         }
@@ -53,7 +53,7 @@ const getWsUrl = () => {
             return `${wsProtocol}//${host}/ws/stream`;
         }
     }
-    return 'ws://127.0.0.1:8000/ws/stream';
+    return 'ws://130.61.202.29:8000/ws/stream';
 };
 
 const WS_URL = getWsUrl();
