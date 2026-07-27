@@ -34,28 +34,71 @@
         <p class="text-body">{{ node.text_content || 'No textual payload detected in this tensor.' }}</p>
       </div>
       
+      <div class="text-content">
+        <div class="label">TACTICAL LLM SYNTHESIS:</div>
+        <input 
+          type="text" 
+          v-model="llmPrompt" 
+          placeholder="e.g. Generate a Momentum strategy..." 
+          style="width: 100%; background: transparent; border: 1px solid #555; color: #fff; padding: 5px; font-family: inherit; margin-bottom: 10px;"
+        />
+        <button class="action-btn highlight" style="width: 100%; border-color: #00aaff; color: #00aaff;" @click="synthesizeStrategy" :disabled="isSynthesizing">
+          {{ isSynthesizing ? 'SYNTHESIZING...' : 'SYNTHESIZE STRATEGY' }}
+        </button>
+      </div>
+
       <div class="footer-actions">
         <button class="action-btn" @click="$emit('quarantine', node.id)">QUARANTINE</button>
         <button class="action-btn highlight" @click="$emit('resonate', node.id)">FORCE RESONANCE</button>
       </div>
     </div>
   </div>
-</template>
-
 <script setup>
-defineProps({
+import { ref } from 'vue'
+
+const props = defineProps({
   node: {
     type: Object,
     default: null
   }
 })
 
-defineEmits(['close', 'quarantine', 'resonate'])
+const emit = defineEmits(['close', 'quarantine', 'resonate', 'synthesis-success'])
+
+const llmPrompt = ref('')
+const isSynthesizing = ref(false)
 
 const getConfidenceColor = (val) => {
   if (val > 0.8) return '#00ffcc';
   if (val > 0.5) return '#ffaa00';
   return '#ff3366';
+}
+
+const synthesizeStrategy = async () => {
+  if (!llmPrompt.value || !props.node) return;
+  isSynthesizing.value = true;
+  
+  try {
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://130.61.202.29:8000';
+    const res = await fetch(`${baseUrl}/api/llm/synthesize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: llmPrompt.value, node_id: props.node.id })
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      console.log("[LLM] Synthesis complete:", data.code);
+      llmPrompt.value = '';
+      emit('synthesis-success', data);
+    } else {
+      console.error("[LLM] Synthesis failed:", await res.text());
+    }
+  } catch (err) {
+    console.error("[LLM] Request error:", err);
+  } finally {
+    isSynthesizing.value = false;
+  }
 }
 </script>
 

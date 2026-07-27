@@ -147,7 +147,7 @@ let myNodeId: string = "";
 
 async function spawnCloudWorker() {
   try {
-    const res = await fetch(`http://127.0.0.1:8000/ws/swarm/spawn`, { method: 'POST' });
+    const res = await fetch(`http://130.61.202.29:8000/ws/swarm/spawn`, { method: 'POST' });
     if (res.ok) {
       console.log("Cloud Worker Spawned!");
     }
@@ -160,7 +160,7 @@ async function decommissionNode() {
   if (!focusedNodeId.value) return;
   const nodeId = focusedNodeId.value;
   try {
-    const res = await fetch(`http://127.0.0.1:8000/ws/swarm/kill/${nodeId}`, { method: 'DELETE' });
+    const res = await fetch(`http://130.61.202.29:8000/ws/swarm/kill/${nodeId}`, { method: 'DELETE' });
     if (res.ok) {
       console.log(`Node ${nodeId} decommissioned.`);
       focusedNodeId.value = null; // Close panel
@@ -175,7 +175,7 @@ async function saveSpecialization() {
   const nodeId = focusedNodeId.value;
   const topic = draftSpecialization.value;
   try {
-    const res = await fetch(`http://127.0.0.1:8000/ws/swarm/specialize/${nodeId}`, {
+    const res = await fetch(`http://130.61.202.29:8000/ws/swarm/specialize/${nodeId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ topic })
@@ -191,7 +191,7 @@ async function saveSpecialization() {
 function connectSwarm() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   // Fallback to local dev if no backend is specified, assuming Prime runs on 8000
-  const wsUrl = `ws://127.0.0.1:8000/ws/swarm`;
+  const wsUrl = `ws://130.61.202.29:8000/ws/swarm`;
   
   ws = new WebSocket(wsUrl);
 
