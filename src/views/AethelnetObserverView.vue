@@ -94,11 +94,13 @@
         </g>
       </g>
     </svg>
+    <CyberpunkPortfolio />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import CyberpunkPortfolio from '../components/CyberpunkPortfolio.vue'
 
 const containerRef = ref<HTMLElement | null>(null)
 const width = ref(600)
