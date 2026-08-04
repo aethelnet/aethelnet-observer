@@ -1,6 +1,6 @@
 # Aethelnet Observer (Legacy Interface)
 
-> ⚠️ **NOTICE: ARCHITECTURE SHIFT**
+> NOTICE: ARCHITECTURE SHIFT
 > 
 > This repository contains the historical grid-based MVP frontend for the Aethelnet project.
 >
@@ -10,7 +10,7 @@
 
 ---
 
-## 📜 Historical Context
+## Historical Context
 
 This repository is preserved as an open-source reference for:
 - Historical WebSocket integration patterns.
