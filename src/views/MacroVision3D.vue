@@ -21,7 +21,8 @@
       <div class="hud-stat blink">LIVE DATA STREAM</div>
       <div v-if="errorMessage" style="color: #E03C31; margin-top: 10px;">ERR: {{ errorMessage }}</div>
       <div v-if="debugInfo" style="color: #F2C12E; margin-top: 10px;">DBG: {{ debugInfo }}</div>
-      <div class="hud-stat blink" style="cursor: pointer; margin-top: 15px; color: #00FF41; border: 1px solid #00FF41; padding: 5px;" @click="injectTestNodes">[ INJECT DECODER TEST ]</div>
+      <div class="hud-stat blink" style="cursor: pointer; pointer-events: auto; margin-top: 15px; color: #00FF41; border: 1px solid #00FF41; padding: 5px;" @click="injectTestNodes">[ INJECT DECODER TEST ]</div>
+      <div class="hud-stat blink" style="cursor: pointer; pointer-events: auto; margin-top: 10px; color: #F2C12E; border: 1px solid #F2C12E; padding: 5px;" @click="toggleMode">[ TOGGLE MATRIX (PCA) ]</div>
     </div>
 
     <!-- NODE DETAILS PANEL -->
@@ -110,122 +111,137 @@ onMounted(async () => {
 
         if (!isFocused) return 'rgba(17, 17, 17, 0.1)'; // Ghosted out
         
+        if (node.node_type === 'pca_node') {
+          // Color based on height (z) to give it a 3D matrix depth effect
+          const zNorm = Math.min(1, Math.max(0, (node.fz + 100) / 200)); 
+          // From Dark Blue to Neon Cyan to Matrix Green
+          return zNorm > 0.6 ? '#00FF41' : (zNorm > 0.3 ? '#00FFFF' : '#0B3B60');
+        }
+        
         if (node.node_type === 'quarantined') return '#FF3366'; // Dead Zone (Red)
-        if (node.node_type === 'macro') return '#FF3366'; // Operator/Prism
+        if (node.node_type === 'macro') return '#F2C12E'; // Operator/Prism
         if (node.node_type === 'GitRepo') return '#111111'; // Magenta giant star
         if (node.node_type === 'GitFile') return '#555555'; // BlueViolet for files
         if (node.node_type === 'zk_proof_verified') return '#32D74B'; // Guardian Shield
-        if (node.node_type === 'bounty_node') return '#111111'; // Yellow Target
-        if (node.node_type === 'hunter_spider') return '#111111'; // Orange Hunter
+        if (node.node_type === 'bounty_node') return '#F2C12E'; // Yellow Target
+        if (node.node_type === 'hunter_spider') return '#FF4500'; // Orange Hunter
         if (node.isManual) return '#005096'; // Seed
-        return '#111111'; // Spider
+        return '#00FF41'; // Spider (vibrant green)
       })
       .nodeThreeObjectExtend(true)
       .nodeThreeObject((n: any) => {
         const node = n as any;
         const q = searchQuery.value.toLowerCase();
         
-        // Bounty Target Geometry
-        if (node.node_type === 'bounty_node') {
-            const geometry = new THREE.TorusGeometry(5, 1, 16, 100);
-            const material = new THREE.MeshBasicMaterial({ color: 0xF2C12E, wireframe: true, transparent: true, opacity: 0.9 });
-            const mesh = new THREE.Mesh(geometry, material);
-            
-            const sprite = new SpriteText("BOUNTY_TARGET");
-            sprite.color = '#F2C12E';
-            sprite.textHeight = 4;
-            sprite.position.y = 10;
-            mesh.add(sprite);
-            
-            node.__bountyMesh = mesh;
-            return mesh;
-        }
-
-        // Hunter Spider Geometry
-        if (node.node_type === 'hunter_spider') {
-            const geometry = new THREE.TetrahedronGeometry(4, 0); // Sharp pointy pyramid
-            const material = new THREE.MeshBasicMaterial({ color: 0xFF4500, wireframe: true, transparent: true, opacity: 0.9 });
-            const mesh = new THREE.Mesh(geometry, material);
-            
-            const sprite = new SpriteText("HUNTER_SPIDER");
-            sprite.color = '#FF4500';
-            sprite.textHeight = 3;
-            sprite.position.y = 8;
-            mesh.add(sprite);
-            
-            node.__hunterMesh = mesh;
-            return mesh;
-        }
-
-        // Spider Glitch Geometry
-        if (node.source_tag && String(node.source_tag).includes('Spider')) {
-            const geometry = new THREE.IcosahedronGeometry(Math.random() * 2 + 3, 0); // Spiky
-            const material = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true, transparent: true, opacity: 0.8 });
-            const mesh = new THREE.Mesh(geometry, material);
-            
-            // Add a sprite label too
-            const labelStr = String(node.source_tag).replace('_Spider', '').toUpperCase();
-            const sprite = new SpriteText("SPIDER_" + labelStr);
-            sprite.color = '#00ffff';
-            sprite.textHeight = 3;
-            sprite.position.y = 8;
-            mesh.add(sprite);
-            
-            node.__spiderMesh = mesh; // Store reference for animation
-            return mesh;
-        }
-
-        // Guardian Shield Geometry
-        if (node.node_type === 'zk_proof_verified') {
-            const geometry = new THREE.OctahedronGeometry(Math.random() * 1.5 + 4, 0);
-            const material = new THREE.MeshBasicMaterial({ color: 0x32D74B, wireframe: true, transparent: true, opacity: 0.9 });
-            const mesh = new THREE.Mesh(geometry, material);
-            
-            const sprite = new SpriteText("GUARDIAN_NODE");
-            sprite.color = '#32D74B';
-            sprite.textHeight = 4;
-            sprite.position.y = 10;
-            mesh.add(sprite);
-            
-            node.__guardianMesh = mesh;
-            return mesh;
-        }
-
-        // Quarantined Dead Zone
-        if (node.node_type === 'quarantined') {
-            const geometry = new THREE.BoxGeometry(4, 4, 4);
-            const material = new THREE.MeshBasicMaterial({ color: 0xE03C31, wireframe: false, transparent: true, opacity: 0.5 });
-            const mesh = new THREE.Mesh(geometry, material);
-            
-            const sprite = new SpriteText("QUARANTINED");
-            sprite.color = '#E03C31';
-            sprite.textHeight = 3;
-            sprite.position.y = 8;
-            mesh.add(sprite);
-            
-            return mesh;
-        }
-
-        // Show labels for GitRepos, Macros, Seeds, or if searched
         let isFocused = false;
         if (q) {
           isFocused = (node.name || '').toLowerCase().includes(q) || (node.text_content || '').toLowerCase().includes(q);
         }
-
         const shouldShowLabel = isFocused || node.node_type === 'GitRepo' || node.node_type === 'macro' || node.isManual;
-        
+        let sprite = null;
         if (shouldShowLabel) {
-          const sprite = new SpriteText(node.name || node.id);
+          sprite = new SpriteText(node.name || node.id);
           sprite.color = '#111111';
           sprite.textHeight = node.node_type === 'GitRepo' ? 12 : 4;
           sprite.backgroundColor = 'rgba(255, 255, 255, 0.9)';
           sprite.padding = 2;
           sprite.borderRadius = 0;
-          // Offset above the sphere so they don't overlap completely
           sprite.position.y = node.node_type === 'GitRepo' ? 30 : 10;
-          return sprite;
         }
-        return null;
+
+        let mesh = null;
+
+        // PCA Node (Matrix Glow)
+        if (node.node_type === 'pca_node') {
+            const geometry = new THREE.IcosahedronGeometry(Math.random() * 2 + 2, 0);
+            const zNorm = Math.min(1, Math.max(0, (node.fz + 100) / 200)); 
+            const colorHex = zNorm > 0.6 ? 0x00FF41 : (zNorm > 0.3 ? 0x00FFFF : 0x0B3B60);
+            const material = new THREE.MeshBasicMaterial({ color: colorHex, wireframe: true, transparent: true, opacity: 0.9 });
+            mesh = new THREE.Mesh(geometry, material);
+            node.__pcaMesh = mesh;
+        }
+        // Bounty Target Geometry
+        else if (node.node_type === 'bounty_node') {
+            const geometry = new THREE.TorusGeometry(5, 1, 16, 100);
+            const material = new THREE.MeshBasicMaterial({ color: 0xF2C12E, wireframe: true, transparent: true, opacity: 0.9 });
+            mesh = new THREE.Mesh(geometry, material);
+            
+            const s = new SpriteText("BOUNTY_TARGET");
+            s.color = '#F2C12E'; s.textHeight = 4; s.position.y = 10;
+            mesh.add(s);
+            node.__bountyMesh = mesh;
+        }
+        // Hunter Spider Geometry
+        else if (node.node_type === 'hunter_spider') {
+            const geometry = new THREE.TetrahedronGeometry(4, 0); // Sharp pointy pyramid
+            const material = new THREE.MeshBasicMaterial({ color: 0xFF4500, wireframe: true, transparent: true, opacity: 0.9 });
+            mesh = new THREE.Mesh(geometry, material);
+            
+            const s = new SpriteText("HUNTER_SPIDER");
+            s.color = '#FF4500'; s.textHeight = 3; s.position.y = 8;
+            mesh.add(s);
+            node.__hunterMesh = mesh;
+        }
+        // Spider Glitch Geometry
+        else if (node.source_tag && String(node.source_tag).includes('Spider')) {
+            const geometry = new THREE.IcosahedronGeometry(Math.random() * 2 + 3, 0); // Spiky
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true, transparent: true, opacity: 0.8 });
+            mesh = new THREE.Mesh(geometry, material);
+            
+            const labelStr = String(node.source_tag).replace('_Spider', '').toUpperCase();
+            const s = new SpriteText("SPIDER_" + labelStr);
+            s.color = '#00ffff'; s.textHeight = 3; s.position.y = 8;
+            mesh.add(s);
+            node.__spiderMesh = mesh; // Store reference for animation
+        }
+        // Guardian Shield Geometry
+        else if (node.node_type === 'zk_proof_verified') {
+            const geometry = new THREE.OctahedronGeometry(Math.random() * 1.5 + 4, 0);
+            const material = new THREE.MeshBasicMaterial({ color: 0x32D74B, wireframe: true, transparent: true, opacity: 0.9 });
+            mesh = new THREE.Mesh(geometry, material);
+            
+            const s = new SpriteText("GUARDIAN_NODE");
+            s.color = '#32D74B'; s.textHeight = 4; s.position.y = 10;
+            mesh.add(s);
+            node.__guardianMesh = mesh;
+        }
+        // Quarantined Dead Zone
+        else if (node.node_type === 'quarantined') {
+            const geometry = new THREE.BoxGeometry(4, 4, 4);
+            const material = new THREE.MeshBasicMaterial({ color: 0xE03C31, wireframe: false, transparent: true, opacity: 0.5 });
+            mesh = new THREE.Mesh(geometry, material);
+            
+            const s = new SpriteText("QUARANTINED");
+            s.color = '#E03C31'; s.textHeight = 3; s.position.y = 8;
+            mesh.add(s);
+        }
+        // Axiom Anchor (Shielded from Liquid Mutations)
+        else if (node.is_shielded) {
+            const geometry = new THREE.DodecahedronGeometry(6, 0);
+            const material = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, wireframe: true, transparent: true, opacity: 0.9 });
+            mesh = new THREE.Mesh(geometry, material);
+            
+            const s = new SpriteText("AXIOM ANCHOR");
+            s.color = '#FFFFFF'; s.textHeight = 4; s.position.y = 10;
+            mesh.add(s);
+            node.__axiomMesh = mesh;
+        }
+        // Default Nodes (Matrix Style Wireframe Spheres)
+        else {
+            const size = (node.confidence || 0.5) * 5;
+            const geometry = new THREE.IcosahedronGeometry(size, 1);
+            let colorHex = 0x00FF41; // Default green
+            if (node.node_type === 'macro') colorHex = 0xF2C12E;
+            if (node.isManual) colorHex = 0x005096;
+            const material = new THREE.MeshBasicMaterial({ color: colorHex, wireframe: true, transparent: true, opacity: 0.6 });
+            mesh = new THREE.Mesh(geometry, material);
+            node.__defaultMesh = mesh;
+        }
+
+        if (sprite) {
+            mesh.add(sprite);
+        }
+        return mesh;
       })
       .nodeRelSize(4)
       .linkWidth((d: any) => {
@@ -240,6 +256,10 @@ onMounted(async () => {
         // Sever links from/to quarantined nodes
         if (link.source.node_type === 'quarantined' || link.target.node_type === 'quarantined') {
            return 'rgba(255, 51, 102, 0.3)'; // Severed toxic links (faint red)
+        }
+        
+        if (link.source.node_type === 'pca_node' || link.target.node_type === 'pca_node' || (link.source.id && link.source.id.startsWith('neuron_'))) {
+           return 'rgba(0, 255, 65, 0.2)'; // Matrix Green links
         }
         
         return 'rgba(17, 17, 17, 0.2)'; // Dark links
@@ -258,7 +278,12 @@ onMounted(async () => {
         );
       });
       
-      // 🌌 1. REMOVED BLOOM EFFECTS FOR BRUTALISM
+      // 🌌 1. RESTORED BLOOM EFFECTS FOR MATRIX CYBERPUNK FEEL
+      const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+      bloomPass.threshold = 0.1;
+      bloomPass.strength = 1.2;
+      bloomPass.radius = 0.5;
+      graph.postProcessingComposer().addPass(bloomPass);
 
       // 🌌 2. BLACK HOLE GRAVITY LOGIC
       // Pull all nodes gently towards the center [0,0,0], but let them repel each other strongly
@@ -317,9 +342,7 @@ onMounted(async () => {
             }
             
             if (n.__guardianMesh) {
-                // Steady scan rotation
                 n.__guardianMesh.rotation.y += 0.02;
-                // Shield pulse
                 const scale = 1 + Math.sin(Date.now() * 0.005) * 0.05;
                 n.__guardianMesh.scale.set(scale, scale, scale);
             }
@@ -333,6 +356,16 @@ onMounted(async () => {
             if (n.__hunterMesh) {
                 n.__hunterMesh.rotation.x += 0.3;
                 n.__hunterMesh.rotation.y += 0.3;
+            }
+
+            if (n.__pcaMesh) {
+                n.__pcaMesh.rotation.x += 0.01;
+                n.__pcaMesh.rotation.y += 0.02;
+            }
+
+            if (n.__defaultMesh) {
+                n.__defaultMesh.rotation.x += 0.005;
+                n.__defaultMesh.rotation.y += 0.01;
             }
          });
       }
@@ -409,9 +442,20 @@ function nukeSelected() {
   }
 }
 
+const mode = ref('graph') // 'graph' or 'pca'
+
+function toggleMode() {
+    mode.value = mode.value === 'graph' ? 'pca' : 'graph'
+    if (mode.value === 'pca' && graph) {
+        // Clear links for pure point cloud
+        graph.graphData({ nodes: [], links: [] })
+    }
+    fetchData()
+}
+
 async function fetchData() {
   try {
-    const url = API_BASE ? `${API_BASE}/lgnn/graph` : '/api/lgnn/graph'
+    const url = API_BASE ? (mode.value === 'pca' ? `${API_BASE}/lgnn/pca` : `${API_BASE}/lgnn/graph`) : (mode.value === 'pca' ? '/api/lgnn/pca' : '/api/lgnn/graph')
     debugInfo.value = `Fetching: ${url}`
     const res = await fetch(url)
     if (!res.ok) {
@@ -419,6 +463,68 @@ async function fetchData() {
       return
     }
     const data = await res.json()
+    
+    if (mode.value === 'pca') {
+        const points = data.points || []
+        const featureNames = ["Volatility Core", "Momentum Oscillator", "Liquidity Gravity", "Orderbook Imbalance", "Whale Tracker", "Retail Sentiment", "Mean Reversion", "Trend Following", "Statistical Arbitrage", "Fractal Dimension", "Alpha Decay", "Gamma Squeeze", "Delta Hedging"];
+        const assets = ["BTC", "ETH", "SOL", "SUI", "INJ", "LINK", "CRV"];
+        
+        const pcaNodes = points.map((p: any, index: number) => {
+            const feature = featureNames[index % featureNames.length];
+            const asset = assets[(index * 3) % assets.length];
+            return {
+                id: p.id,
+                name: `${feature} [${asset}]`,
+                label: `${feature} [${asset}]`,
+                node_type: 'pca_node',
+                text_content: `Latent dimension mapping: ${feature.toLowerCase()} for ${asset} pairings.\n\nNeural Activation: ${(Math.random() * 100).toFixed(2)}%\nTopological Resonance: ${(Math.random()).toFixed(4)}`,
+                fx: p.x * 100,
+                fy: p.y * 100,
+                fz: p.z * 100,
+                val: 1.0
+            }
+        });
+        
+        // Generate faint links between closest nodes to create a neural web effect
+        const pcaLinks = [];
+        for (let i = 0; i < pcaNodes.length; i++) {
+            let closest = -1;
+            let minDist = Infinity;
+            for (let j = 0; j < pcaNodes.length; j++) {
+                if (i === j) continue;
+                const dx = pcaNodes[i].fx - pcaNodes[j].fx;
+                const dy = pcaNodes[i].fy - pcaNodes[j].fy;
+                const dz = pcaNodes[i].fz - pcaNodes[j].fz;
+                const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closest = j;
+                }
+                // Connect if reasonably close to form clusters
+                if (dist < 40 && Math.random() > 0.8) {
+                    pcaLinks.push({
+                        source: pcaNodes[i].id,
+                        target: pcaNodes[j].id,
+                        weight: 0.2
+                    });
+                }
+            }
+            // Always connect to closest neighbor to prevent isolated islands
+            if (closest !== -1) {
+                pcaLinks.push({
+                    source: pcaNodes[i].id,
+                    target: pcaNodes[closest].id,
+                    weight: 0.5
+                });
+            }
+        }
+
+        graphData.value = { nodes: pcaNodes, links: pcaLinks }
+        if (graph) graph.graphData(graphData.value)
+        debugInfo.value = `Rendered ${pcaNodes.length} PCA points (The Matrix).`
+        return
+    }
+    
     debugInfo.value = `Got ${data?.nodes?.length || 0} nodes from backend.`
     
     if (!data || !data.nodes) {

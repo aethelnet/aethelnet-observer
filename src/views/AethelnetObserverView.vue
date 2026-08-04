@@ -94,13 +94,12 @@
         </g>
       </g>
     </svg>
-    <CyberpunkPortfolio />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
-import CyberpunkPortfolio from '../components/CyberpunkPortfolio.vue'
+import MacroVision3D from './MacroVision3D.vue'
 
 const containerRef = ref<HTMLElement | null>(null)
 const width = ref(600)
@@ -327,7 +326,7 @@ function connectSwarm() {
                  peers.value.push({
                      id: peerId,
                      name: peerId.substring(0, 15),
-                     topic: 'Z-SCORE: ' + (zScore as number).toFixed(2),
+                     topic: sub ? `[${sub}] Z: ${(zScore as number).toFixed(2)}` : `Z: ${(zScore as number).toFixed(2)}`,
                      subscription: sub,
                      angle: Math.random() * 360,
                      distance: 120 + Math.random() * 140,
@@ -335,7 +334,7 @@ function connectSwarm() {
                      syncing: false
                  });
              } else {
-                 existing.topic = 'Z-SCORE: ' + (zScore as number).toFixed(2);
+                 existing.topic = sub ? `[${sub}] Z: ${(zScore as number).toFixed(2)}` : `Z: ${(zScore as number).toFixed(2)}`;
                  existing.subscription = sub;
                  // Randomly blip to show activity
                  if (Math.random() > 0.7) {

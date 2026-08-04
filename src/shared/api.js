@@ -4,25 +4,17 @@
  */
 
 const getApiBase = () => {
+    let hostname = '127.0.0.1';
     if (typeof window !== 'undefined') {
-        let configuredBackend = localStorage.getItem('SOVEREIGN_BACKEND_URL');
-        if (configuredBackend) {
-            return configuredBackend;
-        }
+        hostname = window.location.hostname || '127.0.0.1';
+        if (hostname === 'localhost') hostname = '127.0.0.1';
         
-        const host = window.location.host; // includes port
-        if (host) {
-            if (host.includes('localhost') || host.includes('127.0.0.1')) {
-                return `http://130.61.202.29:8000/api`;
-            }
-            if (host.includes('192.168.') || host.includes('10.0.')) {
-                return `http://${window.location.hostname}:8000/api`;
-            }
-            // In production (aethelburg.network), use relative path so NGINX can proxy it
-            return '/api';
+        const override = localStorage.getItem('SOVEREIGN_BACKEND_URL');
+        if (override) {
+            return override.replace(/\/+$/, '');
         }
     }
-    return '/api';
+    return `http://${hostname}:8000/api`;
 };
 
 const API_BASE = getApiBase();
