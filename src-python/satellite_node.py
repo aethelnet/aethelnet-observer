@@ -5,11 +5,14 @@ import os
 import time
 import math
 import threading
-import websockets
 from typing import Dict
 from collections import deque
 import sys
 from dotenv import load_dotenv
+
+# Import the new Aethelnet SDK
+from aethelnet import SwarmNode
+
 sys.path.append(os.getcwd())
 load_dotenv()  # Load .env file for NEXUS_URL etc.
 
@@ -140,33 +143,23 @@ class SatelliteNode:
                 logger.error(f"Failed to init Hyperliquid broker: {e}")
 
     async def connect(self):
+        # Resolve capabilities
+        capabilities = ["butterfly", "chaos", "stats"]
+        if self.broker: capabilities.append("execution-crypto")
+        if self.alpaca: capabilities.append("execution-stocks")
+        if self.hl_broker: capabilities.append("execution-hyperliquid")
+        
+        mode = "execution" if len(capabilities) > 3 else "chaos"
+        self.swarm = SwarmNode(mode=mode, prime_url=f"{self.nexus_url}/ws/swarm")
+        
+        # Register Event Listeners
+        self.swarm.on("TICK", self.process_tick)
+        self.swarm.on("TRADE_ORDER", self.handle_trade_order)
+        self.swarm.on("PING", lambda p: asyncio.create_task(self.swarm.emit("PONG", {"ts": time.time()})))
+        
         while self.running:
             try:
-                # Resolve capabilities
-                capabilities = ["butterfly", "chaos", "stats"]
-                if self.broker: capabilities.append("execution-crypto")
-                if self.alpaca: capabilities.append("execution-stocks")
-                if self.hl_broker: capabilities.append("execution-hyperliquid")
-                
-                logger.info(f"Connecting to Nexus at {self.nexus_url}...")
-                async with websockets.connect(f"{self.nexus_url}/ws/swarm", compression=None) as ws:
-                    # Identity Handshake
-                    await ws.send(json.dumps({
-                        "type": "JOIN_SWARM",
-                        "node_id": self.node_id,
-                        "capabilities": capabilities
-                    }))
-
-                    async for message in ws:
-                        data = json.loads(message)
-                        msg_type = data.get("type")
-                        
-                        if msg_type == "TICK":
-                            await self.process_tick(ws, data["payload"])
-                        elif msg_type == "TRADE_ORDER":
-                            await self.handle_trade_order(data["payload"])
-                        elif msg_type == "PING":
-                            await ws.send(json.dumps({"type": "PONG", "ts": time.time()}))
+                await self.swarm.connect()
             except Exception as e:
                 logger.error(f"Connection lost: {e}. Retrying in 5s...")
                 await asyncio.sleep(5)
@@ -231,7 +224,7 @@ class SatelliteNode:
         except Exception as e:
             logger.error(f"[EXECUTION] ❌ FAILED: {e}")
 
-    async def process_tick(self, ws, payload):
+    async def process_tick(self, payload):
         symbol = payload["symbol"]
         price = payload["price"]
 
@@ -249,16 +242,12 @@ class SatelliteNode:
         z_score = (price - mean) / std if std > 0 else 0
 
         # Stream Intelligence Back
-        await ws.send(json.dumps({
-            "type": "INTELLIGENCE",
-            "node_id": self.node_id,
-            "payload": {
-                "symbol": symbol,
-                "chaos": chaos,
-                "z_score": z_score,
-                "ts": time.time()
-            }
-        }))
+        await self.swarm.emit("INTELLIGENCE", {
+            "symbol": symbol,
+            "chaos": chaos,
+            "z_score": z_score,
+            "ts": time.time()
+        })
 
 if __name__ == "__main__":
     # Priority: 1. NEXUS_URL 2. MASTER_URL 3. Default (Railway)
