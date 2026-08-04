@@ -22,38 +22,23 @@ import { setupWebSocketListener, setupConnectionListener, sendWebSocketMessage, 
  */
 
 const getWsUrl = () => {
+    let hostname = '127.0.0.1';
     if (typeof window !== 'undefined') {
-        let configuredBackend = localStorage.getItem('SOVEREIGN_BACKEND_URL');
-        if (configuredBackend && (configuredBackend.includes('localhost') || configuredBackend.includes('127.0.0.1'))) {
-            localStorage.removeItem('SOVEREIGN_BACKEND_URL');
-            configuredBackend = null;
-        }
+        hostname = window.location.hostname || '127.0.0.1';
+        if (hostname === 'localhost') hostname = '127.0.0.1';
         
-        let targetUrl;
-        if (configuredBackend) {
-            // Convert backend URL (e.g. http://host:8000/api) to WS url (e.g. ws://host:8000/ws/stream)
+        const override = localStorage.getItem('SOVEREIGN_BACKEND_URL');
+        if (override) {
             try {
-                const urlObj = new URL(configuredBackend);
+                const urlObj = new URL(override);
                 urlObj.protocol = urlObj.protocol === 'https:' ? 'wss:' : 'ws:';
                 urlObj.pathname = '/ws/stream';
-                targetUrl = urlObj.toString();
-            } catch (e) {
-                targetUrl = 'ws://130.61.202.29:8000/ws/stream';
-            }
-            return targetUrl;
-        }
-        
-        const host = window.location.host; // includes port
-        const protocol = window.location.protocol;
-        const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
-        
-        if (host) {
-            // Route directly to the host/port serving the application (CORS-safe).
-            // In dev mode, Vite's dev server on port 1420 will proxy this to the backend.
-            return `${wsProtocol}//${host}/ws/stream`;
+                return urlObj.toString();
+            } catch(e) {}
         }
     }
-    return 'ws://130.61.202.29:8000/ws/stream';
+    const protocol = (typeof window !== 'undefined' && window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+    return `${protocol}//${hostname}:8000/ws/stream`;
 };
 
 const WS_URL = getWsUrl();

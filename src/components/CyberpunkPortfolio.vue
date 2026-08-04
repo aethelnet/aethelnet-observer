@@ -29,7 +29,9 @@
           </div>
           <div class="metric">
             <span class="m-label">SYS_STATUS</span>
-            <span class="m-value" style="color: #0f0;">NOMINAL</span>
+            <span class="m-value" :style="{ color: chaos >= 0.7 ? '#ff003c' : (chaos < 0.3 ? '#00f3ff' : '#0f0') }">
+              {{ chaos >= 0.7 ? 'CHAOS DETECTED' : (chaos < 0.3 ? 'HIGH RESONANCE' : 'NOMINAL') }}
+            </span>
           </div>
         </div>
       </div>
@@ -61,11 +63,11 @@
             <span class="t-time">{{ formatTime(trade.timestamp) }}</span>
             <span class="t-sym">{{ trade.symbol }}</span>
             <span class="t-side">[{{ trade.side }}]</span>
-            <span class="t-price">@ {{ trade.price.toFixed(4) }}</span>
+            <span class="t-price">@ {{ trade.price != null ? Number(trade.price).toFixed(4) : 'N/A' }}</span>
             <span class="t-qty">x {{ trade.qty }}</span>
           </div>
-          <div v-if="recentTrades.length === 0" class="no-data">
-             AWAITING SIGNAL...
+          <div v-if="recentTrades.length === 0" class="no-data" :style="{ color: chaos >= 0.7 ? '#ff003c' : (chaos < 0.3 ? '#00f3ff' : '') }">
+             {{ chaos >= 0.7 ? 'SANCTUARY MODE ACTIVE (CAPITAL SHIELD)' : (chaos < 0.3 ? 'AGGRESSIVE TRADING ENGAGED...' : 'AWAITING SIGNAL...') }}
           </div>
         </div>
       </div>
@@ -76,6 +78,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+
+const props = defineProps({
+  chaos: { type: Number, default: 0.5 },
+  tau: { type: Number, default: 1.0 }
+})
 
 const isConnected = ref(false)
 const globalEquity = ref(0.0)
@@ -102,7 +109,8 @@ const connectStream = () => {
 
   ws.onopen = () => {
     // Send Auth Handshake
-    ws?.send(JSON.stringify({ type: "AUTH", token: "AURATIC_ADMIN_OVERRIDE_0x99" }))
+    const token = import.meta.env.VITE_ADMIN_TOKEN || "397915a57a45b746b856532444fd9b29"
+    ws?.send(JSON.stringify({ type: "AUTH", token }))
     // Wait, what is the token? In settings it's probably default. I'll use a generic token or it might fail.
     // Actually, in backend/config/settings.py the default is usually "auratic_admin_123" or something.
     // Let's check if the backend rejects it. If so, we need the real token.
@@ -159,189 +167,250 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
 
 .cyberpunk-portfolio {
   position: absolute;
   bottom: 20px;
   right: 20px;
   width: 450px;
-  background: rgba(10, 10, 12, 0.85);
-  border: 1px solid #0ff;
-  border-left: 4px solid #f0f;
-  box-shadow: 0 0 15px rgba(0, 255, 255, 0.2), inset 0 0 20px rgba(255, 0, 255, 0.1);
-  color: #0ff;
-  font-family: 'Share Tech Mono', monospace;
-  padding: 15px;
+  background: #FFFFFF;
+  border: 4px solid #111111;
+  box-shadow: 8px 8px 0px #111111;
+  color: #111111;
+  font-family: 'JetBrains Mono', monospace;
   z-index: 1000;
-  backdrop-filter: blur(5px);
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%);
-  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
 }
 
 .glitch-active {
-  transform: translateX(2px) translateY(-2px);
-  filter: hue-rotate(90deg) contrast(150%);
-  box-shadow: 0 0 30px rgba(255, 0, 0, 0.5);
+  transform: translate(2px, -2px);
+  box-shadow: 10px 10px 0px #E03C31;
+}
+
+.chaos-mode {
+  border-color: #E03C31;
+  box-shadow: 8px 8px 0px #E03C31;
+}
+
+.resonance-mode {
+  border-color: #00FF41;
+  box-shadow: 8px 8px 0px #00FF41;
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid rgba(0, 255, 255, 0.3);
-  padding-bottom: 10px;
-  margin-bottom: 15px;
+  background: #111111;
+  color: #FFFFFF;
+  padding: 10px 15px;
+  border-bottom: 4px solid #111111;
 }
 
 .header h1 {
-  font-size: 1.1rem;
+  font-size: 1.2rem;
+  font-weight: 800;
   margin: 0;
-  color: #fff;
-  text-shadow: 0 0 5px #0ff;
-  letter-spacing: 2px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .status-indicator {
   font-size: 0.8rem;
   display: flex;
   align-items: center;
-  gap: 6px;
-  color: #0f0;
+  gap: 8px;
+  font-weight: 700;
 }
 
 .blinking-dot {
-  width: 8px;
-  height: 8px;
-  background: #0f0;
-  border-radius: 50%;
-  animation: blink 1s infinite;
-  box-shadow: 0 0 8px #0f0;
+  width: 10px;
+  height: 10px;
+  background: #00FF41;
+  border: 2px solid #FFFFFF;
+  border-radius: 0; /* Blocky, not round */
+  animation: blink 1s step-end infinite;
 }
 
 @keyframes blink {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.2; }
+  50% { opacity: 0; }
+}
+
+.dashboard-grid {
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
 
 .neon-panel {
-  background: rgba(0, 20, 30, 0.6);
-  border: 1px solid rgba(0, 255, 255, 0.2);
-  margin-bottom: 10px;
+  background: #F8F8F8;
+  border: 2px solid #111111;
   padding: 10px;
+  position: relative;
 }
 
 .panel-label {
-  font-size: 0.7rem;
-  color: #f0f;
-  margin-bottom: 8px;
-  letter-spacing: 1px;
+  position: absolute;
+  top: -10px;
+  left: 10px;
+  background: #FFFFFF;
+  padding: 0 5px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #111111;
+  border: 2px solid #111111;
 }
 
 /* Equity Box */
 .equity-panel {
   text-align: center;
+  background: #111111;
+  color: #FFFFFF;
+  border: 4px solid #111111;
+}
+
+.equity-panel .panel-label {
+  background: #F2C12E;
+  color: #111111;
+  border: 2px solid #111111;
 }
 
 .equity-value {
-  font-size: 2.2rem;
-  font-weight: bold;
-  color: #fff;
-  text-shadow: 0 0 10px #0ff;
-  margin: 5px 0;
+  font-size: 2.8rem;
+  font-weight: 800;
+  color: #F2C12E;
+  margin: 15px 0 5px 0;
+  letter-spacing: -1px;
 }
 
 .currency {
-  font-size: 1.2rem;
-  color: #0ff;
-  vertical-align: super;
+  font-size: 1.4rem;
+  vertical-align: top;
+  margin-right: 4px;
 }
 
 .equity-bar-container {
   width: 100%;
-  height: 4px;
-  background: #111;
-  margin: 10px 0;
+  height: 8px;
+  background: #333333;
+  margin: 15px 0;
+  border: 2px solid #111111;
 }
 
 .equity-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #0ff, #f0f);
-  box-shadow: 0 0 10px #f0f;
-  transition: width 1s ease-out;
+  background: #00FF41;
+  transition: width 0.2s;
 }
 
 .sub-metrics {
   display: flex;
   justify-content: space-between;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
+  padding-top: 10px;
+  border-top: 2px dotted #555555;
 }
 
 .metric {
   display: flex;
   flex-direction: column;
+  text-align: left;
+}
+
+.metric:last-child {
+  text-align: right;
 }
 
 .m-label {
-  color: #666;
-  font-size: 0.6rem;
+  color: #AAAAAA;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-bottom: 2px;
 }
 
 .m-value {
-  color: #0ff;
+  color: #FFFFFF;
+  font-weight: 800;
 }
 
 /* Wallets Box */
-.wallet-list {
-  max-height: 80px;
-  overflow-y: auto;
+.wallets-panel {
+  margin-top: 10px;
 }
-.wallet-list::-webkit-scrollbar { width: 4px; }
-.wallet-list::-webkit-scrollbar-thumb { background: #0ff; }
+
+.wallet-list {
+  max-height: 90px;
+  overflow-y: auto;
+  padding-top: 10px;
+}
+
+.wallet-list::-webkit-scrollbar { width: 8px; border-left: 2px solid #111111; }
+.wallet-list::-webkit-scrollbar-thumb { background: #111111; }
+.wallet-list::-webkit-scrollbar-track { background: #F8F8F8; }
 
 .wallet-item {
   display: flex;
   justify-content: space-between;
-  border-bottom: 1px dashed rgba(0,255,255,0.2);
-  padding: 4px 0;
+  border-bottom: 2px dotted #111111;
+  padding: 6px 0;
   font-size: 0.85rem;
+  font-weight: 700;
 }
-.w-exchange { color: #fff; }
+.wallet-item:last-child {
+  border-bottom: none;
+}
+.w-exchange { color: #111111; }
 .asset-line {
   display: flex;
-  gap: 10px;
+  gap: 15px;
   justify-content: flex-end;
 }
-.asset-name { color: #f0f; }
-.asset-amount { color: #0ff; }
+.asset-name { color: #555555; }
+.asset-amount { color: #111111; }
 
 /* Trades Box */
+.trades-panel {
+  margin-top: 10px;
+}
+
 .trade-log {
   max-height: 120px;
   overflow-y: auto;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
+  padding-top: 10px;
+  font-weight: 700;
 }
-.trade-log::-webkit-scrollbar { width: 4px; }
-.trade-log::-webkit-scrollbar-thumb { background: #f0f; }
+.trade-log::-webkit-scrollbar { width: 8px; border-left: 2px solid #111111; }
+.trade-log::-webkit-scrollbar-thumb { background: #111111; }
 
 .trade-row {
   display: flex;
   justify-content: space-between;
-  padding: 3px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding: 4px 0;
+  border-bottom: 2px dotted #111111;
 }
 
-.trade-row.buy { color: #0f0; text-shadow: 0 0 3px #0f0; }
-.trade-row.sell { color: #f00; text-shadow: 0 0 3px #f00; }
+.trade-row:last-child {
+  border-bottom: none;
+}
 
-.t-time { color: #666; text-shadow: none; }
-.t-sym { color: #fff; text-shadow: none; }
+.trade-row.buy { color: #005096; }
+.trade-row.sell { color: #E03C31; }
+
+.t-time { color: #555555; font-size: 0.75rem; }
+.t-sym { color: #111111; font-weight: 800; }
+.t-side { font-weight: 800; }
 
 .no-data {
-  color: #666;
+  color: #111111;
   text-align: center;
-  font-size: 0.8rem;
-  padding: 10px 0;
-  animation: blink 2s infinite;
+  font-size: 0.85rem;
+  padding: 15px 0;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 </style>

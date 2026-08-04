@@ -31,7 +31,7 @@ const injectConcept = async () => {
   isInjecting.value = true;
   
   try {
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
     
     // Inject into local LGNN
     const res = await fetch(`${baseUrl}/api/lgnn/feed`, {

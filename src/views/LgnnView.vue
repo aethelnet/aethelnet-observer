@@ -101,6 +101,8 @@ const executeCommand = async () => {
   
   if (root === 'HELP') {
     printLog('================ AURA CLI (CORE) ================', 'sys')
+    printLog(' ANALYZE <asset>   | Deploy LLM OSINT for tactical breakdown of a ticker', 'sys')
+    printLog('                     Example: ANALYZE BTC', 'sys')
     printLog(' FEED <text>       | Inject data directly into the neural graph', 'sys')
     printLog('                     Example: FEED Secret Base64 String', 'sys')
     printLog(' QUARANTINE <id>   | Isolate a malicious node (Repulsor Protocol)', 'sys')
@@ -142,6 +144,30 @@ const executeCommand = async () => {
       const data = await res.json()
       if (data.status === 'success') {
         printLog(`AURA: ${data.response}`, 'success')
+      } else {
+        printLog(`ERR: ${data.message}`, 'error')
+      }
+    } catch(e) {
+      printLog(`ERR: ${e.message}`, 'error')
+    }
+  } else if (root === 'ANALYZE') {
+    const target = args[1]
+    if (!target) {
+      printLog('ERR: Missing asset ticker. Example: ANALYZE BTC', 'error')
+      return
+    }
+    printLog(`[OSINT] Querying Sovereign Oracle for tactical analysis on ${target.toUpperCase()}...`, 'sys')
+    try {
+      const prompt = `Give me a brutal, highly technical, 3-sentence OSINT tactical breakdown of ${target.toUpperCase()}'s current market structure. Use cyberpunk, mercenary trader tone. No intro, no markdown.`
+      const res = await fetch(`${API_BASE || '/api'}/lgnn/generate-response`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt, length: 'short' })
+      })
+      const data = await res.json()
+      if (data.status === 'success') {
+        printLog(`[TARGET: ${target.toUpperCase()}]`, 'success')
+        printLog(data.response, 'success')
       } else {
         printLog(`ERR: ${data.message}`, 'error')
       }
@@ -377,28 +403,44 @@ onMounted(() => {
 .cli-window {
   flex: 1;
   border: 4px solid #000000;
-  background: #000000;
+  background: #050505;
   color: #00FF41;
   display: flex;
   flex-direction: column;
+  position: relative;
+  box-shadow: inset 0 0 50px rgba(0, 255, 65, 0.1);
+  overflow: hidden;
+}
+
+.cli-window::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  background-size: 100% 4px, 3px 100%;
+  pointer-events: none;
+  z-index: 10;
 }
 
 .cli-output {
   flex: 1;
   padding: 20px;
   overflow-y: auto;
+  z-index: 5;
 }
 
 .log-line {
   margin-bottom: 8px;
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: 15px;
+  line-height: 1.5;
   word-wrap: break-word;
+  text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
 }
 
 .log-line .prompt {
   color: #ffffff;
   margin-right: 10px;
+  text-shadow: none;
 }
 
 .log-line .in {
@@ -411,17 +453,20 @@ onMounted(() => {
 
 .log-line .error {
   color: #FF0000;
+  text-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
 }
 
 .log-line .success {
   color: #00ffff;
+  text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
 }
 
 .cli-input-wrapper {
   display: flex;
   padding: 20px;
-  border-top: 2px solid #333333;
-  background: #0a0a0a;
+  border-top: 4px solid #000000;
+  background: #111111;
+  z-index: 5;
 }
 
 .cli-input-wrapper .prompt {

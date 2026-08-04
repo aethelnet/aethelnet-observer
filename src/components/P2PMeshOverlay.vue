@@ -87,7 +87,7 @@ const pingTracker = async () => {
   try {
     // In production, this points to 92.5.45.124:8000
     // We use a relative or configured API base URL
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
     
     // 1. Register ourselves
     const regRes = await fetch(`${baseUrl}/p2p/tracker/register`, {

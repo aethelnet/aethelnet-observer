@@ -37,7 +37,7 @@ export const useAuthStore = defineStore('authStore', () => {
 
   const initiateWeb3Auth = async () => {
     try {
-      const challengeRes = await fetch('http://130.61.202.29:8000/web3/challenge', {
+      const challengeRes = await fetch('http://127.0.0.1:8000/web3/challenge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address: walletAddress.value })
@@ -49,7 +49,7 @@ export const useAuthStore = defineStore('authStore', () => {
         params: [challenge, walletAddress.value]
       })
 
-      const loginRes = await fetch('http://130.61.202.29:8000/web3/login', {
+      const loginRes = await fetch('http://127.0.0.1:8000/web3/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address: walletAddress.value, signature, nonce })
