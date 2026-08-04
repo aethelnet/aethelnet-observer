@@ -6,22 +6,23 @@
 
 
 const getWsUrl = () => {
+  let hostname = '127.0.0.1';
   if (typeof window !== 'undefined') {
-    const configuredBackend = localStorage.getItem('SOVEREIGN_BACKEND_URL');
-    if (configuredBackend) {
-      // Convert backend URL (e.g. http://host:8000/api) to WS url (e.g. ws://host:8000/ws/stream)
-      return configuredBackend.replace(/^http/, 'ws').replace(/\/api\/?$/, '') + '/ws/stream';
-    }
+    hostname = window.location.hostname || '127.0.0.1';
+    if (hostname === 'localhost') hostname = '127.0.0.1';
     
-    const host = window.location.host; // includes port
-    const protocol = window.location.protocol;
-    const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
-    
-    if (host) {
-      return `${wsProtocol}//${window.location.hostname}:8000/ws/stream`;
+    const override = localStorage.getItem('SOVEREIGN_BACKEND_URL');
+    if (override) {
+      try {
+        const urlObj = new URL(override);
+        urlObj.protocol = urlObj.protocol === 'https:' ? 'wss:' : 'ws:';
+        urlObj.pathname = '/ws/stream';
+        return urlObj.toString();
+      } catch(e) {}
     }
   }
-  return 'ws://127.0.0.1:8000/ws/stream';
+  const protocol = (typeof window !== 'undefined' && window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+  return `${protocol}//${hostname}:8000/ws/stream`;
 };
 
 const WS_URL = getWsUrl();
@@ -31,9 +32,9 @@ class NativeWebSocketClient {
     this.url = url;
     this.ws = null;
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 10;
+    this.maxReconnectAttempts = 100;
     this.reconnectDelay = 1000;
-    this.maxReconnectDelay = 30000;
+    this.maxReconnectDelay = 15000;
     this.forcedClose = false;
     this.reconnectTimeout = null;
     

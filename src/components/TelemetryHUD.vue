@@ -41,7 +41,7 @@ const densityPercent = computed(() => {
 
 const fetchTelemetry = async () => {
   try {
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
     const res = await fetch(`${baseUrl}/telemetry/pulse`);
     if (res.ok) {
       telemetry.value = await res.json();
