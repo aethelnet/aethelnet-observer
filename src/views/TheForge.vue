@@ -108,7 +108,7 @@ import AethelTokenArtifact from '../AethelTokenArtifact.json'
 import TheForgeArtifact from '../TheForgeArtifact.json'
 import VerifierArtifact from '../VerifierArtifact.json'
 
-const AETHEL_ADDRESS = '0x138246711caB8bB67a3f2B4AD13792C5E0Ca3329'
+const AETHEL_ADDRESS = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512'
 const AETHEL_ABI = [
   "function generateVotingProof(uint256 amount, bytes32 secretPhraseHash)",
   "function depositToShielded(uint256 amount)",
@@ -116,7 +116,7 @@ const AETHEL_ABI = [
   "function approve(address spender, uint256 value) returns (bool)"
 ]
 
-const FORGE_ADDRESS = '0x81E3E4Cba25546b2e8339Bf9d7c46F6707cE88f2'
+const FORGE_ADDRESS = '0x58A520120BEfCBB1dA7A9546c1f1F98C9e6ef1A5'
 const FORGE_ABI = [
   "function nextProposalId() view returns (uint256)",
   "function proposals(uint256) view returns (uint256 id, string title, string description, uint256 forVotes, uint256 againstVotes, bool executed, uint256 endTime, address proposer)",
@@ -322,21 +322,27 @@ const handleZkVote = async (proofData) => {
   try {
     const provider = new ethers.BrowserProvider(window.ethereum)
     const signer = await provider.getSigner()
-    const contract = new ethers.Contract(FORGE_ADDRESS, FORGE_ABI, signer)
     
-    console.log("Submitting ZK Proof On-Chain...");
-    const tx = await contract.voteShielded(
-      proofData.proposalId, 
-      proofData.support, 
-      proofData.a,
-      proofData.b,
-      proofData.c,
-      proofData.nullifierHash,
-      proofData.commitment
-    )
-    await tx.wait()
+    console.log("Submitting ZK Proof via Account Abstraction (Gasless)...");
     
-    alert("✅ ZK Vote erfolgreich auf der Blockchain registriert!");
+    // Import dynamically to avoid top-level issues if any
+    const { castShieldedVoteOnChain } = await import('../services/zkVoteService')
+    
+    await castShieldedVoteOnChain({
+      signer,
+      contractAddress: FORGE_ADDRESS,
+      proposalId: proofData.proposalId,
+      support: proofData.support,
+      solidityProof: {
+        a: proofData.a,
+        b: proofData.b,
+        c: proofData.c,
+        nullifierHash: proofData.nullifierHash
+      },
+      onProgress: (msg) => console.log(msg)
+    });
+    
+    alert("✅ ZK Vote gas-less erfolgreich auf der Blockchain registriert!");
     await loadProposals()
   } catch (err) {
     console.error("Shielded Voting failed", err)
