@@ -7,7 +7,7 @@ const AETHEL_CONTRACT = '0x5FbDB2315678afecb367f032d93F642f64180aa3' // Deployed
 
 const publicClient = createPublicClient({
   chain: hardhat,
-  transport: http('http://127.0.0.1:8545')
+  transport: http('https://ethereum-sepolia.publicnode.com')
 })
 
 export const useAuthStore = defineStore('authStore', () => {

@@ -1,752 +1,1369 @@
 <template>
-  <div class="observer-mode" :class="{ 'sanctuary-active': isSanctuaryActive }" ref="containerRef">
-    <div class="starfield-brutal"></div>
-    <div class="hud">
-      <h2>OBSERVER</h2>
-      <p>STATUS: <span :style="{ color: isConnected ? '#00FF00' : '#FF0000' }">{{ isConnected ? 'CONNECTED' : 'DISCONNECTED' }}</span></p>
-      <p>CONSENSUS: {{ consensusScore.toFixed(1) }}%</p>
-      <p>SWARM SIZE: {{ swarmSize }}</p>
-      <p>AETHEL REWARDS: {{ aethelRewards.toFixed(4) }} $AETHEL</p>
-      
-      <div style="margin-top: 15px; margin-bottom: 5px;">LIQUID MANIFOLD VISCOSITY (TAU: {{ avgTau.toFixed(3) }})</div>
-      <div class="manifold-bar">
-         <div class="manifold-fill" :style="{ width: `${avgChaos * 100}%` }"></div>
+  <div class="observer-container">
+    <div class="starfield-grid"></div>
+
+    <!-- Top Status Bar -->
+    <header class="status-header">
+      <div class="title-group">
+        <h1 class="brand-title">AETHELNET OBSERVER</h1>
+        <span class="brand-subtitle">// ON-CHAIN CONSENSUS LENS</span>
       </div>
-      <div style="display: flex; gap: 10px; margin-top: 15px;">
-        <button @click="spawnCloudWorker" class="brutal-btn-small" style="flex: 1;">SPAWN WORKER</button>
-        <button @click="injectChaos" class="brutal-btn-small" style="flex: 1; border-color: #E03C31; color: #E03C31;">INJECT CHAOS</button>
+      <div class="header-metrics">
+        <div class="metric-pill">
+          <span class="pill-label">RPC</span>
+          <span class="pill-val" :class="{ 'val-green': rpcConnected, 'val-red': !rpcConnected }">
+            {{ rpcConnected ? 'ONLINE' : 'UNREACHABLE' }}
+          </span>
+        </div>
+        <div class="metric-pill">
+          <span class="pill-label">BLOCK</span>
+          <span class="pill-val">#{{ currentBlock !== null ? currentBlock : '---' }}</span>
+        </div>
+        <div class="metric-pill">
+          <span class="pill-label">ACTIVE NODES</span>
+          <span class="pill-val val-gold">{{ onChainNodes.length }}</span>
+        </div>
+        <div class="metric-pill">
+          <span class="pill-label">DAEMON (8001)</span>
+          <span class="pill-val" :class="{ 'val-green': daemonConnected, 'val-red': !daemonConnected }">
+            {{ daemonConnected ? 'SYNCED' : 'OFFLINE' }}
+          </span>
+        </div>
+        <button class="refresh-btn" @click="fetchOnChainState" :disabled="isSyncing">
+          {{ isSyncing ? 'SYNCING...' : '[ REFRESH ]' }}
+        </button>
       </div>
-    </div>
-    
-    <div v-if="godModeMessage" class="god-mode-banner">
-      <h2>🧬 OUROBOROS INJECTION SUCCESS</h2>
-      <p>{{ godModeMessage }}</p>
-    </div>
-    
-    <div v-if="cellDivisionMessage" class="god-mode-banner" style="background: rgba(242, 193, 46, 0.9); color: #000; top: 120px; border-color: #000;">
-      <h2>🚨 ELASTIC SWARMING TRIGGERED</h2>
-      <p>{{ cellDivisionMessage }}</p>
+    </header>
+
+    <!-- Main View Area -->
+    <div class="observer-body">
+      <!-- Left HUD: Consensus & Contract Specs -->
+      <aside class="hud-left">
+        <div class="hud-card">
+          <div class="hud-card-header">SMART CONTRACT TELEMETRY</div>
+          <div class="hud-row">
+            <span class="hud-label">EVM TARGET:</span>
+            <span class="hud-val mono">{{ rpcUrl }}</span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">THEFORGE:</span>
+            <span class="hud-val mono contract-link" :title="forgeAddress">{{ truncateAddr(forgeAddress) }}</span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">TOTAL PEERS REG:</span>
+            <span class="hud-val">{{ totalRegisteredPeers }}</span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">ACTIVE &lt;24H:</span>
+            <span class="hud-val val-gold font-bold">{{ onChainNodes.length }}</span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">PROPOSALS COUNT:</span>
+            <span class="hud-val">{{ proposals.length }}</span>
+          </div>
+        </div>
+
+        <div class="hud-card">
+          <div class="hud-card-header">DAEMON 1:1 PARITY AUDIT</div>
+          <div class="hud-row">
+            <span class="hud-label">DAEMON ENDPOINT:</span>
+            <span class="hud-val mono">{{ daemonUrl }}</span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">PARITY STATUS:</span>
+            <span class="hud-val" :class="{ 'val-green': parityMatch, 'val-red': !parityMatch }">
+              {{ parityMatch ? '1:1 PARITY VERIFIED' : 'DESYNC DETECTED' }}
+            </span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">DAEMON PEER SET:</span>
+            <span class="hud-val mono">{{ daemonPeers.length }} Nodes</span>
+          </div>
+          <div class="hud-row">
+            <span class="hud-label">LAST SYNC (UTC):</span>
+            <span class="hud-val mono">{{ lastSyncTime || 'Pending...' }}</span>
+          </div>
+        </div>
+
+        <!-- On-Chain Governance Proposals Summary -->
+        <div class="hud-card proposals-card">
+          <div class="hud-card-header">ON-CHAIN GOVERNANCE (THEFORGE)</div>
+          <div v-if="proposals.length === 0" class="empty-state">
+            No active proposals found in TheForge.
+          </div>
+          <div v-for="prop in proposals" :key="prop.id" class="prop-item">
+            <div class="prop-title">#{{ prop.id }} - {{ prop.title }}</div>
+            <div class="prop-desc">{{ prop.description }}</div>
+            <div class="prop-votes">
+              <span class="val-green">FOR: {{ prop.forVotes }}</span> | 
+              <span class="val-red">AGAINST: {{ prop.againstVotes }}</span>
+            </div>
+            <div class="prop-root" :title="prop.voterMerkleRoot">
+              ROOT: {{ truncateAddr(prop.voterMerkleRoot) }}
+            </div>
+            <button class="btn-zk-vote" @click="openVoteModal(prop)">
+              [ SHIELDED VOTE (ZK) ]
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center: Topological On-Chain Radar Graph -->
+      <main class="radar-container">
+        <svg class="topology-svg" viewBox="0 0 700 700" preserveAspectRatio="xMidYMid meet">
+          <g transform="translate(350, 350)">
+            <!-- Distance Rings -->
+            <circle r="90" class="radar-ring" />
+            <circle r="180" class="radar-ring" />
+            <circle r="270" class="radar-ring" />
+
+            <!-- Ring Distance Labels -->
+            <text x="5" y="-95" class="ring-label">&lt; 1 HOUR</text>
+            <text x="5" y="-185" class="ring-label">&lt; 12 HOURS</text>
+            <text x="5" y="-275" class="ring-label">&lt; 24 HOURS (ACTIVE)</text>
+
+            <!-- Center Core Hub: TheForge Solidity Contract -->
+            <circle r="26" class="center-core" />
+            <circle r="34" class="center-core-pulse" />
+            <text y="-42" class="center-label">THE FORGE</text>
+            <text y="48" class="center-sublabel">CONSENSUS ROOT</text>
+
+            <!-- Peer Nodes from TheForge getActiveNodes() -->
+            <g v-for="(node, i) in onChainNodes" :key="node.ip"
+               class="node-group"
+               :class="{ 'is-selected': selectedNode?.ip === node.ip }"
+               @click="selectNode(node)"
+               :style="{ transform: `rotate(${node.angle}deg) translate(${node.distance}px, 0)` }">
+              
+              <!-- Connection Beam to The Forge -->
+              <line x1="0" y1="0" :x2="-node.distance" y2="0" class="peer-beam" />
+
+              <!-- Hitbox & Circle -->
+              <circle r="32" class="hitbox" />
+              <circle r="16" class="peer-dot" />
+
+              <!-- Counter-rotated Labels (upright) -->
+              <g :style="{ transform: `rotate(${-node.angle}deg)` }">
+                <text y="-24" class="node-ip-label">{{ node.ip }}</text>
+                <text y="28" class="node-time-label">Seen: {{ node.lastSeenAgeMinutes }}m ago</text>
+              </g>
+            </g>
+
+            <!-- Zero nodes fallback inside Radar -->
+            <g v-if="onChainNodes.length === 0">
+              <text y="90" class="empty-radar-label">NO ACTIVE NODES DETECTED ON-CHAIN</text>
+              <text y="110" class="empty-radar-sublabel">Awaiting registerNode() on TheForge (0x9fE4...a6e0)</text>
+            </g>
+          </g>
+        </svg>
+      </main>
+
+      <!-- Right Panel: Node Inspector -->
+      <aside class="hud-right">
+        <div class="hud-card node-inspector">
+          <div class="hud-card-header">INSPECTED ON-CHAIN NODE</div>
+          
+          <div v-if="!selectedNode" class="empty-inspector">
+            Select a node from the radar topology to inspect its on-chain registration and heartbeat telemetry.
+          </div>
+
+          <div v-else class="inspector-details">
+            <div class="detail-hero">
+              <div class="hero-ip">{{ selectedNode.ip }}</div>
+              <div class="hero-badge" :class="{ 'badge-active': selectedNode.isActive }">
+                {{ selectedNode.isActive ? 'ON-CHAIN ACTIVE' : 'INACTIVE' }}
+              </div>
+            </div>
+
+            <div class="detail-section">
+              <label>NODE OWNER (EVM ADDRESS)</label>
+              <div class="detail-value mono select-all">{{ selectedNode.owner }}</div>
+            </div>
+
+            <div class="detail-section">
+              <label>LAST SEEN (ON-CHAIN TIMESTAMP)</label>
+              <div class="detail-value mono">{{ selectedNode.lastSeen }} (Raw Unix)</div>
+              <div class="detail-value-sub">{{ selectedNode.lastSeenFormatted }}</div>
+            </div>
+
+            <div class="detail-section">
+              <label>HEARTBEAT AGE</label>
+              <div class="detail-value font-bold" :class="selectedNode.lastSeenAgeMinutes < 60 ? 'val-green' : 'val-gold'">
+                {{ selectedNode.lastSeenAgeMinutes }} Minutes Ago
+              </div>
+            </div>
+
+            <div class="detail-section">
+              <label>LOCAL DAEMON DIRECT PING</label>
+              <div class="ping-row">
+                <button class="brutal-btn-action" @click="pingSelectedNode" :disabled="isPinging">
+                  {{ isPinging ? 'PINGING...' : '[ PING /p2p/ping ]' }}
+                </button>
+                <span v-if="pingResult !== null" class="ping-status" :class="pingResult.success ? 'val-green' : 'val-red'">
+                  {{ pingResult.success ? `HTTP 200 (${pingResult.latencyMs}ms)` : 'UNREACHABLE' }}
+                </span>
+              </div>
+              <div v-if="pingResult?.peerId" class="ping-peer-id mono">
+                Peer ID: {{ pingResult.peerId }}
+              </div>
+            </div>
+
+            <div class="detail-section">
+              <label>VERIFIED PROTOCOL COMPLIANCE</label>
+              <div class="compliance-box">
+                <div>✔ EVM Registration: VALID</div>
+                <div>✔ 24h Activity Window: ACTIVE</div>
+                <div>✔ Merkle Eligible: VERIFIED</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
     </div>
 
-    <div v-if="isSanctuaryActive" class="sanctuary-banner">
-      <h2>🛡️ TYPHOON SANCTUARY ACTIVE</h2>
-      <p>MARKET CHAOS CRITICAL (> 0.8) • HALTING TRADING • SHIELDING CAPITAL</p>
-    </div>
+    <!-- ZK Shielded Vote Modal -->
+    <div v-if="voteModalProposal" class="zk-modal-overlay" @click.self="closeVoteModal">
+      <div class="zk-modal-content">
+        <div class="zk-modal-header">
+          <span class="zk-modal-title">SHIELDED VOTE // PROPOSAL #{{ voteModalProposal.id }}</span>
+          <button class="zk-modal-close" @click="closeVoteModal" :disabled="isGeneratingProof">×</button>
+        </div>
 
-    <div v-if="focusedNode" class="subgraph-overlay">
-      <div class="subgraph-panel">
-        <h3>TACTICAL SUBGRAPH</h3>
-        <p><strong>NODE:</strong> {{ focusedNode.name }}</p>
-        <p><strong>ID:</strong> {{ focusedNode.id }}</p>
-        <p><strong>TELEMETRY:</strong> {{ focusedNode.topic }}</p>
-        <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px; font-family: 'Space Mono', monospace;">
-          <strong>TOPIC SUBSCRIPTION:</strong>
-          <input type="text" v-model="draftSpecialization" style="background: transparent; color: #fff; border: 1px solid #555; padding: 4px; width: 120px;" placeholder="NONE" />
-          <button @click="saveSpecialization" class="brutal-btn-small" style="padding: 4px 8px; font-size: 10px;">[ SAVE ]</button>
+        <div class="zk-modal-body">
+          <div class="modal-field">
+            <label>PROPOSAL TITEL:</label>
+            <div class="field-val highlight">{{ voteModalProposal.title }}</div>
+          </div>
+          <div class="modal-field">
+            <label>ON-CHAIN MERKLE ROOT:</label>
+            <div class="field-val mono">{{ voteModalProposal.voterMerkleRoot }}</div>
+          </div>
+
+          <div class="modal-field">
+            <label>AUTORISIERTER WÄHLER (MERKLE CREDENTIAL):</label>
+            <select v-model="selectedVoterId" class="zk-select" :disabled="isGeneratingProof" @change="onVoterChange">
+              <option v-for="v in availableVoters" :key="v.id" :value="v.id">
+                {{ v.label }} (Leaf #{{ v.leafIndex }})
+              </option>
+            </select>
+          </div>
+
+          <div class="modal-field-group">
+            <div class="modal-field">
+              <label>SECRET (PRIVATE):</label>
+              <input type="password" v-model="activeSecret" class="zk-input" :disabled="isGeneratingProof" />
+            </div>
+            <div class="modal-field">
+              <label>NULLIFIER (PRIVATE):</label>
+              <input type="password" v-model="activeNullifier" class="zk-input" :disabled="isGeneratingProof" />
+            </div>
+          </div>
+
+          <div class="modal-field">
+            <label>STIMMABGABE (ENTROPY-SHIELDED):</label>
+            <div class="vote-direction-buttons">
+              <button 
+                type="button"
+                class="btn-vote-choice btn-yes" 
+                :class="{ active: selectedVoteDirection === true }"
+                @click="selectedVoteDirection = true"
+                :disabled="isGeneratingProof">
+                ✔ JA (SUPPORT)
+              </button>
+              <button 
+                type="button"
+                class="btn-vote-choice btn-no" 
+                :class="{ active: selectedVoteDirection === false }"
+                @click="selectedVoteDirection = false"
+                :disabled="isGeneratingProof">
+                ✖ NEIN (REJECT)
+              </button>
+            </div>
+          </div>
+
+          <!-- Progress / Telemetry Log -->
+          <div v-if="zkStatusLog" class="zk-status-box" :class="{ 'is-error': zkError }">
+            <div class="status-msg mono">{{ zkStatusLog }}</div>
+          </div>
         </div>
-        <p><strong>STATUS:</strong> {{ focusedNode.syncing ? 'PROCESSING TENSOR (HOT)' : 'IDLE / LISTENING' }}</p>
-        <p><strong>DISTANCE:</strong> {{ focusedNode.distance.toFixed(0) }} AU</p>
-        <div class="tensor-matrix">
-           <div>[ {{ (Math.random()).toFixed(2) }} ]</div>
-           <div>[ {{ (Math.random()).toFixed(2) }} ]</div>
-           <div>[ {{ (Math.random()).toFixed(2) }} ]</div>
-           <div>[ {{ (Math.random()).toFixed(2) }} ]</div>
-        </div>
-        <div style="margin-top: 10px; margin-bottom: 10px;">
-          <strong>TACTICAL LLM SYNTHESIS:</strong>
-          <input type="text" v-model="llmPrompt" placeholder="Prompt (e.g. Momentum strat...)" style="width: 100%; background: transparent; color: #fff; border: 1px solid #555; padding: 4px; font-family: inherit; margin-top: 5px; margin-bottom: 5px;" />
-          <button @click="synthesizeStrategy" class="brutal-btn-small" style="width: 100%; border-color: #00aaff; color: #00aaff;" :disabled="isSynthesizing">
-            {{ isSynthesizing ? 'SYNTHESIZING...' : 'SYNTHESIZE STRATEGY' }}
+
+        <div class="zk-modal-footer">
+          <button class="btn-cancel" @click="closeVoteModal" :disabled="isGeneratingProof">ABBRECHEN</button>
+          <button class="btn-submit-zk" @click="executeShieldedVote" :disabled="isGeneratingProof">
+            <span v-if="isGeneratingProof">BERECHNE ZK-BEWEIS...</span>
+            <span v-else>[ GROTH16 PROOF BERECHNEN & ON-CHAIN VOTEN ]</span>
           </button>
         </div>
-        <button v-if="focusedNodeId !== 'local_compute'" @click="decommissionNode" class="brutal-btn" style="margin-bottom: 10px; background: transparent; border-color: #E03C31; color: #E03C31;">[ DECOMMISSION NODE ]</button>
-        <button v-else disabled class="brutal-btn" style="margin-bottom: 10px; background: transparent; border-color: #555; color: #555; cursor: not-allowed;">[ CORE NODE: PROTECTED ]</button>
-        <button @click="focusedNodeId = null" class="brutal-btn">CLOSE SUBGRAPH</button>
       </div>
     </div>
-    <svg class="radar" width="100%" height="100%" viewBox="0 0 600 600" preserveAspectRatio="xMidYMid meet">
-      <g transform="translate(300, 300)">
-        <!-- Radar Circles -->
-        <circle r="80" class="radar-ring" />
-        <circle r="180" class="radar-ring" />
-        <circle r="280" class="radar-ring" />
-
-        <!-- Typhoon Shield -->
-        <g v-if="isSanctuaryActive" class="typhoon-shield">
-          <polygon points="0,-160 138,-80 138,80 0,160 -138,80 -138,-80" class="shield-hexagon" />
-          <circle r="160" class="shield-pulse" />
-        </g>
-        
-        <!-- Local Node -->
-        <circle r="12" class="local-node" />
-        <text y="-25" class="node-label local">PRIME</text>
-        
-        <!-- Peer Nodes -->
-        <g v-for="(peer, i) in peers" :key="peer.id" 
-           @click="focusedNodeId = peer.id"
-           :style="{ transform: `rotate(${peer.angle}deg) translate(${peer.distance}px, 0)`, cursor: 'pointer' }">
-          <!-- Invisible Hitbox for easier clicking -->
-          <circle r="40" fill="transparent" pointer-events="all" />
-          <circle :r="peer.radius" class="peer-node" :class="{ 'is-syncing': peer.syncing }" />
-          <line x1="0" y1="0" :x2="-peer.distance" y2="0" class="peer-link" :class="{ 'is-syncing': peer.syncing }" />
-          <text y="-15" :style="{ transform: `rotate(${-peer.angle}deg)` }" class="node-label">{{ peer.name }}</text>
-          <text y="15" :style="{ transform: `rotate(${-peer.angle}deg)` }" class="node-sublabel">{{ peer.topic }}</text>
-        </g>
-      </g>
-    </svg>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
-import MacroVision3D from './MacroVision3D.vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ethers } from 'ethers'
+import { 
+  loadVoterSnapshot, 
+  generateShieldedVoteProof, 
+  castShieldedVoteOnChain, 
+  type VoterIdentity 
+} from '../services/zkVoteService'
 
-const containerRef = ref<HTMLElement | null>(null)
-const width = ref(600)
-const height = ref(400)
-const consensusScore = ref(94.2)
-const aethelRewards = ref(0.0)
-const swarmSize = ref(0)
-const isConnected = ref(false)
-const focusedNodeId = ref<string | null>(null)
-const godModeMessage = ref("")
-const cellDivisionMessage = ref("")
-const previousSwarmSize = ref(0)
-const avgChaos = ref(0.0)
-const avgTau = ref(1.0)
-const isSanctuaryActive = computed(() => avgChaos.value > 0.8)
+// Configuration (Defaults matching local Hardhat deployment)
+const rpcUrl = ref('https://ethereum-sepolia.publicnode.com')
+const forgeAddress = ref('0x58A520120BEfCBB1dA7A9546c1f1F98C9e6ef1A5')
+const daemonUrl = ref('http://127.0.0.1:8001')
 
-interface Peer {
+// Live State (Strictly derived from Blockchain and Node API - ZERO MOCKS)
+const rpcConnected = ref(false)
+const daemonConnected = ref(false)
+const currentBlock = ref<number | null>(null)
+const isSyncing = ref(false)
+const totalRegisteredPeers = ref(0)
+const lastSyncTime = ref('')
+
+interface OnChainNode {
   id: string
-  name: string
-  topic: string
-  subscription: string
+  ip: string
+  owner: string
+  lastSeen: number
+  lastSeenFormatted: string
+  lastSeenAgeMinutes: number
+  isActive: boolean
   angle: number
   distance: number
-  radius: number
-  syncing: boolean
 }
 
-const injectChaos = () => {
-  // Override network chaos to trigger the Sanctuary Mode for 8 seconds
-  avgChaos.value = 0.99;
-  setTimeout(() => {
-    // Let it naturally be overwritten by the next SWARM_UPDATE
-    avgChaos.value = 0.5;
-  }, 8000);
+interface ProposalItem {
+  id: number
+  title: string
+  description: string
+  forVotes: string
+  againstVotes: string
+  voterMerkleRoot: string
 }
 
-const peers = ref<Peer[]>([])
-const draftSpecialization = ref("")
-const llmPrompt = ref("")
-const isSynthesizing = ref(false)
+const onChainNodes = ref<OnChainNode[]>([])
+const daemonPeers = ref<string[]>([])
+const proposals = ref<ProposalItem[]>([])
+const selectedNode = ref<OnChainNode | null>(null)
 
-const focusedNode = computed(() => peers.value.find(p => p.id === focusedNodeId.value))
+// ZK Shielded Voting State
+const voteModalProposal = ref<ProposalItem | null>(null)
+const availableVoters = ref<VoterIdentity[]>([])
+const selectedVoterId = ref<string>('')
+const activeSecret = ref<string>('')
+const activeNullifier = ref<string>('')
+const selectedVoteDirection = ref<boolean>(true)
+const isGeneratingProof = ref<boolean>(false)
+const zkStatusLog = ref<string>('')
+const zkError = ref<boolean>(false)
 
-watch(focusedNodeId, (newId) => {
-  if (newId) {
-    const node = peers.value.find(p => p.id === newId);
-    draftSpecialization.value = node?.subscription || "";
+// Direct Ping State
+const isPinging = ref(false)
+const pingResult = ref<{ success: boolean; latencyMs?: number; peerId?: string } | null>(null)
+
+// Parity Check: Do daemon peers match TheForge getActiveNodes()?
+const parityMatch = computed(() => {
+  if (onChainNodes.value.length === 0 && daemonPeers.value.length === 0) return true
+  const chainSet = new Set(onChainNodes.value.map(n => n.ip))
+  const daemonSet = new Set(daemonPeers.value)
+  if (chainSet.size !== daemonSet.size) return false
+  for (const ip of chainSet) {
+    if (!daemonSet.has(ip)) return false
   }
+  return true
 })
 
-let simInterval: any;
-let resizeObserver: ResizeObserver | null = null;
-let ws: WebSocket | null = null;
-let myNodeId: string = "";
+// Contract ABI for TheForge
+const THEFORGE_ABI = [
+  "function getActiveNodes() view returns (string[])",
+  "function peerRegistry(address) view returns (string ipAddress, uint256 lastSeen, bool isActive)",
+  "function registeredPeers(uint256) view returns (address)",
+  "function nextProposalId() view returns (uint256)",
+  "function proposals(uint256) view returns (uint256 id, string title, string description, uint256 forVotes, uint256 againstVotes, bool executed, uint256 endTime, address proposer, uint256 voterMerkleRoot)"
+]
 
-async function spawnCloudWorker() {
-  try {
-    const res = await fetch(`http://127.0.0.1:8000/ws/swarm/spawn`, { method: 'POST' });
-    if (res.ok) {
-      console.log("Cloud Worker Spawned!");
-    }
-  } catch(e) {
-    console.error("Failed to spawn cloud worker:", e);
-  }
+function truncateAddr(addr: string): string {
+  if (!addr || addr.length < 12) return addr || ''
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`
 }
 
-async function decommissionNode() {
-  if (!focusedNodeId.value) return;
-  const nodeId = focusedNodeId.value;
-  try {
-    const res = await fetch(`http://127.0.0.1:8000/ws/swarm/kill/${nodeId}`, { method: 'DELETE' });
-    if (res.ok) {
-      console.log(`Node ${nodeId} decommissioned.`);
-      focusedNodeId.value = null; // Close panel
-    }
-  } catch(e) {
-    console.error("Failed to decommission node:", e);
-  }
+function selectNode(node: OnChainNode) {
+  selectedNode.value = node
+  pingResult.value = null
 }
 
-async function saveSpecialization() {
-  if (!focusedNodeId.value) return;
-  const nodeId = focusedNodeId.value;
-  const topic = draftSpecialization.value;
-  try {
-    const res = await fetch(`http://127.0.0.1:8000/ws/swarm/specialize/${nodeId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic })
-    });
-    if (res.ok) {
-      console.log(`Node ${nodeId} specialized to ${topic}`);
-    }
-  } catch(e) {
-    console.error("Failed to set specialization:", e);
-  }
-}
+async function pingSelectedNode() {
+  if (!selectedNode.value) return
+  isPinging.value = true
+  pingResult.value = null
 
-async function synthesizeStrategy() {
-  if (!focusedNodeId.value || !llmPrompt.value) return;
-  const nodeId = focusedNodeId.value;
-  isSynthesizing.value = true;
+  const targetIp = selectedNode.value.ip
+  const start = performance.now()
   try {
-    const baseUrl = 'http://127.0.0.1:8000';
-    const res = await fetch(`${baseUrl}/api/llm/synthesize`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: llmPrompt.value, node_id: nodeId })
-    });
+    const res = await fetch(`http://${targetIp}/p2p/ping`, { method: 'GET', signal: AbortSignal.timeout(3000) })
+    const latency = Math.round(performance.now() - start)
     if (res.ok) {
-      const data = await res.json();
-      console.log("[LLM] Synthesis complete:", data.code);
-      llmPrompt.value = '';
-      godModeMessage.value = `Strategy Synthesized for node ${nodeId}!`;
-      setTimeout(() => godModeMessage.value = "", 4000);
+      const data = await res.json()
+      pingResult.value = {
+        success: true,
+        latencyMs: latency,
+        peerId: data.peer_id || 'unknown'
+      }
+    } else {
+      pingResult.value = { success: false }
     }
-  } catch(e) {
-    console.error("[LLM] Request error:", e);
+  } catch (err) {
+    pingResult.value = { success: false }
   } finally {
-    isSynthesizing.value = false;
+    isPinging.value = false
   }
 }
 
-function connectSwarm() {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  // Fallback to local dev if no backend is specified, assuming Prime runs on 8000
-  const wsUrl = `ws://127.0.0.1:8000/ws/swarm`;
-  
-  ws = new WebSocket(wsUrl);
+async function fetchOnChainState() {
+  isSyncing.value = true
+  try {
+    // 1. Direct EVM Web3 Query
+    const provider = new ethers.JsonRpcProvider(rpcUrl.value)
+    
+    // Check connection & block height
+    const [blockNum] = await Promise.all([
+      provider.getBlockNumber()
+    ])
+    currentBlock.value = blockNum
+    rpcConnected.value = true
 
-  ws.onopen = () => {
-    isConnected.value = true;
-    console.log("[SWARM] Connected to Auratic Prime!");
-    myNodeId = "ObserverNode_" + Math.floor(Math.random() * 10000);
-    // Handshake
-    ws?.send(JSON.stringify({
-      type: "JOIN_SWARM",
-      node_id: myNodeId,
-      capabilities: ["compute", "gossip"]
-    }));
-  };
+    const forge = new ethers.Contract(forgeAddress.value, THEFORGE_ABI, provider)
 
-  ws.onmessage = (event) => {
-    try {
-      const msg = JSON.parse(event.data);
-      if (msg.type === "WELCOME") {
-        console.log(`[SWARM] Welcome received! Node ID: ${msg.node_id}, Swarm Size: ${msg.swarm_size}`);
-        swarmSize.value = msg.swarm_size;
-      }
-      else if (msg.type === "COMPUTE_TENSOR") {
-        console.log(`[SWARM] 🧠 Received Tensor compute request: ${msg.tensor_id}`);
-        // Simulate heavy math: sum of payload
-        const data = msg.data || [];
-        const result = data.reduce((a: number, b: number) => a + b, 0);
-        
-        // Show visual feedback that this node is doing something!
-        const existing = peers.value.find(p => p.id === 'local_compute');
-        if (existing) {
-          existing.syncing = true;
-          existing.topic = `TSR: ${msg.tensor_id.substring(0, 8)}`;
-        } else {
-          peers.value.push({
-            id: 'local_compute',
-            name: 'COMPUTING...',
-            topic: `TSR: ${msg.tensor_id.substring(0, 8)}`,
-            subscription: '',
-            angle: Math.random() * 360,
-            distance: 120,
-            radius: 10,
-            syncing: true
-          });
-        }
-        
-        setTimeout(() => {
-          ws?.send(JSON.stringify({
-            type: "TENSOR_RESULT",
-            tensor_id: msg.tensor_id,
-            result: result
-          }));
-        }, 800); // fake computation time
-      }
-      else if (msg.type === "TENSOR_ACK") {
-        console.log(`[SWARM] 💰 Tensor accepted! Reward: ${msg.reward_aethel}`);
-        aethelRewards.value += msg.reward_aethel;
-        
-        // Turn off syncing visual
-        const existing = peers.value.find(p => p.id === 'local_compute');
-        if (existing) {
-          existing.syncing = false;
-          existing.name = 'STANDBY';
-        }
-      }
-      else if (msg.type === "SWARM_UPDATE" && msg.payload && msg.payload.peers) {
-         const currentSize = Object.keys(msg.payload.peers).length;
-         
-         if (currentSize > previousSwarmSize.value && previousSwarmSize.value > 0) {
-             cellDivisionMessage.value = `Network Viscosity critical. Swarm autonomously scaled to ${currentSize} nodes.`;
-             setTimeout(() => { cellDivisionMessage.value = ""; }, 5000);
-         }
-         previousSwarmSize.value = currentSize;
-         swarmSize.value = currentSize;
-         
-         // Dynamically render other peers in the Swarm on the radar
-         let totalChaos = 0;
-         let totalTau = 0;
-         let count = 0;
-         
-         for (const [peerId, pData] of Object.entries(msg.payload.peers)) {
-             // Extract metrics
-             const chaos = (pData as any).last_chaos || 0;
-             const tau = (pData as any).last_tau || 1;
-             totalChaos += chaos;
-             totalTau += tau;
-             count++;
+    // Call getActiveNodes() on-chain
+    const activeIps: string[] = await forge.getActiveNodes()
 
-             // Don't duplicate the local node visualization
-             if (peerId === myNodeId) continue; 
-             
-             const zScore = (pData as any).last_z || 0;
-             const sub = (pData as any).topic_subscription || "";
-             
-             let existing = peers.value.find(p => p.id === peerId);
-             if (!existing) {
-                 peers.value.push({
-                     id: peerId,
-                     name: peerId.substring(0, 15),
-                     topic: sub ? `[${sub}] Z: ${(zScore as number).toFixed(2)}` : `Z: ${(zScore as number).toFixed(2)}`,
-                     subscription: sub,
-                     angle: Math.random() * 360,
-                     distance: 120 + Math.random() * 140,
-                     radius: 8,
-                     syncing: false
-                 });
-             } else {
-                 existing.topic = sub ? `[${sub}] Z: ${(zScore as number).toFixed(2)}` : `Z: ${(zScore as number).toFixed(2)}`;
-                 existing.subscription = sub;
-                 // Randomly blip to show activity
-                 if (Math.random() > 0.7) {
-                     existing.syncing = true;
-                     setTimeout(() => existing.syncing = false, 500);
-                 }
-             }
-         }
-         
-         // Cleanup disconnected peers (keep local_compute)
-         peers.value = peers.value.filter(p => 
-            p.id === 'local_compute' || Object.keys(msg.payload.peers).includes(p.id)
-         );
-         
-         if (count > 0) {
-             avgChaos.value = totalChaos / count;
-             avgTau.value = totalTau / count;
-         }
+    // Fetch registered peers count by probing registeredPeers array
+    const owners: string[] = []
+    let idx = 0
+    while (idx < 50) {
+      try {
+        const ownerAddr = await forge.registeredPeers(idx)
+        owners.push(ownerAddr)
+        idx++
+      } catch (e) {
+        break // Reverted when index exceeds registeredPeers.length
       }
-      else if (msg.type === "FEDERATED_SYNC_ACK") {
-        console.log(`[SWARM] 🧬 FedAvg completed for ${msg.topic}. Merged ${msg.nodes_merged} nodes.`);
-        godModeMessage.value = `Global Model weights updated with ${msg.nodes_merged} edge gradients for topic: ${msg.topic}`;
-        
-        // Flash nodes of this topic
-        peers.value.forEach(p => {
-          if (p.subscription === msg.topic) {
-            p.syncing = true;
-            setTimeout(() => p.syncing = false, 1500);
-          }
-        });
-        
-        setTimeout(() => {
-          godModeMessage.value = "";
-        }, 3500);
-      }
-    } catch (e) {
-      console.error("[SWARM] Failed to parse message", e);
     }
-  };
+    totalRegisteredPeers.value = owners.length
 
-  ws.onclose = () => {
-    isConnected.value = false;
-    console.log("[SWARM] Disconnected from Prime. Retrying in 5s...");
-    setTimeout(connectSwarm, 5000);
-  };
+    // Query peerRegistry for each owner to correlate IP and lastSeen timestamp
+    const nowSec = Math.floor(Date.now() / 1000)
+    const rawNodes: OnChainNode[] = []
+
+    for (let i = 0; i < activeIps.length; i++) {
+      const ip = activeIps[i]
+      // Find matching owner from peerRegistry
+      let matchedOwner = '0x0000000000000000000000000000000000000000'
+      let matchedLastSeen = nowSec
+      let matchedActive = true
+
+      for (const owner of owners) {
+        try {
+          const reg = await forge.peerRegistry(owner)
+          if (reg[0] === ip) {
+            matchedOwner = owner
+            matchedLastSeen = Number(reg[1])
+            matchedActive = Boolean(reg[2])
+            break
+          }
+        } catch (e) {
+          // Ignore
+        }
+      }
+
+      const diffSec = Math.max(0, nowSec - matchedLastSeen)
+      const diffMin = Math.round(diffSec / 60)
+      const formattedUtc = new Date(matchedLastSeen * 1000).toUTCString()
+
+      // Calculate evenly distributed angle and distance for radar
+      const angle = (360 / Math.max(1, activeIps.length)) * i
+      // Distance: closer if recently seen, further if older
+      const distance = Math.min(260, Math.max(120, 120 + (diffMin * 2)))
+
+      rawNodes.push({
+        id: `node-${i}`,
+        ip: ip,
+        owner: matchedOwner,
+        lastSeen: matchedLastSeen,
+        lastSeenFormatted: formattedUtc,
+        lastSeenAgeMinutes: diffMin,
+        isActive: matchedActive,
+        angle: angle,
+        distance: distance
+      })
+    }
+
+    onChainNodes.value = rawNodes
+
+    // Auto-select first node if none selected or previously selected disappeared
+    if (!selectedNode.value && rawNodes.length > 0) {
+      selectedNode.value = rawNodes[0]
+    } else if (selectedNode.value) {
+      const stillExists = rawNodes.find(n => n.ip === selectedNode.value?.ip)
+      if (stillExists) selectedNode.value = stillExists
+      else if (rawNodes.length > 0) selectedNode.value = rawNodes[0]
+      else selectedNode.value = null
+    }
+
+    // 2. Fetch Proposals from TheForge
+    try {
+      const nextId = Number(await forge.nextProposalId())
+      const props: ProposalItem[] = []
+      for (let p = 0; p < nextId; p++) {
+        const pData = await forge.proposals(p)
+        props.push({
+          id: Number(pData[0]),
+          title: pData[1],
+          description: pData[2],
+          forVotes: pData[3].toString(),
+          againstVotes: pData[4].toString(),
+          voterMerkleRoot: pData[8].toString()
+        })
+      }
+      proposals.value = props
+    } catch (e) {
+      console.warn("Could not fetch proposals:", e)
+    }
+
+  } catch (err) {
+    console.error("Failed connecting to EVM RPC:", err)
+    rpcConnected.value = false
+    currentBlock.value = null
+  }
+
+  // 3. Query Local Aethelnet Daemon HTTP API
+  try {
+    const res = await fetch(`${daemonUrl.value}/p2p/peers`, { signal: AbortSignal.timeout(2500) })
+    if (res.ok) {
+      const data = await res.json()
+      daemonPeers.value = data.peers || []
+      daemonConnected.value = true
+    } else {
+      daemonConnected.value = false
+    }
+  } catch (e) {
+    daemonConnected.value = false
+    daemonPeers.value = []
+  }
+
+  lastSyncTime.value = new Date().toISOString().replace('T', ' ').substring(0, 19)
+  isSyncing.value = false
 }
+
+async function loadSnapshot() {
+  try {
+    const snap = await loadVoterSnapshot()
+    availableVoters.value = snap.voters || []
+    if (availableVoters.value.length > 0) {
+      selectedVoterId.value = availableVoters.value[0].id
+      activeSecret.value = availableVoters.value[0].secret
+      activeNullifier.value = availableVoters.value[0].nullifier
+    }
+  } catch (e) {
+    console.warn("Could not load voter snapshot:", e)
+  }
+}
+
+function onVoterChange() {
+  const found = availableVoters.value.find(v => v.id === selectedVoterId.value)
+  if (found) {
+    activeSecret.value = found.secret
+    activeNullifier.value = found.nullifier
+  }
+}
+
+function openVoteModal(prop: ProposalItem) {
+  voteModalProposal.value = prop
+  zkStatusLog.value = ''
+  zkError.value = false
+  if (availableVoters.value.length > 0 && !selectedVoterId.value) {
+    onVoterChange()
+  }
+}
+
+function closeVoteModal() {
+  if (isGeneratingProof.value) return
+  voteModalProposal.value = null
+}
+
+async function executeShieldedVote() {
+  if (!voteModalProposal.value) return
+  const voter = availableVoters.value.find(v => v.id === selectedVoterId.value)
+  if (!voter) {
+    zkError.value = true
+    zkStatusLog.value = 'Fehler: Kein gültiges Wähler-Profil ausgewählt!'
+    return
+  }
+
+  const currentVoter: VoterIdentity = {
+    ...voter,
+    secret: activeSecret.value,
+    nullifier: activeNullifier.value
+  }
+
+  isGeneratingProof.value = true
+  zkError.value = false
+  zkStatusLog.value = 'Initialisiere ZK-Beweisberechnung...'
+
+  try {
+    const voteVal = selectedVoteDirection.value ? 1 : 0
+    const proposalId = voteModalProposal.value.id
+    const merkleRoot = voteModalProposal.value.voterMerkleRoot
+
+    const proofResult = await generateShieldedVoteProof({
+      proposalId,
+      voteVal,
+      voter: currentVoter,
+      merkleRoot,
+      onProgress: (status) => {
+        zkStatusLog.value = status
+      }
+    })
+
+    let signer: ethers.Signer
+    const anyWindow = window as any
+    if (anyWindow.ethereum) {
+      const browserProvider = new ethers.BrowserProvider(anyWindow.ethereum)
+      signer = await browserProvider.getSigner()
+    } else {
+      const provider = new ethers.JsonRpcProvider(rpcUrl.value)
+      signer = new ethers.Wallet("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", provider)
+    }
+
+    await castShieldedVoteOnChain({
+      signer,
+      contractAddress: forgeAddress.value,
+      proposalId,
+      support: selectedVoteDirection.value,
+      solidityProof: proofResult.solidityProof,
+      onProgress: (status) => {
+        zkStatusLog.value = status
+      }
+    })
+
+    zkStatusLog.value = `✔ SHIELDED VOTE ERFOLGREICH ON-CHAIN VERSIEGELT! Nullifier: ${proofResult.solidityProof.nullifierHash.slice(0, 10)}...`
+    
+    // Refresh blockchain state immediately to reflect new votes
+    await fetchOnChainState()
+
+    setTimeout(() => {
+      closeVoteModal()
+    }, 2500)
+
+  } catch (err: any) {
+    console.error("Shielded vote execution failed:", err)
+    zkError.value = true
+    const msg = err.reason || err.message || String(err)
+    zkStatusLog.value = `FEHLER: ${msg}`
+  } finally {
+    isGeneratingProof.value = false
+  }
+}
+
+let syncInterval: any = null
 
 onMounted(() => {
-  if (containerRef.value) {
-    resizeObserver = new ResizeObserver((entries) => {
-      for (let entry of entries) {
-        width.value = entry.contentRect.width
-        height.value = entry.contentRect.height
-      }
-    })
-    resizeObserver.observe(containerRef.value)
-  }
-  
-  connectSwarm();
-  
-  simInterval = setInterval(() => {
-    peers.value.forEach(p => {
-      p.syncing = false;
-      p.angle += (Math.random() - 0.5) * 5; // Faster rotation for brutalism
-    })
-    consensusScore.value = 90 + Math.random() * 8;
-  }, 2000)
+  loadSnapshot()
+  fetchOnChainState()
+  // Synchronize on-chain state every 4 seconds
+  syncInterval = setInterval(fetchOnChainState, 4000)
 })
 
 onUnmounted(() => {
-  if (resizeObserver) resizeObserver.disconnect()
-  clearInterval(simInterval)
-  if (ws) ws.close()
+  if (syncInterval) clearInterval(syncInterval)
 })
 </script>
 
 <style scoped>
-.observer-mode {
-  position: relative;
-  width: 100%;
-  height: 100vh;
-  background: #FFF;
-  color: #1A1A1A;
-  overflow: hidden;
-  font-family: 'Space Mono', monospace;
-  transition: background 1s ease, color 1s ease;
-}
-
-.observer-mode.sanctuary-active {
-  background: #1a0505; /* Deep red-black bunker feel */
-  color: #fff; /* Ensure text is legible on dark background */
-}
-
-.observer-mode.sanctuary-active .radar-ring {
-  stroke: rgba(255, 60, 60, 0.3);
-}
-
-.observer-mode.sanctuary-active .local-node {
-  fill: #ff3c3c;
-  filter: drop-shadow(0 0 10px #ff3c3c);
-}
-
-.observer-mode.sanctuary-active .peer-node {
-  fill: #ffa07a;
-}
-
-.observer-mode.sanctuary-active .peer-link {
-  stroke: rgba(255, 160, 122, 0.4);
-}
-
-.observer-mode.sanctuary-active .manifold-fill {
-  background: #ff3c3c;
-  box-shadow: 0 0 10px #ff3c3c;
-}
-
-.sanctuary-banner {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(255, 60, 60, 0.15);
-  border: 2px solid #ff3c3c;
-  padding: 30px 40px;
-  text-align: center;
-  z-index: 100;
-  backdrop-filter: blur(10px);
-  animation: alarm-pulse 2s infinite alternate;
-}
-
-.sanctuary-banner h2 {
-  margin: 0 0 10px 0;
-  color: #ff3c3c;
-  font-size: 32px;
-  letter-spacing: 4px;
-}
-
-.sanctuary-banner p {
-  margin: 0;
-  color: #ffcccc;
-  font-size: 16px;
-  letter-spacing: 2px;
-}
-
-.typhoon-shield {
-  animation: spin-slow 20s linear infinite;
-}
-
-.shield-hexagon {
-  fill: rgba(255, 60, 60, 0.1);
-  stroke: #ff3c3c;
-  stroke-width: 2;
-  stroke-dasharray: 10 10;
-  animation: dash-scroll 2s linear infinite;
-}
-
-.shield-pulse {
-  fill: transparent;
-  stroke: #ff3c3c;
-  stroke-width: 1;
-  animation: shield-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
-}
-
-@keyframes shield-ping {
-  0% { transform: scale(0.8); opacity: 1; stroke-width: 3; }
-  100% { transform: scale(1.5); opacity: 0; stroke-width: 1; }
-}
-
-@keyframes dash-scroll {
-  to { stroke-dashoffset: 20; }
-}
-
-@keyframes spin-slow {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes alarm-pulse {
-  0% { box-shadow: 0 0 10px rgba(255,60,60,0.2); }
-  100% { box-shadow: 0 0 30px rgba(255,60,60,0.6); }
-}
-
-.starfield-brutal {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-image: radial-gradient(#1A1A1A 2px, transparent 2px);
-  background-size: 40px 40px;
-  opacity: 0.1;
-  pointer-events: none;
-}
-
-.hud {
-  position: absolute;
-  top: 15px;
-  left: 15px;
-  z-index: 10;
-  border: 2px solid #1A1A1A;
-  background: #F2C12E;
-  padding: 10px;
-  box-shadow: 4px 4px 0px #1A1A1A;
-}
-
-.hud h2 {
-  font-size: 1.2rem;
-  font-weight: 900;
-  margin: 0 0 5px 0;
-  color: #1A1A1A;
-  text-transform: uppercase;
-}
-
-.hud p {
-  color: #1A1A1A;
-  margin: 2px 0;
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.radar-ring {
-  fill: none;
-  stroke: #1A1A1A;
-  stroke-width: 2;
-  stroke-dasharray: 8 8;
-}
-
-.local-node {
-  fill: #E03C31;
-  stroke: #1A1A1A;
-  stroke-width: 3;
-}
-
-.peer-node {
-  fill: #F2C12E;
-  stroke: #1A1A1A;
-  stroke-width: 2;
-}
-
-.peer-node.is-syncing {
-  fill: #E03C31;
-  stroke-width: 4;
-}
-
-.peer-link {
-  stroke: #1A1A1A;
-  stroke-width: 1;
-  stroke-dasharray: 4 4;
-}
-
-.peer-link.is-syncing {
-  stroke: #E03C31;
-  stroke-width: 3;
-  stroke-dasharray: none;
-}
-
-.node-label {
-  fill: #1A1A1A;
-  font-size: 12px;
-  font-weight: 900;
-  text-anchor: middle;
-  text-transform: uppercase;
-}
-
-.node-label.local {
-  font-size: 16px;
-}
-
-.node-sublabel {
-  fill: #666;
-  font-size: 10px;
-  font-weight: 700;
-  text-anchor: middle;
-  text-transform: uppercase;
-}
-
-/* TACTICAL SUBGRAPH OVERLAY */
-.subgraph-overlay {
-  position: absolute;
-  top: 0; right: 0; bottom: 0;
-  width: 400px;
-  background: #1A1A1A;
-  color: #FFF;
-  border-left: 4px solid #F2C12E;
-  padding: 20px;
-  z-index: 50;
+.observer-container {
   display: flex;
   flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  background-color: #0A0A0A;
+  color: #E5E5E5;
+  font-family: 'JetBrains Mono', monospace;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-.subgraph-panel h3 {
-  color: #E03C31;
-  font-size: 1.5rem;
+.starfield-grid {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: 
+    linear-gradient(rgba(242, 193, 46, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(242, 193, 46, 0.04) 1px, transparent 1px);
+  background-size: 30px 30px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Status Header */
+.status-header {
+  position: relative;
+  z-index: 10;
+  height: 60px;
+  background: #141414;
+  border-bottom: 2px solid #262626;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+}
+
+.title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.brand-title {
+  margin: 0;
+  font-size: 1.15rem;
   font-weight: 900;
-  border-bottom: 2px solid #333;
-  padding-bottom: 10px;
-  margin-top: 0;
-}
-
-.subgraph-panel p {
-  margin: 10px 0;
-  font-size: 0.9rem;
-}
-
-.tensor-matrix {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin: 20px 0;
-  background: #333;
-  padding: 10px;
-  font-size: 0.8rem;
+  letter-spacing: 1px;
   color: #F2C12E;
 }
 
-.brutal-btn {
-  margin-top: auto;
-  background: #E03C31;
-  color: #1A1A1A;
-  border: 2px solid #1A1A1A;
-  padding: 15px;
-  font-family: 'Space Mono', monospace;
-  font-weight: 900;
-  font-size: 1.2rem;
-  cursor: pointer;
-  box-shadow: 4px 4px 0px #000;
-  text-transform: uppercase;
-  transition: all 0.1s;
-}
-
-.brutal-btn:active {
-  transform: translate(2px, 2px);
-  box-shadow: 2px 2px 0px #000;
-}
-
-.brutal-btn:hover {
-  background: #FFF;
-  color: #000;
-}
-
-.brutal-btn-small {
-  background: #1A1A1A;
-  color: #F2C12E;
-  border: 2px solid #1A1A1A;
-  padding: 8px;
-  font-family: 'Space Mono', monospace;
+.brand-subtitle {
+  font-size: 0.75rem;
   font-weight: 700;
-  font-size: 0.8rem;
+  color: #888888;
+}
+
+.header-metrics {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.metric-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1E1E1E;
+  border: 1px solid #333333;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+}
+
+.pill-label {
+  color: #777777;
+  font-weight: 700;
+}
+
+.pill-val {
+  font-weight: 800;
+}
+
+.val-green { color: #10B981; }
+.val-red { color: #EF4444; }
+.val-gold { color: #F2C12E; }
+
+.refresh-btn {
+  background: #F2C12E;
+  color: #000;
+  border: 1px solid #000;
+  font-family: inherit;
+  font-weight: 900;
+  font-size: 0.75rem;
+  padding: 6px 14px;
   cursor: pointer;
   box-shadow: 2px 2px 0px #000;
-  text-transform: uppercase;
-  transition: all 0.1s;
+  transition: transform 0.05s;
 }
 
-.brutal-btn-small:hover {
-  background: #E03C31;
-  color: #FFF;
-}
-
-.brutal-btn-small:active {
+.refresh-btn:active {
   transform: translate(1px, 1px);
   box-shadow: 1px 1px 0px #000;
 }
 
-.god-mode-banner {
-  position: absolute;
-  top: 10%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(20, 20, 20, 0.95);
-  border: 2px solid #ff4400;
-  color: #ff4400;
-  padding: 20px 40px;
-  text-align: center;
-  z-index: 100;
-  animation: glitch-pulse 0.2s infinite, god-mode-fade 3.5s forwards;
-  box-shadow: 0 0 20px #ff4400, inset 0 0 10px #ff4400;
-  font-family: 'Space Mono', monospace;
-}
-.god-mode-banner h2 {
-  margin: 0 0 10px 0;
-  letter-spacing: 2px;
-}
-.god-mode-banner p {
-  margin: 0;
-  font-size: 14px;
-}
-@keyframes god-mode-fade {
-  0% { opacity: 0; transform: translateX(-50%) scale(0.9); }
-  10% { opacity: 1; transform: translateX(-50%) scale(1.05); }
-  15% { transform: translateX(-50%) scale(1.0); }
-  80% { opacity: 1; }
-  100% { opacity: 0; transform: translateX(-50%) scale(1.1); }
+.refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-@media (max-width: 600px) {
-  .brutal-btn-small:active {
-    transform: translate(1px, 1px);
-    box-shadow: 1px 1px 0px #000;
-  }
-}
-
-.manifold-bar {
-  width: 100%;
-  height: 12px;
-  background: #111;
-  border: 1px solid #555;
-  margin-top: 5px;
+/* Body Layout */
+.observer-body {
   position: relative;
+  z-index: 5;
+  flex: 1;
+  display: flex;
   overflow: hidden;
 }
 
-.manifold-fill {
+/* Left HUD */
+.hud-left {
+  width: 320px;
+  background: rgba(16, 16, 16, 0.95);
+  border-right: 2px solid #222;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.hud-card {
+  background: #111111;
+  border: 1px solid #2A2A2A;
+  padding: 12px;
+}
+
+.hud-card-header {
+  font-size: 0.75rem;
+  font-weight: 900;
+  color: #F2C12E;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #222;
+  padding-bottom: 4px;
+}
+
+.hud-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  margin-bottom: 6px;
+}
+
+.hud-label {
+  color: #777;
+}
+
+.hud-val {
+  font-weight: 700;
+}
+
+.mono {
+  font-family: monospace;
+}
+
+.contract-link {
+  color: #60A5FA;
+}
+
+.proposals-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 160px;
+}
+
+.prop-item {
+  background: #171717;
+  border-left: 3px solid #F2C12E;
+  padding: 8px;
+  margin-bottom: 8px;
+  font-size: 0.7rem;
+}
+
+.prop-title {
+  font-weight: 800;
+  color: #FFF;
+  margin-bottom: 4px;
+}
+
+.prop-votes {
+  font-size: 0.65rem;
+  margin-bottom: 2px;
+}
+
+.prop-root {
+  color: #777;
+  font-family: monospace;
+  font-size: 0.6rem;
+}
+
+/* Center Radar */
+.radar-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: radial-gradient(circle at center, #141414 0%, #080808 80%);
+}
+
+.topology-svg {
+  width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, #F2C12E, #E03C31);
-  transition: width 0.3s ease-out;
-  box-shadow: 0 0 10px #E03C31;
+  max-width: 650px;
+  max-height: 650px;
+}
+
+.radar-ring {
+  fill: none;
+  stroke: #262626;
+  stroke-width: 1.5;
+  stroke-dasharray: 6 6;
+}
+
+.ring-label {
+  fill: #444;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.center-core {
+  fill: #E03C31;
+  stroke: #F2C12E;
+  stroke-width: 3;
+}
+
+.center-core-pulse {
+  fill: none;
+  stroke: #E03C31;
+  stroke-width: 1.5;
+  opacity: 0.4;
+  animation: pulse-ring 3s infinite ease-out;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+.center-label {
+  fill: #FFF;
+  font-size: 11px;
+  font-weight: 900;
+  text-anchor: middle;
+  letter-spacing: 1px;
+}
+
+.center-sublabel {
+  fill: #F2C12E;
+  font-size: 9px;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
+.peer-beam {
+  stroke: #F2C12E;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  opacity: 0.6;
+}
+
+.node-group {
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.hitbox {
+  fill: transparent;
+}
+
+.peer-dot {
+  fill: #F2C12E;
+  stroke: #FFF;
+  stroke-width: 2.5;
+  transition: r 0.2s;
+}
+
+.node-group:hover .peer-dot {
+  r: 20;
+  fill: #E03C31;
+}
+
+.node-group.is-selected .peer-dot {
+  fill: #10B981;
+  stroke: #FFF;
+  stroke-width: 3;
+  r: 20;
+}
+
+.node-ip-label {
+  fill: #FFFFFF;
+  font-size: 11px;
+  font-weight: 800;
+  text-anchor: middle;
+  text-shadow: 0px 2px 4px rgba(0,0,0,0.8);
+}
+
+.node-time-label {
+  fill: #A3A3A3;
+  font-size: 9px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.empty-radar-label {
+  fill: #EF4444;
+  font-size: 14px;
+  font-weight: 900;
+  text-anchor: middle;
+  letter-spacing: 1px;
+}
+
+.empty-radar-sublabel {
+  fill: #888;
+  font-size: 10px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+/* Right Panel: Node Inspector */
+.hud-right {
+  width: 340px;
+  background: rgba(16, 16, 16, 0.95);
+  border-left: 2px solid #222;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.node-inspector {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.empty-inspector {
+  color: #777;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  margin-top: 20px;
+}
+
+.hero-ip {
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: #FFF;
+  margin-bottom: 4px;
+}
+
+.hero-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  background: #333;
+  color: #FFF;
+  margin-bottom: 16px;
+}
+
+.badge-active {
+  background: #065F46;
+  color: #34D399;
+  border: 1px solid #059669;
+}
+
+.detail-section {
+  margin-bottom: 14px;
+}
+
+.detail-section label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #777;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.detail-value {
+  font-size: 0.8rem;
+  color: #DDD;
+  word-break: break-all;
+}
+
+.detail-value-sub {
+  font-size: 0.7rem;
+  color: #999;
+  margin-top: 2px;
+}
+
+.select-all {
+  user-select: all;
+  background: #1C1C1C;
+  padding: 4px 6px;
+  border-radius: 2px;
+}
+
+.ping-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.brutal-btn-action {
+  background: #262626;
+  color: #F2C12E;
+  border: 1px solid #444;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 0.7rem;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.brutal-btn-action:hover {
+  background: #F2C12E;
+  color: #000;
+}
+
+.ping-status {
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.ping-peer-id {
+  font-size: 0.65rem;
+  color: #888;
+  margin-top: 6px;
+}
+
+.compliance-box {
+  background: #181818;
+  border: 1px solid #2E2E2E;
+  padding: 8px;
+  font-size: 0.7rem;
+  color: #10B981;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.prop-desc {
+  font-size: 0.7rem;
+  color: #888;
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+
+.btn-zk-vote {
+  margin-top: 8px;
+  width: 100%;
+  background: #111;
+  color: #10B981;
+  border: 1px solid #10B981;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 0.72rem;
+  padding: 6px 10px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: all 0.15s ease;
+}
+
+.btn-zk-vote:hover {
+  background: #10B981;
+  color: #000;
+}
+
+/* Modal Styling */
+.zk-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.zk-modal-content {
+  background: #0D1117;
+  border: 1px solid #30363D;
+  border-top: 3px solid #10B981;
+  width: 100%;
+  max-width: 580px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.zk-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #21262D;
+  background: #161B22;
+}
+
+.zk-modal-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #E6EDF3;
+}
+
+.zk-modal-close {
+  background: transparent;
+  border: none;
+  color: #8B949E;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.zk-modal-close:hover {
+  color: #F85149;
+}
+
+.zk-modal-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-field label {
+  font-size: 0.65rem;
+  color: #8B949E;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.modal-field .field-val {
+  font-size: 0.8rem;
+  color: #C9D1D9;
+  background: #161B22;
+  padding: 6px 10px;
+  border: 1px solid #30363D;
+  word-break: break-all;
+}
+
+.modal-field .field-val.highlight {
+  color: #F2C12E;
+  font-weight: 700;
+}
+
+.modal-field-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.zk-select, .zk-input {
+  background: #161B22;
+  border: 1px solid #30363D;
+  color: #E6EDF3;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  outline: none;
+  border-radius: 0;
+}
+
+.zk-select:focus, .zk-input:focus {
+  border-color: #10B981;
+}
+
+.vote-direction-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.btn-vote-choice {
+  background: #161B22;
+  border: 1px solid #30363D;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-vote-choice.btn-yes {
+  color: #10B981;
+}
+
+.btn-vote-choice.btn-yes.active {
+  background: #10B981;
+  color: #000;
+  border-color: #10B981;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+}
+
+.btn-vote-choice.btn-no {
+  color: #F85149;
+}
+
+.btn-vote-choice.btn-no.active {
+  background: #F85149;
+  color: #FFF;
+  border-color: #F85149;
+  box-shadow: 0 0 12px rgba(248, 81, 73, 0.4);
+}
+
+.zk-status-box {
+  background: #161B22;
+  border: 1px solid #10B981;
+  padding: 10px 12px;
+  font-size: 0.72rem;
+  color: #10B981;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zk-status-box.is-error {
+  border-color: #F85149;
+  color: #F85149;
+}
+
+.zk-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #161B22;
+  border-top: 1px solid #21262D;
+}
+
+.btn-cancel {
+  background: transparent;
+  border: 1px solid #30363D;
+  color: #8B949E;
+  font-family: inherit;
+  font-size: 0.72rem;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.btn-submit-zk {
+  background: #10B981;
+  border: 1px solid #10B981;
+  color: #000;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 8px 16px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: all 0.15s ease;
+}
+
+.btn-submit-zk:hover:not(:disabled) {
+  background: #059669;
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+}
+
+.btn-submit-zk:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

@@ -2,8 +2,6 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import './style.css'
-// Import native WebSocket client to initialize it
-import './shared/native-websocket.js'
 
 
 const app = createApp(App)

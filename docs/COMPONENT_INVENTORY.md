@@ -14,7 +14,7 @@ aliases:
 **Related:** [[FRONTEND_FACTORY_PLAN|Factory Plan]] | [[SETUP_COMPLETE|Setup Complete]]
 
 **Date:** December 29, 2024  
-**Location:** `/var/home/nhrlyn/Projects/Frontend/input/backups/`  
+**Location:** Reference Archive  
 **Status:** 📦 **EVALUATION PHASE** - Cataloging available code
 
 ---
