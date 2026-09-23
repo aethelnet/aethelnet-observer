@@ -4,9 +4,9 @@
 > **Outdated Architecture Notice:**
 > This document describes the previous **Vanilla JavaScript (ES6 Modules) Unified Dashboard** setup. 
 > The project has since been migrated to a modern **Vue 3 + TypeScript + Vite Single Page Application** located under the `/src` directory.
-> - The entry point is now [main.ts](file:///home/ubuntu/auratic-systems-prime/frontend/src/main.ts) and [App.vue](file:///home/ubuntu/auratic-systems-prime/frontend/src/App.vue).
-> - Views are Vue components located in [src/views/](file:///home/ubuntu/auratic-systems-prime/frontend/src/views/).
-> - State management is handled via Pinia in [src/stores/systemStatus.js](file:///home/ubuntu/auratic-systems-prime/frontend/src/stores/systemStatus.js).
+> - The entry point is now `src/main.ts` and `src/App.vue`.
+> - Views are Vue components located in `src/views/`.
+> - State management is handled via Pinia in `src/stores/systemStatus.ts`.
 > - Development is run using `npm run dev` (Vite, port 1420) rather than a static python server.
 > 
 > While the endpoints and API connection patterns described below remain similar, the code snippets and structure below reflect the older vanilla JS files. For the modern Vue 3 documentation, please refer to the [[Frontend Architecture]] guide in the wiki.

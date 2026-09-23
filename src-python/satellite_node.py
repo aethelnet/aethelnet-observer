@@ -8,6 +8,8 @@ import threading
 from typing import Dict
 from collections import deque
 import sys
+import torch
+import torch.nn as nn
 from dotenv import load_dotenv
 
 # Import the new Aethelnet SDK
@@ -85,6 +87,21 @@ class ButterflySensor:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AuraticSatellite")
 
+class SatelliteLGNN(nn.Module):
+    """Local edge-compute PyTorch Model for Topological Prediction Error."""
+    def __init__(self):
+        super().__init__()
+        # 3 inputs: node_count, edge_count, vertices_count (mock features for now)
+        self.fc1 = nn.Linear(3, 16)
+        self.fc2 = nn.Linear(16, 1)
+        self.activation = nn.Tanh()
+        
+    def forward(self, x):
+        h = self.activation(self.fc1(x))
+        out = self.fc2(h)
+        return out
+
+
 class SatelliteNode:
     def __init__(self, nexus_url: str, node_id: str):
         self.nexus_url = nexus_url
@@ -92,6 +109,10 @@ class SatelliteNode:
         self.sensors: Dict[str, ButterflySensor] = {}
         self.stats: Dict[str, IncrementalStats] = {}
         self.running = True
+        
+        # Initialize Local Tensor Model
+        self.local_model = SatelliteLGNN()
+        self.optimizer = torch.optim.Adam(self.local_model.parameters(), lr=0.01)
         
         # Optional Execution Core (Binance)
         self.api_key = os.getenv("BINANCE_API_KEY")
@@ -155,6 +176,8 @@ class SatelliteNode:
         # Register Event Listeners
         self.swarm.on("TICK", self.process_tick)
         self.swarm.on("TRADE_ORDER", self.handle_trade_order)
+        self.swarm.on("COMPUTE_TENSOR", self.process_tensor)
+        self.swarm.on("FEDERATED_SYNC_ACK", self.process_fedavg_sync)
         self.swarm.on("PING", lambda p: asyncio.create_task(self.swarm.emit("PONG", {"ts": time.time()})))
         
         while self.running:
@@ -224,6 +247,28 @@ class SatelliteNode:
         except Exception as e:
             logger.error(f"[EXECUTION] ❌ FAILED: {e}")
 
+    async def process_fedavg_sync(self, payload):
+        """
+        Receives Global Weights from Prime after FedAvg round-trip
+        and injects them into the local model.
+        """
+        topic = payload.get("topic", "UNKNOWN")
+        global_weights = payload.get("global_weights", [])
+        
+        if not global_weights:
+            return
+            
+        logger.info(f"[FEDERATED] ⚖️ Received Global Weights for {topic}! Syncing local model...")
+        
+        try:
+            with torch.no_grad():
+                for i, p in enumerate(self.local_model.parameters()):
+                    if i < len(global_weights):
+                        p.copy_(torch.tensor(global_weights[i]).view(p.shape))
+            logger.info(f"[FEDERATED] ✅ Local Model Synchronized with Hive Mind.")
+        except Exception as e:
+            logger.error(f"[FEDERATED] ❌ Failed to sync weights: {e}")
+
     async def process_tick(self, payload):
         symbol = payload["symbol"]
         price = payload["price"]
@@ -247,6 +292,62 @@ class SatelliteNode:
             "chaos": chaos,
             "z_score": z_score,
             "ts": time.time()
+        })
+
+    async def process_tensor(self, payload):
+        """
+        Federated Edge Compute:
+        Receives a Topological Payload (Tensor/Graph shape), computes local
+        Prediction Error gradients, and sends them back to the Nexus.
+        """
+        tensor_id = payload.get("tensor_id")
+        topic = payload.get("topic", "GENERIC")
+        data = payload.get("data", [])
+        
+        if not data or len(data) != 3:
+            return
+            
+        logger.info(f"[FEDERATED] 🧬 Computing Topological Loss for Tensor {tensor_id} ({topic})")
+        
+        # Zero gradients
+        self.optimizer.zero_grad()
+        
+        # 1. Forward Pass (Data is [nodes, edges, vertices])
+        x = torch.tensor(data, dtype=torch.float32)
+        prediction = self.local_model(x)
+        
+        # 2. Compute Structural Prediction Error Loss
+        # Target the real-time Chaos metric (if topic matches a symbol)
+        target_val = 0.0
+        if topic in self.sensors:
+            target_val = self.sensors[topic].get_chaos_level()
+            
+        target = torch.tensor([target_val], dtype=torch.float32)
+        loss_fn = nn.MSELoss()
+        loss = loss_fn(prediction, target)
+        
+        # 3. Backward Pass
+        loss.backward()
+        
+        # 4. Extract Gradients for the Swarm
+        gradients = []
+        for param in self.local_model.parameters():
+            if param.grad is not None:
+                gradients.append(param.grad.view(-1).tolist())
+            else:
+                gradients.append([])
+                
+        # 5. Local Weight Update (The Satellite learns autonomously!)
+        self.optimizer.step()
+                
+        logger.info(f"[FEDERATED] ✅ Computed Gradients (Loss: {loss.item():.4f} | Target Chaos: {target_val:.4f})")
+        
+        # 6. Broadcast back to Nexus
+        await self.swarm.emit("FEDERATED_GRADIENTS", {
+            "topic": topic,
+            "loss": loss.item(),
+            "gradients": gradients,
+            "tensor_id": tensor_id
         })
 
 if __name__ == "__main__":

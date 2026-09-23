@@ -94,13 +94,17 @@ const initThreeJS = () => {
   scene = new THREE.Scene()
   scene.fog = new THREE.FogExp2(0x050505, 0.01)
 
+  const container = canvasRef.value.parentElement
+  const width = container ? container.clientWidth : window.innerWidth
+  const height = container ? container.clientHeight : window.innerHeight
+
   // Camera setup
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
+  camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000)
   camera.position.z = 100
 
   // Renderer setup
   renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true, alpha: true })
-  renderer.setSize(window.innerWidth - 250, window.innerHeight) // Subtract sidebar width
+  renderer.setSize(width, height)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
   // Controls
@@ -242,8 +246,9 @@ const animate = () => {
 
 const onWindowResize = () => {
   if (!camera || !renderer) return
-  const width = window.innerWidth - 250 // Sidebar width
-  const height = window.innerHeight
+  const container = canvasRef.value?.parentElement
+  const width = container ? container.clientWidth : window.innerWidth
+  const height = container ? container.clientHeight : window.innerHeight
   
   camera.aspect = width / height
   camera.updateProjectionMatrix()

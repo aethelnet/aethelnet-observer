@@ -15,6 +15,9 @@ export default defineConfig({
             devOptions: {
                 enabled: false
             },
+            workbox: {
+                maximumFileSizeToCacheInBytes: 10 * 1024 * 1024
+            },
             manifest: {
                 name: 'Sovereign Neural Manifold',
                 short_name: 'LGNN Hub',

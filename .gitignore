@@ -55,6 +55,8 @@ ENV/
 
 # Databases
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 
@@ -78,3 +80,4 @@ build/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+tests/e2e/screenshots/
