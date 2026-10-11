@@ -30,6 +30,17 @@
               placeholder="http://127.0.0.1:8000/api"
               title="Press Enter to save and re-bind frontend API client"
             />
+            <span class="url-label">NODE TOKEN:</span>
+            <input
+              v-model="nodeTokenInput"
+              @change="saveNodeToken"
+              type="password"
+              autocomplete="off"
+              class="backend-url-input"
+              placeholder="AETHELNET_AUTH_TOKEN (optional)"
+              aria-label="Node token"
+              title="Needed for write requests when the node has AETHELNET_AUTH_TOKEN set. Stored in this browser only."
+            />
           </div>
           <span class="source-tag" v-if="logSource">Source: {{ logSource }}</span>
         </div>
@@ -122,6 +133,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { fetchRecentLogs } from '../shared/api.js'
+import { NODE_TOKEN_KEY, setNodeToken } from '../shared/nodeAuth'
 
 const isOpen = ref(false)
 const isFullscreen = ref(false)
@@ -136,6 +148,8 @@ const userScrolledUp = ref(false)
 
 // Dynamic backend URL configuration
 const backendUrlInput = ref('')
+// Token for node writes; read on every request by shared/nodeAuth.ts, so no reload is needed
+const nodeTokenInput = ref('')
 
 const isPaused = computed(() => pollRate.value === 0)
 
@@ -300,9 +314,14 @@ function saveBackendUrl() {
   window.location.reload()
 }
 
+function saveNodeToken() {
+  setNodeToken(nodeTokenInput.value)
+}
+
 onMounted(() => {
   // Load current configured backend URL
   backendUrlInput.value = localStorage.getItem('SOVEREIGN_BACKEND_URL') || 'http://127.0.0.1:8000/api'
+  nodeTokenInput.value = localStorage.getItem(NODE_TOKEN_KEY) || ''
   
   window.addEventListener('keydown', handleKeydown)
   // If drawer is initialized open, boot polling immediately

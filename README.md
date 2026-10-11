@@ -28,6 +28,11 @@ npm install
 npm run dev
 ```
 
+### 3. Connecting to a node that uses a token
+An aethelnet-node with `AETHELNET_AUTH_TOKEN` set (always the case for nodes reachable from the network) only accepts write requests that carry that token. Open the System Logs HUD (`` ` `` or `Ctrl+L`) and paste the token into **NODE TOKEN**, or put `VITE_AETHELNET_TOKEN=...` in `.env.local` (git-ignored). The token stays in this browser's localStorage and is only sent to the node's API.
+
+A node started locally with `./start_node.sh` (bound to `127.0.0.1`, no token) works without this step.
+
 ## Galaxy Blueprint View
 The Observer includes the massive **CodeSpider Blueprint Engine**.
 You can open the Command Palette (`Cmd+K` or `/`) and type **"Load System Blueprint"** to instantly render the backend node's 181,000+ file/function dependencies as a 3D WebGL Galaxy using Three.js.

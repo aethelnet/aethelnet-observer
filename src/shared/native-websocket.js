@@ -1,5 +1,6 @@
-/**
- * Native WebSocket Client
+import { getNodeToken } from './nodeAuth'
+
+
  * Replaces ws-client.js with native WebSocket implementation
  * Maintains same DOM event API for compatibility
  */
@@ -50,8 +51,9 @@ class NativeWebSocketClient {
       this.ws = new WebSocket(this.url);
       
       this.ws.onopen = () => {
-        // Send Auth Handshake immediately to prevent backend from closing connection
-        this.ws.send(JSON.stringify({ type: "AUTH", token: localStorage.getItem('SOVEREIGN_ADMIN_TOKEN') || import.meta.env.VITE_ADMIN_TOKEN || 'REDACTED_AUTH_TOKEN' }));
+        // Send Auth Handshake immediately to prevent backend from closing connection.
+        // The node only accepts its own AETHELNET_AUTH_TOKEN; there is no shared default token.
+        this.ws.send(JSON.stringify({ type: "AUTH", token: getNodeToken() }));
         
         this.reconnectAttempts = 0;
         this._emit('ws:open', {});
