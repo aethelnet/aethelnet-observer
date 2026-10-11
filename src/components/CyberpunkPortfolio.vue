@@ -78,6 +78,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { getNodeToken } from '../shared/nodeAuth'
 
 const props = defineProps({
   chaos: { type: Number, default: 0.5 },
@@ -108,12 +109,8 @@ const connectStream = () => {
   ws = new WebSocket(wsUrl)
 
   ws.onopen = () => {
-    // Send Auth Handshake
-    const token = import.meta.env.VITE_ADMIN_TOKEN || "397915a57a45b746b856532444fd9b29"
-    ws?.send(JSON.stringify({ type: "AUTH", token }))
-    // Wait, what is the token? In settings it's probably default. I'll use a generic token or it might fail.
-    // Actually, in backend/config/settings.py the default is usually "auratic_admin_123" or something.
-    // Let's check if the backend rejects it. If so, we need the real token.
+    // Send Auth Handshake with the node token (see shared/nodeAuth.ts)
+    ws?.send(JSON.stringify({ type: "AUTH", token: getNodeToken() }))
     setTimeout(() => { isConnected.value = true }, 500)
   }
 
