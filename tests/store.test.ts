@@ -16,7 +16,13 @@ describe('SystemStatus Store', () => {
     const store = useSystemStatus()
     expect(store.connectionState).toBe('connecting')
     expect(store.systemInfo).toBeNull()
-    expect(store.tradingMetrics).toBeNull()
+    expect(store.tradingMetrics).toEqual({
+      total_pnl: 0,
+      win_rate: 0,
+      total_trades: 0,
+      bit_stage: 0,
+      space_weather: { kp_index: 0, solar_wind: 0, alpha_flux: 0 }
+    })
     expect(store.positions).toEqual([])
     expect(store.marketData).toEqual([])
     expect(store.recentTrades).toEqual([])
