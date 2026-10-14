@@ -221,24 +221,58 @@ export async function castShieldedVoteOnChain(params: {
   
   userOp.signature = await voterWalletSigner.signMessage(ethers.getBytes(userOpHash));
 
-  onProgress?.('Feuere UserOperation an den Sepolia Bundler Endpoint...');
-  const bundlerUrl = import.meta.env.VITE_BUNDLER_URL || "http://localhost:3000/rpc";
-  const response = await fetch(bundlerUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "eth_sendUserOperation",
-          params: [userOp, ENTRY_POINT_ADDRESS]
-      })
-  });
+  try {
+    onProgress?.('Feuere UserOperation an den Sepolia Bundler Endpoint (Port 3000)...');
+    const bundlerUrl = import.meta.env.VITE_BUNDLER_URL || "http://localhost:3000/rpc";
+    const response = await fetch(bundlerUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "eth_sendUserOperation",
+            params: [userOp, ENTRY_POINT_ADDRESS]
+        })
+    });
 
-  const resData = await response.json();
-  if (resData.error) {
-      throw new Error(`Bundler Error: ${resData.error.message}`);
+    const resData = await response.json();
+    if (resData.error) {
+        const msg = resData.error.message || '';
+        if (msg.includes('already consumed') || msg.includes('Nullifier already used')) {
+            throw new Error('Dieser Wähler hat bei diesem Proposal bereits abgestimmt! (Double-Vote Defense: Nullifier already consumed)');
+        }
+        throw new Error(`Bundler Revert: ${msg}`);
+    }
+
+    onProgress?.(`UserOperation gemined! TX Hash: ${resData.result}`);
+    return { transactionHash: resData.result };
+  } catch (bundlerErr: any) {
+    // If it is a contract logic error (e.g. double vote), do NOT fallback to MetaMask, report immediately!
+    if (bundlerErr.message.includes('Double-Vote') || bundlerErr.message.includes('Bundler Revert:')) {
+      throw bundlerErr;
+    }
+
+    console.warn("Bundler dispatch failed, checking fallback:", bundlerErr);
+    // If signer has sendTransaction (e.g. MetaMask / browser provider), try direct contract call
+    if (params.signer && typeof (params.signer as any).sendTransaction === 'function') {
+      try {
+        onProgress?.('Bundler offline. Falle zurück auf direkte Wallet-Transaktion...');
+        const theForgeContract = new ethers.Contract(contractAddress, theForgeAbi, params.signer);
+        const tx = await theForgeContract.voteShielded(
+          proposalId,
+          support,
+          solidityProof.a,
+          solidityProof.b,
+          solidityProof.c,
+          BigInt(solidityProof.nullifierHash)
+        );
+        onProgress?.(`Transaktion gesendet (${tx.hash}). Warte auf Bestätigung...`);
+        const receipt = await tx.wait();
+        return { transactionHash: receipt.hash };
+      } catch (directErr: any) {
+        throw new Error(`Direkt-Transaktion fehlgeschlagen: ${directErr.message || directErr}`);
+      }
+    }
+    throw new Error(`Bundler auf ${import.meta.env.VITE_BUNDLER_URL || 'http://localhost:3000/rpc'} nicht erreichbar: ${bundlerErr.message || bundlerErr}`);
   }
-
-  onProgress?.(`UserOperation gemined! TX Hash: ${resData.result}`);
-  return { transactionHash: resData.result };
 }

@@ -81,3 +81,13 @@ build/
 /playwright/.cache/
 /playwright/.auth/
 tests/e2e/screenshots/
+
+# Secrets, Vaults & Build Caches
+*.key
+*.enc
+node_identity.json
+.vite/
+*.bak
+*.phase*_backup*
+models/backup/
+
