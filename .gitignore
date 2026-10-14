@@ -91,3 +91,5 @@ node_identity.json
 *.phase*_backup*
 models/backup/
 
+*.db-shm
+*.db-wal
