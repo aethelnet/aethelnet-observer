@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Aethelnet Multigraph Constellation -->
+  <line x1="32" y1="12" x2="14" y2="46" class="fg-stroke" stroke="#0F172A" stroke-width="3" stroke-linecap="round"/>
+  <line x1="32" y1="12" x2="50" y2="46" class="fg-stroke" stroke="#0F172A" stroke-width="3" stroke-linecap="round"/>
+  <line x1="14" y1="46" x2="50" y2="46" class="fg-stroke" stroke="#0F172A" stroke-width="3" stroke-linecap="round"/>
+  <line x1="32" y1="12" x2="32" y2="34" class="fg-stroke" stroke="#0F172A" stroke-width="2.5"/>
+  <line x1="14" y1="46" x2="32" y2="34" class="fg-stroke" stroke="#0F172A" stroke-width="2.5"/>
+  <line x1="50" y1="46" x2="32" y2="34" class="fg-stroke" stroke="#0F172A" stroke-width="2.5"/>
+
+  <circle cx="32" cy="12" r="5.5" class="fg-fill" fill="#0F172A"/>
+  <circle cx="14" cy="46" r="5.5" class="fg-fill" fill="#0F172A"/>
+  <circle cx="50" cy="46" r="5.5" class="fg-fill" fill="#0F172A"/>
+
+  <circle cx="32" cy="34" r="7" fill="#059669"/>
+  <circle cx="32" cy="34" r="2.75" fill="#FFFFFF"/>
+
+  <style>
+    .fg-stroke { stroke: #0F172A; }
+    .fg-fill { fill: #0F172A; }
+    @media (prefers-color-scheme: dark) {
+      .fg-stroke { stroke: #F8FAFC; }
+      .fg-fill { fill: #F8FAFC; }
+    }
+  </style>
+</svg>
