@@ -17,12 +17,8 @@
     <meta property="og:title" content="AETHELNET // Forensic Knowledge-Graph &amp; Epistemic Audit Platform" />
     <meta property="og:description" content="Local-first forensic multigraph workspace with 4-tier epistemic weighting, contradiction resolution, and deterministic SHA-256 state root verification." />
     <link rel="canonical" href="https://aethelburg.network/" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script>
-      // WebSocket Setup - using native WebSocket, no external script needed
+      // Local-first serverless mode — zero external fonts, CDNs, or telemetry
       window.AUTO_START_WS = window.AUTO_START_WS !== false;
     </script>
   <script type="module" crossorigin src="/assets/index-d1d5cfce.js"></script>
@@ -49,5 +45,18 @@
   </script>
     <div id="app"></div>
     
+    <div id="aethel-legal-widget" style="position:fixed;bottom:8px;right:12px;z-index:9990;font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;font-size:10px;">
+      <button onclick="document.getElementById('aethel-legal-modal').style.display='flex'" style="background:#ffffff;color:#111827;border:1px solid #111827;padding:3px 8px;cursor:pointer;font-family:inherit;font-size:10px;">IMPRESSUM &amp; DATENSCHUTZ (§ 5 DDG)</button>
+    </div>
+    <div id="aethel-legal-modal" onclick="if(event.target===this)this.style.display='none'" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;padding:16px;font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;font-size:12px;line-height:1.55;color:#111827;">
+      <div style="background:#ffffff;border:2px solid #111827;box-shadow:6px 6px 0 #111827;max-width:580px;width:100%;padding:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #111827;padding-bottom:10px;margin-bottom:12px;">
+          <strong>IMPRESSUM &amp; DATENSCHUTZ (§ 5 DDG / DSGVO)</strong>
+          <button onclick="document.getElementById('aethel-legal-modal').style.display='none'" style="background:#ffffff;color:#111827;border:1px solid #111827;padding:2px 8px;cursor:pointer;font-family:inherit;">[X]</button>
+        </div>
+        <p style="margin:0 0 12px 0;"><strong>1. Angaben gemäß § 5 DDG:</strong><br/>Niklas Herlyn — Aethelnet / Auratic Systems<br/>Taunusblick 10, 61191 Rosbach v. d. Höhe, Deutschland<br/>E-Mail: nika.hrlyn@gmail.com<br/>Verantwortlich i.S.d. § 18 Abs. 2 MStV: Niklas Herlyn (Anschrift wie oben)</p>
+        <p style="margin:0;"><strong>2. Datenschutzerklärung (DSGVO):</strong><br/>Diese Web-Anwendung arbeitet rein lokal im Browser (Local-First). Es werden <strong>keine externen Schriftarten (Google Fonts), keine Drittanbieter-CDNs, keine Cookies und kein Tracking/Analytics</strong> geladen. Eigene Graph-Änderungen werden ausschließlich lokal im <code>localStorage</code> Ihres Browsers gespeichert und verlassen Ihr Gerät nicht. Das statische Hosting erfolgt über GitHub Pages (GitHub, Inc.), wobei technisch notwendige Server-Logfiles (IP-Adresse, Zeitstempel) gemäß Art. 6 Abs. 1 lit. f DSGVO zur sicheren Auslieferung verarbeitet werden.</p>
+      </div>
+    </div>
 </body>
 </html>
